@@ -44,7 +44,13 @@ let _ =
   Webcomponent.define elt_name @@ fun this ->
   let prev = match !all with [] -> None | e :: _ -> Some e in
   let id = List.length !all in
-  let editor = Cell.init ~id ?extra_style ?inline_style worker this in
+  (* Check for nomerlin attribute on the individual x-ocaml element *)
+  let nomerlin =
+    match Webcomponent.get_attribute this "nomerlin" with
+    | Some _ -> true
+    | None -> false
+  in
+  let editor = Cell.init ~id ?extra_style ?inline_style ~nomerlin worker this in
   all := editor :: !all;
   Cell.set_prev ~prev editor;
   ()

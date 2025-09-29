@@ -4,6 +4,7 @@ val init :
   id:int ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
+  ?nomerlin:bool ->
   Client.t ->
   Webcomponent.t ->
   t

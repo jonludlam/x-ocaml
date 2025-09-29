@@ -29,3 +29,7 @@ let attach_shadow t =
   Brr.El.of_jv
   @@ Jv.call t "attachShadow"
        [| Jv.obj [| ("mode", Jv.of_jstr @@ Jstr.of_string "open") |] |]
+
+let get_attribute t attr =
+  let result = Jv.call t "getAttribute" [| Jv.of_string attr |] in
+  if Jv.is_null result then None else Some (Jv.to_jstr result)
