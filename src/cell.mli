@@ -6,6 +6,7 @@ val init :
   ?filename:string ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
+  ?merlin:bool ->
   Client.t ->
   Webcomponent.t ->
   t

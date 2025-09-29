@@ -128,7 +128,7 @@ let init_css shadow ~extra_style ~inline_style =
             ();
         ]
 
-let init ~id ~run_on ?filename ?extra_style ?inline_style worker this =
+let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true) worker this =
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
@@ -138,8 +138,8 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style worker this =
 
   let cm = Editor.make shadow in
 
-  let merlin = Merlin_ext.make ~id ?filename worker in
-  let merlin_worker = Merlin_ext.Client.make_worker merlin in
+  let merlin_ext = Merlin_ext.make ~id ?filename worker in
+  let merlin_worker = Merlin_ext.Client.make_worker merlin_ext in
   let editor =
     {
       id;
@@ -156,8 +156,10 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style worker this =
   Editor.on_change cm (fun () -> invalidate_after ~editor);
   set_source_from_html editor this;
 
-  Merlin_ext.set_context merlin (fun () -> pre_source editor);
-  Editor.configure_merlin cm (fun () -> Merlin_ext.extensions merlin_worker);
+  if merlin then (
+    Merlin_ext.set_context merlin_ext (fun () -> pre_source editor);
+    Editor.configure_merlin cm (fun () -> Merlin_ext.extensions merlin_worker)
+  );
 
   let () =
     Mutation_observer.observe ~target:(Webcomponent.as_target this)

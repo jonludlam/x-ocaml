@@ -1,4 +1,4 @@
-:host { display: block; position: relative; font-family: monospace; font-size: 1.2em }
+:host { display: block; position: relative; font-family: monospace; font-size: 0.8`em }
 .cm-editor.cm-focused { outline: 1px dotted #AAA !important }
 .cm-tooltip-section {
   max-width: 400px;

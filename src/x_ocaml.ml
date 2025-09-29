@@ -59,7 +59,13 @@ let _ =
   in
   let filename = Webcomponent.get_attribute this "filename" in
   let id = List.length !all in
-  let editor = Cell.init ~id ~run_on ?filename ?extra_style ?inline_style worker this in
+  (* Check for merlin attribute on the individual x-ocaml element (default: true) *)
+  let merlin =
+    match Webcomponent.get_attribute this "merlin" with
+    | Some "false" -> false
+    | _ -> true
+  in
+  let editor = Cell.init ~id ~run_on ?filename ?extra_style ?inline_style ~merlin worker this in
   all := editor :: !all;
   Cell.set_prev ~prev editor;
   if List.for_all Cell.loadable !all then Cell.run editor;
