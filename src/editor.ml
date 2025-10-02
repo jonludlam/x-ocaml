@@ -1,12 +1,16 @@
+type highlight_spec = Line of int | Range of int * int * int
+
 type t = {
   view : Code_mirror.Editor.View.t;
   messages_comp : Code_mirror.Compartment.t;
   lines_comp : Code_mirror.Compartment.t;
   merlin_comp : Code_mirror.Compartment.t;
   changes : Code_mirror.Compartment.t;
+  highlight_comp : Code_mirror.Compartment.t;
   mutable previous_lines : int;
   mutable current_doc : string;
   mutable messages : (int * Brr.El.t list) list;
+  mutable highlight_specs : highlight_spec list;
 }
 
 let find_line_ends at doc =
@@ -40,6 +44,50 @@ let refresh_messages ed =
   Code_mirror.Editor.View.dispatch ed.view
     (Code_mirror.Compartment.reconfigure ed.messages_comp
        [ render_messages ed ])
+
+let render_highlights cm =
+  let open Code_mirror.Editor in
+  let open Code_mirror.Decoration in
+  let (State.Facet ((module F), it)) = View.decorations () in
+  let state = View.state cm.view in
+  let doc = State.doc state in
+  let decoration_obj = Jv.get Jv.global "__CM__decoration" in
+  let line_decoration =
+    Jv.call decoration_obj "line"
+      [| Jv.obj [| ("class", Jv.of_string "cm-highlighted-line") |] |]
+  in
+  let mark_decoration =
+    Jv.call decoration_obj "mark"
+      [| Jv.obj [| ("class", Jv.of_string "cm-highlighted-range") |] |]
+  in
+  let ranges =
+    List.filter_map
+      (fun spec ->
+        try
+          match spec with
+          | Line line_num ->
+              let line = Code_mirror.Text.line line_num doc in
+              Some
+                (Jv.call line_decoration "range"
+                   [| Jv.of_int (Code_mirror.Text.Line.from line) |]
+                |> Range.of_jv)
+          | Range (line_num, char_start, char_end) ->
+              let line = Code_mirror.Text.line line_num doc in
+              let line_start = Code_mirror.Text.Line.from line in
+              let from = line_start + char_start in
+              let to_ = line_start + char_end + 1 in
+              Some
+                (Jv.call mark_decoration "range" [| Jv.of_int from; Jv.of_int to_ |]
+                |> Range.of_jv)
+        with _ -> None)
+      cm.highlight_specs
+    |> Array.of_list
+  in
+  F.of_ it (Range_set.of' ranges)
+
+let refresh_highlights ed =
+  Code_mirror.Editor.View.dispatch ed.view
+  @@ Code_mirror.Compartment.reconfigure ed.highlight_comp [ render_highlights ed ]
 
 let custom_ln editor =
   Code_mirror.Editor.View.line_numbers (fun x ->
@@ -81,6 +129,7 @@ let make parent =
   let messages = Code_mirror.Compartment.make () in
   let lines = Code_mirror.Compartment.make () in
   let merlin = Code_mirror.Compartment.make () in
+  let highlight = Code_mirror.Compartment.make () in
   let extensions =
     [|
       basic_setup;
@@ -89,6 +138,7 @@ let make parent =
       Code_mirror.Compartment.of' messages [];
       Code_mirror.Compartment.of' changes [];
       Code_mirror.Compartment.of' merlin [];
+      Code_mirror.Compartment.of' highlight [];
     |]
   in
   let config = State.Config.create ~doc:Jstr.empty ~extensions () in
@@ -99,11 +149,13 @@ let make parent =
     previous_lines = 0;
     current_doc = "";
     messages = [];
+    highlight_specs = [];
     view;
     messages_comp = messages;
     lines_comp = lines;
     merlin_comp = merlin;
     changes;
+    highlight_comp = highlight;
   }
 
 let set_current_doc t new_doc =
@@ -152,3 +204,7 @@ let add_message t loc msg = set_messages t ((loc, msg) :: t.messages)
 let set_source t doc =
   set_current_doc t doc;
   Code_mirror.Editor.View.set_doc t.view (Jstr.of_string doc)
+
+let set_highlight_specs t specs =
+  t.highlight_specs <- specs;
+  refresh_highlights t

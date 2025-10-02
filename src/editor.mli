@@ -1,3 +1,5 @@
+type highlight_spec = Line of int | Range of int * int * int
+
 type t
 
 val make : Brr.El.t -> t
@@ -11,3 +13,4 @@ val clear_messages : t -> unit
 val add_message : t -> int -> Brr.El.t list -> unit
 val on_change : t -> (unit -> unit) -> unit
 val configure_merlin : t -> Code_mirror.Extension.t list -> unit
+val set_highlight_specs : t -> highlight_spec list -> unit

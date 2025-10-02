@@ -1,5 +1,7 @@
 let all : Cell.t list ref = ref []
+let id_map : (string, Cell.t) Hashtbl.t = Hashtbl.create 16
 let find_by_id id = List.find (fun t -> Cell.id t = id) !all
+let find_by_string_id str_id = Hashtbl.find_opt id_map str_id
 
 let current_script =
   Brr.El.of_jv (Jv.get (Brr.Document.to_jv Brr.G.document) "currentScript")
@@ -40,6 +42,39 @@ let elt_name =
 let extra_style = current_attribute "src-style"
 let inline_style = current_attribute "inline-style"
 
+let parse_highlight_ranges s : Editor.highlight_spec list =
+  let open Editor in
+  let parse_item item =
+    let item = String.trim item in
+    match String.split_on_char ':' item with
+    | [ line_spec ] -> (
+        (* Just line numbers: "2" or "1-3" *)
+        match String.split_on_char '-' line_spec with
+        | [ single ] -> (
+            match int_of_string_opt single with
+            | Some n -> [ Line n ]
+            | None -> [])
+        | [ start; end_ ] -> (
+            match (int_of_string_opt start, int_of_string_opt end_) with
+            | Some s, Some e when s <= e ->
+                List.init (e - s + 1) (fun i -> Line (s + i))
+            | _ -> [])
+        | _ -> [])
+    | [ line; char_range ] -> (
+        (* Line with character range: "6:2-5" *)
+        match int_of_string_opt line with
+        | None -> []
+        | Some ln -> (
+            match String.split_on_char '-' char_range with
+            | [ start; end_ ] -> (
+                match (int_of_string_opt start, int_of_string_opt end_) with
+                | Some s, Some e when s <= e -> [ Range (ln, s, e) ]
+                | _ -> [])
+            | _ -> []))
+    | _ -> []
+  in
+  String.split_on_char ',' s |> List.map parse_item |> List.concat
+
 let _ =
   Webcomponent.define elt_name @@ fun this ->
   let prev = match !all with [] -> None | e :: _ -> Some e in
@@ -50,7 +85,59 @@ let _ =
     | Some _ -> true
     | None -> false
   in
-  let editor = Cell.init ~id ?extra_style ?inline_style ~nomerlin worker this in
+  (* Parse highlight attribute *)
+  let highlight =
+    match Webcomponent.get_attribute this "highlight" with
+    | Some attr -> parse_highlight_ranges (Jstr.to_string attr)
+    | None -> []
+  in
+  let editor =
+    Cell.init ~id ?extra_style ?inline_style ~nomerlin ~highlight worker this
+  in
   all := editor :: !all;
+  (* Register string ID if provided *)
+  (match Webcomponent.get_attribute this "id" with
+  | Some str_id -> Hashtbl.add id_map (Jstr.to_string str_id) editor
+  | None -> ());
   Cell.set_prev ~prev editor;
   ()
+
+(* JavaScript API *)
+let () =
+  let find_cell id_arg =
+    let str_id = Jv.to_string id_arg in
+    match find_by_string_id str_id with
+    | Some cell -> Some cell
+    | None -> (
+        (* Try parsing as numeric ID *)
+        match int_of_string_opt str_id with
+        | Some id -> (try Some (find_by_id id) with _ -> None)
+        | None -> None)
+  in
+  let api =
+    Jv.obj
+      [|
+        ( "setHighlight",
+          Jv.callback ~arity:2 (fun id spec_str ->
+              match find_cell id with
+              | Some cell ->
+                  let specs = parse_highlight_ranges (Jv.to_string spec_str) in
+                  Cell.set_highlight cell specs
+              | None -> ()) );
+        ( "clearHighlight",
+          Jv.callback ~arity:1 (fun id ->
+              match find_cell id with
+              | Some cell -> Cell.set_highlight cell []
+              | None -> ()) );
+        ( "getCellId",
+          Jv.callback ~arity:1 (fun index ->
+              try
+                let idx = Jv.to_int index in
+                let cell = List.nth !all (List.length !all - 1 - idx) in
+                Jv.of_int (Cell.id cell)
+              with _ -> Jv.null) );
+        ( "getCellCount",
+          Jv.callback ~arity:0 (fun () -> Jv.of_int (List.length !all)) );
+      |]
+  in
+  Jv.set Jv.global "xOcaml" api

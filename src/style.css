@@ -1,11 +1,11 @@
-:host { display: block; position: relative; font-family: monospace; font-size: 0.8`em }
+:host { display: block; position: relative; font-family: monospace; font-size: 0.8em }
 .cm-editor.cm-focused { outline: 1px dotted #AAA !important }
 .cm-tooltip-section {
   max-width: 400px;
-  height: 1lh;
-  text-overflow: ellipsis; /* not working, because width/height must be px(?) */
+  min-height: 1lh;
   padding: 0.3em 0.5em;
-  overflow: hidden;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 .cm-lineNumbers { min-width: 30px }
 .cm-activeLine, .cm-activeLineGutter { background: transparent !important }
@@ -13,6 +13,17 @@
 .cm-focused .cm-activeLineGutter
 {
   background: #AAA2 !important;
+}
+.cm-highlighted-line {
+  background-color: #FFF9C4 !important;
+  border-left: 3px solid #FBC02D;
+  padding-left: 0.2em;
+}
+.cm-highlighted-range {
+  background-color: #FFEB3B;
+  border-bottom: 2px solid #F57C00;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 .run_btn {

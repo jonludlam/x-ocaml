@@ -113,7 +113,8 @@ let init_css shadow ~extra_style ~inline_style =
             ();
         ]
 
-let init ~id ?extra_style ?inline_style ?(nomerlin = false) worker this =
+let init ~id ?extra_style ?inline_style ?(nomerlin = false)
+    ?(highlight = []) worker this =
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
@@ -144,6 +145,9 @@ let init ~id ?extra_style ?inline_style ?(nomerlin = false) worker this =
     Editor.configure_merlin cm (Merlin_ext.extensions merlin_worker)
   );
 
+  (* Set highlight specs if provided *)
+  if highlight <> [] then Editor.set_highlight_specs cm highlight;
+
   let () =
     Mutation_observer.observe ~target:(Webcomponent.as_target this)
     @@ Mutation_observer.create (fun _ _ -> set_source_from_html editor this)
@@ -158,6 +162,8 @@ let init ~id ?extra_style ?inline_style ?(nomerlin = false) worker this =
 let set_source editor doc =
   Editor.set_source editor.cm doc;
   refresh_lines_from ~editor
+
+let set_highlight editor specs = Editor.set_highlight_specs editor.cm specs
 
 let render_message msg =
   let raw_html s =
