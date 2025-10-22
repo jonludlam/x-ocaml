@@ -4,10 +4,12 @@
   brr
   js_of_ocaml
   js_of_ocaml-toplevel
+  compiler-libs.toplevel
   x-ocaml.protocol
   x-ocaml.lib
   merlin-js.worker
   ocamlformat-lib
+  ocamlformat-lib.ocaml_common
   ocamlformat-lib.parser_extended
   ocamlformat-lib.format_))
 

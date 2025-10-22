@@ -18,11 +18,11 @@ end = struct
     List.fold_left
       (fun t ident ->
         let name = Translmod.toplevel_name ident in
-        let v = Topeval.getvalue name in
+        let v = Toploop.getvalue name in
         String_map.add name v t)
       t idents
 
-  let restore t = String_map.iter (fun name v -> Topeval.setvalue name v) t
+  let restore t = String_map.iter (fun name v -> Toploop.setvalue name v) t
 end
 
 module Environment = struct

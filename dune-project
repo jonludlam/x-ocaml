@@ -32,7 +32,7 @@
   (merlin-lib
    (>= 5.2.1-502))
   (ocamlformat-lib
-   (>= 0.27.0))
+   (= 0.26.2+ox))
   (ocamlfind
    (>= 1.9.8))
   (ppx_blob

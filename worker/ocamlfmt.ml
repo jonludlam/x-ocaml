@@ -14,7 +14,7 @@ let default_conf =
   }
 
 let ghost_loc =
-  Ocamlformat_ocaml_common.Warnings.ghost_loc_in_file ".ocamlformat"
+ Ocaml_common.Warnings.ghost_loc_in_file ".ocamlformat"
 
 let parse_conf str =
   List.fold_left
