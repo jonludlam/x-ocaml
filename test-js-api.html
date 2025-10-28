@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <title>JavaScript API Test</title>
+  <script async
+    src="https://jon-test.ludl.am/x-ocaml/x-ocaml.js"
+    src-worker="https://jon-test.ludl.am/x-ocaml/x-ocaml.worker+effects.js"
+   ></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .controls { background: #f5f5f5; padding: 15px; margin: 20px 0; border-radius: 5px; }
+    .controls h3 { margin-top: 0; }
+    button { padding: 8px 15px; margin: 5px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 3px; }
+    button:hover { background: #45a049; }
+    .info { background: #e3f2fd; padding: 10px; margin: 10px 0; border-left: 4px solid #2196F3; }
+    pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
+  </style>
+ </head>
+ <body>
+  <h1>x-ocaml JavaScript API Demo</h1>
+
+  <div class="info">
+    <strong>Available API:</strong>
+    <ul>
+      <li><code>xOcaml.setHighlight(id, spec)</code> - Set highlighting on a cell (id can be string or number)</li>
+      <li><code>xOcaml.clearHighlight(id)</code> - Clear all highlighting from a cell</li>
+      <li><code>xOcaml.getCellId(index)</code> - Get numeric cell ID by index (0-based)</li>
+      <li><code>xOcaml.getCellCount()</code> - Get total number of cells</li>
+    </ul>
+  </div>
+
+  <div class="controls">
+    <h3>Control "factorial" Cell:</h3>
+    <button onclick="highlightLine2()">Highlight Line 2</button>
+    <button onclick="highlightChars()">Highlight "factorial" (chars 8-16 on line 2)</button>
+    <button onclick="highlightMultiple()">Highlight Lines 1-2</button>
+    <button onclick="highlightMixed()">Mixed: Line 1 + chars on line 3</button>
+    <button onclick="clearCell0()">Clear Highlights</button>
+  </div>
+
+  <h2>Example 1: Factorial Function</h2>
+  <x-ocaml id="factorial">
+let rec factorial n =
+  if n <= 1 then 1
+  else n * factorial (n - 1)
+  </x-ocaml>
+
+  <div class="controls">
+    <h3>Control "list-ops" Cell:</h3>
+    <button onclick="animateHighlight()">Animate Through Lines</button>
+    <button onclick="clearCell1()">Clear Highlights</button>
+  </div>
+
+  <h2>Example 2: List Operations</h2>
+  <x-ocaml id="list-ops">
+let numbers = [1; 2; 3; 4; 5]
+let doubled = List.map (fun x -> x * 2) numbers
+let sum = List.fold_left (+) 0 numbers
+  </x-ocaml>
+
+  <div class="controls">
+    <h3>Control "pattern-match" Cell:</h3>
+    <button onclick="highlightPatternMatch()">Highlight Pattern Match</button>
+    <button onclick="clearCell2()">Clear Highlights</button>
+  </div>
+
+  <h2>Example 3: Pattern Matching</h2>
+  <x-ocaml id="pattern-match">
+let describe_list = function
+  | [] -> "empty"
+  | [x] -> "single element"
+  | x :: xs -> "multiple elements"
+  </x-ocaml>
+
+  <div class="info">
+    <h3>Try it in the console:</h3>
+    <pre>// Using string IDs (NEW!)
+xOcaml.setHighlight("factorial", "2");
+xOcaml.setHighlight("list-ops", "2:8-16");
+xOcaml.clearHighlight("pattern-match");
+
+// Or using numeric IDs (still works)
+let cellId = xOcaml.getCellId(0);
+xOcaml.setHighlight(cellId, "2");
+
+// Multiple highlights
+xOcaml.setHighlight("factorial", "1-2,4:0-5");
+
+// Get cell count
+console.log("Total cells:", xOcaml.getCellCount());</pre>
+  </div>
+
+  <script>
+    // Cell 0 controls - using string ID "factorial"
+    function highlightLine2() {
+      xOcaml.setHighlight("factorial", "2");
+    }
+
+    function highlightChars() {
+      xOcaml.setHighlight("factorial", "2:8-16");
+    }
+
+    function highlightMultiple() {
+      xOcaml.setHighlight("factorial", "1-2");
+    }
+
+    function highlightMixed() {
+      xOcaml.setHighlight("factorial", "1,3:7-15");
+    }
+
+    function clearCell0() {
+      xOcaml.clearHighlight("factorial");
+    }
+
+    // Cell 1 controls - using string ID "list-ops"
+    let animationInterval = null;
+    function animateHighlight() {
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+        return;
+      }
+
+      let line = 1;
+      animationInterval = setInterval(() => {
+        xOcaml.setHighlight("list-ops", String(line));
+        line = (line % 3) + 1; // Cycle through lines 1-3
+      }, 1000);
+    }
+
+    function clearCell1() {
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+      }
+      xOcaml.clearHighlight("list-ops");
+    }
+
+    // Cell 2 controls - using string ID "pattern-match"
+    function highlightPatternMatch() {
+      // Highlight the pattern matching cases
+      xOcaml.setHighlight("pattern-match", "2-4");
+    }
+
+    function clearCell2() {
+      xOcaml.clearHighlight("pattern-match");
+    }
+
+    // Demo on page load
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        console.log('x-ocaml JavaScript API is ready!');
+        console.log('Total cells:', xOcaml.getCellCount());
+
+        // Show that we can use string IDs
+        console.log('Using string IDs:');
+        console.log('  - "factorial"');
+        console.log('  - "list-ops"');
+        console.log('  - "pattern-match"');
+      }, 1000);
+    });
+  </script>
+ </body>
+</html>

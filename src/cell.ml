@@ -10,6 +10,7 @@ type t = {
   cm : Editor.t;
   worker : Client.t;
   merlin_worker : Merlin_ext.Client.worker;
+  mutable widgets : Widget.t list;
 }
 
 let id t = t.id
@@ -135,6 +136,7 @@ let init ~id ?extra_style ?inline_style ?(nomerlin = false)
       next = None;
       worker;
       merlin_worker;
+      widgets = [];
     }
   in
   Editor.on_change cm (fun () -> invalidate_after ~editor);
@@ -178,6 +180,8 @@ let render_message msg =
     | Stderr str -> ("stderr", El.txt' str)
     | Meta str -> ("meta", El.txt' str)
     | Html str -> ("html", raw_html str)
+    | Widget widget_id ->
+        ("widget", El.txt' (Printf.sprintf "Widget #%d" widget_id))
   in
   El.pre ~at:[ At.class' (Jstr.of_string ("caml_" ^ kind)) ] [ text ]
 
@@ -194,3 +198,12 @@ let completed_run ed msg =
 let receive_merlin t msg =
   Merlin_ext.Client.on_message t.merlin_worker
     (Merlin_ext.fix_answer ~pre:(pre_source t) ~doc:(Editor.source t.cm) msg)
+
+let add_widget t widget = t.widgets <- widget :: t.widgets
+
+let create_widget t ~widget_id kind =
+  let widget = Widget.create ~cell_id:t.id ~widget_id t.worker kind in
+  add_widget t widget;
+  (* Add widget element as a message at the end of the cell *)
+  let loc = String.length (Editor.source t.cm) in
+  Editor.add_message t.cm loc [ Widget.to_el widget ]

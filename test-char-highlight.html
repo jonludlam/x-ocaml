@@ -1,0 +1,67 @@
+<html>
+ <head>
+  <title>Test Character Range Highlighting</title>
+  <script async
+    src="./x-ocaml.js"
+    src-worker="./x-ocaml.worker+effects.js"
+   ></script>
+ </head>
+ <body>
+  <h1>Test Line and Character Range Highlighting</h1>
+
+  <h2>Example 1: Highlight full line 2</h2>
+  <x-ocaml highlight="2">
+let x = 1
+let y = 2
+let z = 3
+  </x-ocaml>
+
+  <h2>Example 2: Highlight characters 4-6 on line 1 ("foo")</h2>
+  <x-ocaml highlight="1:4-6">
+let foo = "hello"
+let bar = "world"
+  </x-ocaml>
+
+  <h2>Example 3: Highlight characters 8-15 on line 2 ("factorial")</h2>
+  <x-ocaml highlight="2:8-16">
+let rec factorial n =
+  if n <= 1 then 1
+  else n * factorial (n - 1)
+  </x-ocaml>
+
+  <h2>Example 4: Multiple character ranges (line 1: chars 4-6, line 2: chars 4-6)</h2>
+  <x-ocaml highlight="1:4-6,2:4-6">
+let foo = "hello"
+let bar = "world"
+let baz = "!"
+  </x-ocaml>
+
+  <h2>Example 5: Mix of line and character highlights (full line 1, chars 4-6 on line 3)</h2>
+  <x-ocaml highlight="1,3:4-6">
+let x = 1
+let y = 2
+let baz = 42
+  </x-ocaml>
+
+  <h2>Example 6: Highlight variable name and its usage</h2>
+  <x-ocaml highlight="1:4-10,3:13-19">
+let result = 42
+
+let doubled = result * 2
+  </x-ocaml>
+
+  <h2>Example 7: Complex pattern - lines 1-2, and chars 12-23 on line 4</h2>
+  <x-ocaml highlight="1-2,4:12-23">
+let rec factorial n =
+  if n <= 1 then 1
+  else n * factorial (n - 1)
+
+let answer = factorial 5
+  </x-ocaml>
+
+  <h2>No highlighting</h2>
+  <x-ocaml>
+let normal = "no highlight"
+  </x-ocaml>
+ </body>
+</html>

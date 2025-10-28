@@ -61,3 +61,11 @@ let eval ~id ~line_number worker code =
   post worker (Eval (id, line_number, code))
 
 let fmt ~id worker code = post worker (Format (id, code))
+
+let to_jv worker = Worker.to_jv worker
+
+let post_with_transfer worker msg transfers =
+  let worker_jv = Worker.to_jv worker in
+  let transfer_array = Jv.of_array Fun.id (Array.of_list transfers) in
+  let _ = Jv.call worker_jv "postMessage" [| msg; transfer_array |] in
+  ()

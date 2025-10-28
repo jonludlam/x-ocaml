@@ -20,14 +20,17 @@
    (progn
     (cat %{deps})
     (echo "Ast_mapper\n")
-    (echo "X_ocaml_lib\n")))))
+    (echo "X_ocaml_lib\n")
+    (echo "X_ocaml_lib__X_canvas\n")
+    (echo "X_ocaml_lib__X_context\n")))))
 
 (rule
  (target export-stdlib.txt)
+ (deps
+  (glob_files ../worker-lib/.x_ocaml_lib.objs/byte/*.cmi))
  (action
-  (run
-   jsoo_listunits
-   -o
-   %{target}
-   stdlib
-   %{dep:../worker-lib/x_ocaml_lib.cma})))
+  (run jsoo_listunits -o %{target} stdlib %{dep:../worker-lib/x_ocaml_lib.cma}
+   %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib__.cmi}
+   %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib.cmi}
+   %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib__X_canvas.cmi}
+   %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib__X_context.cmi})))

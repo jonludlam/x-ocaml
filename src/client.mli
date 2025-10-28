@@ -5,3 +5,5 @@ val on_message : t -> (X_protocol.response -> unit) -> unit
 val post : t -> X_protocol.request -> unit
 val eval : id:int -> line_number:int -> t -> string -> unit
 val fmt : id:int -> t -> string -> unit
+val to_jv : t -> Jv.t
+val post_with_transfer : t -> Jv.t -> Jv.t list -> unit

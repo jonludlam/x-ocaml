@@ -1,0 +1,130 @@
+open Js_of_ocaml
+
+(* Canvas handle for OCaml code *)
+type t = { id : int; offscreen : Jv.t; ctx : Jv.t; mutable width : int; mutable height : int } [@@warning "-69"]
+
+(* Global widget registry in worker *)
+let widgets : (int, t) Hashtbl.t = Hashtbl.create 16
+
+(* Event handler type *)
+type event_handler = t -> X_protocol.widget_event -> unit
+
+let event_handlers : (int, event_handler) Hashtbl.t = Hashtbl.create 16
+
+(* Ready callbacks - called when canvas is registered *)
+type ready_callback = t -> unit
+
+let ready_callbacks : (int, ready_callback list) Hashtbl.t = Hashtbl.create 16
+
+(* Create new canvas widget *)
+let create ~width ~height =
+  let cell_id, _ = !X_context.current_id in
+  let widget_id = Hashtbl.length widgets in
+
+  (* Request canvas creation in frontend *)
+  Worker.post_message
+    (X_protocol.resp_to_bytes
+       (X_protocol.Create_widget (cell_id, widget_id, Canvas { width; height })));
+
+  (* Return the widget ID immediately *)
+  widget_id
+
+(* Called when OffscreenCanvas is transferred to worker *)
+let register_offscreen widget_id offscreen =
+  let width = Jv.Int.get offscreen "width" in
+  let height = Jv.Int.get offscreen "height" in
+  let ctx =
+    match Jv.call offscreen "getContext" [| Jv.of_string "2d" |] with
+    | ctx when not (Jv.is_null ctx) -> ctx
+    | _ -> failwith "Failed to get 2D context"
+  in
+  let canvas = { id = widget_id; offscreen; ctx; width; height } in
+  Hashtbl.add widgets widget_id canvas;
+
+  (* Call ready callbacks *)
+  (match Hashtbl.find_opt ready_callbacks widget_id with
+  | Some callbacks ->
+      List.iter (fun cb -> cb canvas) callbacks;
+      Hashtbl.remove ready_callbacks widget_id
+  | None -> ());
+
+  canvas
+
+(* Get canvas by ID *)
+let get widget_id = Hashtbl.find_opt widgets widget_id
+
+(* Call callback when canvas is ready *)
+let when_ready widget_id callback =
+  match get widget_id with
+  | Some canvas ->
+      (* Already ready, call immediately *)
+      callback canvas
+  | None ->
+      (* Not ready yet, register callback *)
+      let existing = Hashtbl.find_opt ready_callbacks widget_id |> Option.value ~default:[] in
+      Hashtbl.replace ready_callbacks widget_id (callback :: existing)
+
+(* Register event handler *)
+let on_event widget_id handler = Hashtbl.replace event_handlers widget_id handler
+
+(* Dispatch event to handler *)
+let dispatch_event widget_id event =
+  match (get widget_id, Hashtbl.find_opt event_handlers widget_id) with
+  | Some canvas, Some handler -> handler canvas event
+  | _ -> ()
+
+(* Drawing API - basic 2D context methods *)
+
+let set_fill_style t color = Jv.set t.ctx "fillStyle" (Jv.of_string color)
+
+let set_stroke_style t color = Jv.set t.ctx "strokeStyle" (Jv.of_string color)
+
+let set_line_width t width = Jv.set t.ctx "lineWidth" (Jv.of_float width)
+
+let fill_rect t ~x ~y ~w ~h =
+  let _ =
+    Jv.call t.ctx "fillRect" [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float w); Jv.of_float (float h) |]
+  in
+  ()
+
+let stroke_rect t ~x ~y ~w ~h =
+  let _ =
+    Jv.call t.ctx "strokeRect" [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float w); Jv.of_float (float h) |]
+  in
+  ()
+
+let clear_rect t ~x ~y ~w ~h =
+  let _ =
+    Jv.call t.ctx "clearRect" [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float w); Jv.of_float (float h) |]
+  in
+  ()
+
+let begin_path t =
+  let _ = Jv.call t.ctx "beginPath" [||] in
+  ()
+
+let move_to t ~x ~y =
+  let _ = Jv.call t.ctx "moveTo" [| Jv.of_float (float x); Jv.of_float (float y) |] in
+  ()
+
+let line_to t ~x ~y =
+  let _ = Jv.call t.ctx "lineTo" [| Jv.of_float (float x); Jv.of_float (float y) |] in
+  ()
+
+let arc t ~x ~y ~r ~start ~end_ =
+  let _ =
+    Jv.call t.ctx "arc"
+      [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float r); Jv.of_float start; Jv.of_float end_ |]
+  in
+  ()
+
+let fill t =
+  let _ = Jv.call t.ctx "fill" [||] in
+  ()
+
+let stroke t =
+  let _ = Jv.call t.ctx "stroke" [||] in
+  ()
+
+(* Get raw context for advanced usage *)
+let get_context t = t.ctx

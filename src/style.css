@@ -93,6 +93,18 @@
   white-space: collapse;
 }
 
+.caml_widget {
+  margin: 0.5em 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.caml_widget canvas {
+  border: 1px solid #ccc;
+  display: block;
+}
+
 table, tr, td, th {
   border: 1px solid black;
   border-collapse: collapse;

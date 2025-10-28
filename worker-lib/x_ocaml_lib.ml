@@ -1,4 +1,7 @@
-let id = ref (0, 0)
+module X_canvas = X_canvas
+module X_context = X_context
+
+let id = X_context.current_id
 
 let output_html m =
   let id, loc = !id in

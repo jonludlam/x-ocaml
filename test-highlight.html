@@ -1,0 +1,47 @@
+<html>
+ <head>
+  <title>Test Highlighting</title>
+  <script async
+    src="./x-ocaml.js"
+    src-worker="./x-ocaml.worker+effects.js"
+   ></script>
+ </head>
+ <body>
+  <h1>Test Line Highlighting</h1>
+
+  <h2>Highlight single line (line 2)</h2>
+  <x-ocaml highlight="2">
+let x = 1
+let y = 2
+let z = 3
+  </x-ocaml>
+
+  <h2>Highlight range (lines 1-2)</h2>
+  <x-ocaml highlight="1-2">
+let a = 10
+let b = 20
+let c = 30
+  </x-ocaml>
+
+  <h2>Highlight multiple ranges (lines 1,3)</h2>
+  <x-ocaml highlight="1,3">
+let foo = "hello"
+let bar = "world"
+let baz = "!"
+  </x-ocaml>
+
+  <h2>Highlight complex pattern (lines 1-2,4)</h2>
+  <x-ocaml highlight="1-2,4">
+let rec factorial n =
+  if n <= 1 then 1
+  else n * factorial (n - 1)
+
+let result = factorial 5
+  </x-ocaml>
+
+  <h2>No highlighting</h2>
+  <x-ocaml>
+let normal = "no highlight"
+  </x-ocaml>
+ </body>
+</html>
