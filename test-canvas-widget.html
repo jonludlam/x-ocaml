@@ -55,19 +55,26 @@ X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
 let canvas_id = X_ocaml_lib.X_canvas.create ~width:400 ~height:300;;
 
 (* Set up event handler for mouse clicks *)
-X_ocaml_lib.X_canvas.on_event canvas_id (fun canvas event ->
-  match event with
-  | X_protocol.Mouse_down { x; y; button = _ } ->
-      (* Draw a circle where the user clicked *)
-      X_ocaml_lib.X_canvas.set_fill_style canvas "red";
-      X_ocaml_lib.X_canvas.begin_path canvas;
-      X_ocaml_lib.X_canvas.arc canvas ~x ~y ~r:10 ~start:0.0 ~end_:(2.0 *. 3.14159);
-      X_ocaml_lib.X_canvas.fill canvas;
-      print_endline (Printf.sprintf "Clicked at (%d, %d)" x y)
-  | _ -> ()
-);;
+X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
+  (* Clear canvas to white *)
+  X_ocaml_lib.X_canvas.set_fill_style canvas "white";
+  X_ocaml_lib.X_canvas.fill_rect canvas ~x:0 ~y:0 ~w:400 ~h:300;
 
-print_endline "Click on the canvas to draw circles!"
+  (* Register event handler *)
+  X_ocaml_lib.X_canvas.on_event canvas_id (fun canvas event ->
+    match event with
+    | X_ocaml_lib.X_canvas.Mouse_down { x; y; button = _ } ->
+        (* Draw a circle where the user clicked *)
+        X_ocaml_lib.X_canvas.set_fill_style canvas "red";
+        X_ocaml_lib.X_canvas.begin_path canvas;
+        X_ocaml_lib.X_canvas.arc canvas ~x ~y ~r:10 ~start:0.0 ~end_:(2.0 *. 3.14159);
+        X_ocaml_lib.X_canvas.fill canvas;
+        print_endline (Printf.sprintf "Clicked at (%d, %d)" x y)
+    | _ -> ()
+  );
+
+  print_endline "Click on the canvas to draw circles!"
+)
         </x-ocaml>
     </div>
 
@@ -78,32 +85,31 @@ print_endline "Click on the canvas to draw circles!"
 (* Create canvas *)
 let canvas_id = X_ocaml_lib.X_canvas.create ~width:400 ~height:300;;
 
-(* Draw multiple shapes *)
-match X_ocaml_lib.X_canvas.get canvas_id with
-| None -> print_endline "Canvas not ready"
-| Some canvas ->
-    (* Clear background *)
-    X_ocaml_lib.X_canvas.set_fill_style canvas "white";
-    X_ocaml_lib.X_canvas.fill_rect canvas ~x:0 ~y:0 ~w:400 ~h:300;
+(* Draw multiple shapes when ready *)
+X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
+  (* Clear background *)
+  X_ocaml_lib.X_canvas.set_fill_style canvas "white";
+  X_ocaml_lib.X_canvas.fill_rect canvas ~x:0 ~y:0 ~w:400 ~h:300;
 
-    (* Draw some colored rectangles *)
-    X_ocaml_lib.X_canvas.set_fill_style canvas "red";
-    X_ocaml_lib.X_canvas.fill_rect canvas ~x:20 ~y:20 ~w:80 ~h:60;
+  (* Draw some colored rectangles *)
+  X_ocaml_lib.X_canvas.set_fill_style canvas "red";
+  X_ocaml_lib.X_canvas.fill_rect canvas ~x:20 ~y:20 ~w:80 ~h:60;
 
-    X_ocaml_lib.X_canvas.set_fill_style canvas "green";
-    X_ocaml_lib.X_canvas.fill_rect canvas ~x:120 ~y:40 ~w:80 ~h:60;
+  X_ocaml_lib.X_canvas.set_fill_style canvas "green";
+  X_ocaml_lib.X_canvas.fill_rect canvas ~x:120 ~y:40 ~w:80 ~h:60;
 
-    X_ocaml_lib.X_canvas.set_fill_style canvas "blue";
-    X_ocaml_lib.X_canvas.fill_rect canvas ~x:220 ~y:60 ~w:80 ~h:60;
+  X_ocaml_lib.X_canvas.set_fill_style canvas "blue";
+  X_ocaml_lib.X_canvas.fill_rect canvas ~x:220 ~y:60 ~w:80 ~h:60;
 
-    print_endline "Drew colorful rectangles!"
+  print_endline "Drew colorful rectangles!"
+)
         </x-ocaml>
     </div>
 
     <!-- Load x-ocaml -->
     <script async
-      src="./x-ocaml.js?v=13"
-      src-worker="./x-ocaml.worker+effects.js?v=13"
+      src="./x-ocaml.js?v=15"
+      src-worker="./x-ocaml.worker+effects.js?v=15"
     ></script>
 </body>
 </html>

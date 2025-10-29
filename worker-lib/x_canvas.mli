@@ -3,6 +3,17 @@
 type t
 (** Canvas handle *)
 
+(** {1 Events} *)
+
+type mouse_event = { x : int; y : int; button : int }
+(** Mouse event data *)
+
+type event =
+  | Mouse_down of mouse_event
+  | Mouse_move of { x : int; y : int }
+  | Mouse_up of mouse_event
+(** Canvas events *)
+
 (** {1 Creation} *)
 
 val create : width:int -> height:int -> int
@@ -21,7 +32,7 @@ val when_ready : int -> (t -> unit) -> unit
 
 (** {1 Event Handling} *)
 
-val on_event : int -> (t -> X_protocol.widget_event -> unit) -> unit
+val on_event : int -> (t -> event -> unit) -> unit
 (** [on_event widget_id handler] registers an event handler for the canvas widget. *)
 
 val dispatch_event : int -> X_protocol.widget_event -> unit

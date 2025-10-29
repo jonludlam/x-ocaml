@@ -3,11 +3,19 @@ open Js_of_ocaml
 (* Canvas handle for OCaml code *)
 type t = { id : int; offscreen : Jv.t; ctx : Jv.t; mutable width : int; mutable height : int } [@@warning "-69"]
 
+(* Event types exposed to users *)
+type mouse_event = { x : int; y : int; button : int }
+
+type event =
+  | Mouse_down of mouse_event
+  | Mouse_move of { x : int; y : int }
+  | Mouse_up of mouse_event
+
 (* Global widget registry in worker *)
 let widgets : (int, t) Hashtbl.t = Hashtbl.create 16
 
 (* Event handler type *)
-type event_handler = t -> X_protocol.widget_event -> unit
+type event_handler = t -> event -> unit
 
 let event_handlers : (int, event_handler) Hashtbl.t = Hashtbl.create 16
 
@@ -67,10 +75,19 @@ let when_ready widget_id callback =
 (* Register event handler *)
 let on_event widget_id handler = Hashtbl.replace event_handlers widget_id handler
 
+(* Convert X_protocol event to our event type *)
+let convert_event (protocol_event : X_protocol.widget_event) : event =
+  match protocol_event with
+  | X_protocol.Mouse_down { x; y; button } -> Mouse_down { x; y; button }
+  | X_protocol.Mouse_move { x; y } -> Mouse_move { x; y }
+  | X_protocol.Mouse_up { x; y; button } -> Mouse_up { x; y; button }
+
 (* Dispatch event to handler *)
-let dispatch_event widget_id event =
+let dispatch_event widget_id protocol_event =
   match (get widget_id, Hashtbl.find_opt event_handlers widget_id) with
-  | Some canvas, Some handler -> handler canvas event
+  | Some canvas, Some handler ->
+      let event = convert_event protocol_event in
+      handler canvas event
   | _ -> ()
 
 (* Drawing API - basic 2D context methods *)
