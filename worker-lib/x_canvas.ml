@@ -1,7 +1,15 @@
 open Js_of_ocaml
 
 (* Canvas handle for OCaml code *)
-type t = { id : int; offscreen : Jv.t; ctx : Jv.t; mutable width : int; mutable height : int } [@@warning "-69"]
+(* Note: ctx is now lazy-initialized - it's Jv.null until a context is requested *)
+type t = {
+  id : int;
+  offscreen : Jv.t;
+  mutable ctx : Jv.t;
+  mutable width : int;
+  mutable height : int;
+}
+[@@warning "-69"]
 
 (* Event types exposed to users *)
 type mouse_event = { x : int; y : int; button : int }
@@ -41,11 +49,8 @@ let create ~width ~height =
 let register_offscreen widget_id offscreen =
   let width = Jv.Int.get offscreen "width" in
   let height = Jv.Int.get offscreen "height" in
-  let ctx =
-    match Jv.call offscreen "getContext" [| Jv.of_string "2d" |] with
-    | ctx when not (Jv.is_null ctx) -> ctx
-    | _ -> failwith "Failed to get 2D context"
-  in
+  (* Don't get a context yet - let the user choose (2d, webgl, webgl2, etc.) *)
+  let ctx = Jv.null in
   let canvas = { id = widget_id; offscreen; ctx; width; height } in
   Hashtbl.add widgets widget_id canvas;
 
@@ -69,11 +74,14 @@ let when_ready widget_id callback =
       callback canvas
   | None ->
       (* Not ready yet, register callback *)
-      let existing = Hashtbl.find_opt ready_callbacks widget_id |> Option.value ~default:[] in
+      let existing =
+        Hashtbl.find_opt ready_callbacks widget_id |> Option.value ~default:[]
+      in
       Hashtbl.replace ready_callbacks widget_id (callback :: existing)
 
 (* Register event handler *)
-let on_event widget_id handler = Hashtbl.replace event_handlers widget_id handler
+let on_event widget_id handler =
+  Hashtbl.replace event_handlers widget_id handler
 
 (* Convert X_protocol event to our event type *)
 let convert_event (protocol_event : X_protocol.widget_event) : event =
@@ -90,58 +98,110 @@ let dispatch_event widget_id protocol_event =
       handler canvas event
   | _ -> ()
 
+(* Get raw 2D context for advanced usage, creating it if needed *)
+let get_context t =
+  if Jv.is_null t.ctx then (
+    let ctx = Jv.call t.offscreen "getContext" [| Jv.of_string "2d" |] in
+    if Jv.is_null ctx then failwith "Failed to get 2D context";
+    t.ctx <- ctx;
+    ctx)
+  else t.ctx
+
 (* Drawing API - basic 2D context methods *)
 
-let set_fill_style t color = Jv.set t.ctx "fillStyle" (Jv.of_string color)
+let set_fill_style t color =
+  let ctx = get_context t in
+  Jv.set ctx "fillStyle" (Jv.of_string color)
 
-let set_stroke_style t color = Jv.set t.ctx "strokeStyle" (Jv.of_string color)
+let set_stroke_style t color =
+  let ctx = get_context t in
+  Jv.set ctx "strokeStyle" (Jv.of_string color)
 
-let set_line_width t width = Jv.set t.ctx "lineWidth" (Jv.of_float width)
+let set_line_width t width =
+  let ctx = get_context t in
+  Jv.set ctx "lineWidth" (Jv.of_float width)
 
 let fill_rect t ~x ~y ~w ~h =
+  let ctx = get_context t in
   let _ =
-    Jv.call t.ctx "fillRect" [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float w); Jv.of_float (float h) |]
+    Jv.call ctx "fillRect"
+      [|
+        Jv.of_float (float x);
+        Jv.of_float (float y);
+        Jv.of_float (float w);
+        Jv.of_float (float h);
+      |]
   in
   ()
 
 let stroke_rect t ~x ~y ~w ~h =
+  let ctx = get_context t in
   let _ =
-    Jv.call t.ctx "strokeRect" [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float w); Jv.of_float (float h) |]
+    Jv.call ctx "strokeRect"
+      [|
+        Jv.of_float (float x);
+        Jv.of_float (float y);
+        Jv.of_float (float w);
+        Jv.of_float (float h);
+      |]
   in
   ()
 
 let clear_rect t ~x ~y ~w ~h =
+  let ctx = get_context t in
   let _ =
-    Jv.call t.ctx "clearRect" [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float w); Jv.of_float (float h) |]
+    Jv.call ctx "clearRect"
+      [|
+        Jv.of_float (float x);
+        Jv.of_float (float y);
+        Jv.of_float (float w);
+        Jv.of_float (float h);
+      |]
   in
   ()
 
 let begin_path t =
-  let _ = Jv.call t.ctx "beginPath" [||] in
+  let ctx = get_context t in
+  let _ = Jv.call ctx "beginPath" [||] in
   ()
 
 let move_to t ~x ~y =
-  let _ = Jv.call t.ctx "moveTo" [| Jv.of_float (float x); Jv.of_float (float y) |] in
+  let ctx = get_context t in
+  let _ =
+    Jv.call ctx "moveTo" [| Jv.of_float (float x); Jv.of_float (float y) |]
+  in
   ()
 
 let line_to t ~x ~y =
-  let _ = Jv.call t.ctx "lineTo" [| Jv.of_float (float x); Jv.of_float (float y) |] in
+  let ctx = get_context t in
+  let _ =
+    Jv.call ctx "lineTo" [| Jv.of_float (float x); Jv.of_float (float y) |]
+  in
   ()
 
 let arc t ~x ~y ~r ~start ~end_ =
+  let ctx = get_context t in
   let _ =
-    Jv.call t.ctx "arc"
-      [| Jv.of_float (float x); Jv.of_float (float y); Jv.of_float (float r); Jv.of_float start; Jv.of_float end_ |]
+    Jv.call ctx "arc"
+      [|
+        Jv.of_float (float x);
+        Jv.of_float (float y);
+        Jv.of_float (float r);
+        Jv.of_float start;
+        Jv.of_float end_;
+      |]
   in
   ()
 
 let fill t =
-  let _ = Jv.call t.ctx "fill" [||] in
+  let ctx = get_context t in
+  let _ = Jv.call ctx "fill" [||] in
   ()
 
 let stroke t =
-  let _ = Jv.call t.ctx "stroke" [||] in
+  let ctx = get_context t in
+  let _ = Jv.call ctx "stroke" [||] in
   ()
 
-(* Get raw context for advanced usage *)
-let get_context t = t.ctx
+(* Get raw OffscreenCanvas for WebGL or advanced usage *)
+let get_offscreen t = t.offscreen

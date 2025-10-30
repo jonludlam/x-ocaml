@@ -52,35 +52,54 @@
             The simplest WebGL program: get a WebGL context and clear the canvas to black.
         </p>
         <x-ocaml>
+open Js_of_ocaml
+
 (* Create a canvas widget *)
 let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480;;
 
 (* Initialize WebGL when canvas is ready *)
 X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
-  (* Try to get WebGL context with alpha: false to force opaque background *)
-  let opts = Jv.obj [| ("alpha", Jv.of_bool false) |] in
-  let gl = Jv.call (X_ocaml_lib.X_canvas.get_offscreen canvas) "getContext" [| Jv.of_string "webgl"; opts |] in
+  (* Get OffscreenCanvas as a generic JavaScript object *)
+  let offscreen = X_ocaml_lib.X_canvas.get_offscreen canvas in
 
-  if Jv.is_null gl then
+  (* Create context attributes with alpha: false for opaque background *)
+  let attrs = object%js
+    val alpha = Js._false
+    val antialias = Js._true
+    val depth = Js._true
+    val failIfMajorPerformanceCaveat = Js._false
+    val preferLowPowerToHighPerformance = Js._false
+    val premultipliedAlpha = Js._true
+    val preserveDrawingBuffer = Js._false
+    val stencil = Js._false
+  end in
+
+  (* Get WebGL context from OffscreenCanvas using Jv.call *)
+  let gl_jv = Jv.call offscreen "getContext" [| Jv.of_string "webgl"; Jv.repr attrs |] in
+
+  if Jv.is_null gl_jv then
     print_endline "Unable to initialize WebGL. Your browser may not support it."
   else begin
+    (* Cast to WebGL rendering context *)
+    let gl : WebGL.renderingContext Js.t = Obj.magic gl_jv in
+
     print_endline "WebGL context obtained successfully";
 
     (* Set clear color to black, fully opaque *)
-    let _ = Jv.call gl "clearColor" [| Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 1.0 |] in
+    gl##clearColor
+      (Js.number_of_float 0.0)
+      (Js.number_of_float 0.0)
+      (Js.number_of_float 0.0)
+      (Js.number_of_float 1.0);
     print_endline "clearColor called with (0, 0, 0, 1)";
 
-    (* Get COLOR_BUFFER_BIT constant *)
-    let color_buffer_bit = Jv.Int.get gl "COLOR_BUFFER_BIT" in
-    Printf.printf "COLOR_BUFFER_BIT = %d\n" color_buffer_bit;
-
     (* Clear the color buffer *)
-    let _ = Jv.call gl "clear" [| Jv.of_int color_buffer_bit |] in
+    gl##clear gl##._COLOR_BUFFER_BIT_;
     print_endline "gl.clear() called";
 
     (* Check for WebGL errors *)
-    let error = Jv.Int.get (Jv.call gl "getError" [||]) "valueOf" in
-    if error = 0 then
+    let error = gl##getError in
+    if error = gl##._NO_ERROR_ then
       print_endline "No WebGL errors - rendering complete!"
     else
       Printf.printf "WebGL error: %d\n" error
@@ -95,33 +114,49 @@ X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
             Same as above, but clearing to a nice blue color instead of black.
         </p>
         <x-ocaml>
+open Js_of_ocaml
+
 (* Create a canvas widget *)
 let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480;;
 
 (* Initialize WebGL when canvas is ready *)
 X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
-  (* Get WebGL context with alpha: false to force opaque background *)
-  let opts = Jv.obj [| ("alpha", Jv.of_bool false) |] in
-  let gl = Jv.call (X_ocaml_lib.X_canvas.get_offscreen canvas) "getContext" [| Jv.of_string "webgl"; opts |] in
+  let offscreen = X_ocaml_lib.X_canvas.get_offscreen canvas in
 
-  if Jv.is_null gl then
+  (* Create context attributes with alpha: false *)
+  let attrs = object%js
+    val alpha = Js._false
+    val antialias = Js._true
+    val depth = Js._true
+    val failIfMajorPerformanceCaveat = Js._false
+    val preferLowPowerToHighPerformance = Js._false
+    val premultipliedAlpha = Js._true
+    val preserveDrawingBuffer = Js._false
+    val stencil = Js._false
+  end in
+
+  let gl_jv = Jv.call offscreen "getContext" [| Jv.of_string "webgl"; Jv.repr attrs |] in
+
+  if Jv.is_null gl_jv then
     print_endline "Unable to initialize WebGL."
   else begin
+    let gl : WebGL.renderingContext Js.t = Obj.magic gl_jv in
     print_endline "WebGL context obtained successfully";
 
     (* Set clear color to blue: RGB(0.2, 0.4, 0.8) *)
-    let _ = Jv.call gl "clearColor" [| Jv.of_float 0.2; Jv.of_float 0.4; Jv.of_float 0.8; Jv.of_float 1.0 |] in
+    gl##clearColor
+      (Js.number_of_float 0.2)
+      (Js.number_of_float 0.4)
+      (Js.number_of_float 0.8)
+      (Js.number_of_float 1.0);
     print_endline "clearColor called with (0.2, 0.4, 0.8, 1)";
 
-    let color_buffer_bit = Jv.Int.get gl "COLOR_BUFFER_BIT" in
-    Printf.printf "COLOR_BUFFER_BIT = %d\n" color_buffer_bit;
-
-    let _ = Jv.call gl "clear" [| Jv.of_int color_buffer_bit |] in
+    gl##clear gl##._COLOR_BUFFER_BIT_;
     print_endline "gl.clear() called";
 
     (* Check for WebGL errors *)
-    let error = Jv.Int.get (Jv.call gl "getError" [||]) "valueOf" in
-    if error = 0 then
+    let error = gl##getError in
+    if error = gl##._NO_ERROR_ then
       print_endline "No WebGL errors - rendering complete!"
     else
       Printf.printf "WebGL error: %d\n" error
@@ -132,8 +167,8 @@ X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
 
     <!-- Load x-ocaml -->
     <script async
-      src="./x-ocaml.js?v=19"
-      src-worker="./x-ocaml.worker+effects.js?v=19"
+      src="./x-ocaml.js?v=22"
+      src-worker="./x-ocaml.worker+effects.js?v=22"
     ></script>
 </body>
 </html>

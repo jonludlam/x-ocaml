@@ -61,7 +61,6 @@ let eval ~id ~line_number worker code =
   post worker (Eval (id, line_number, code))
 
 let fmt ~id worker code = post worker (Format (id, code))
-
 let to_jv worker = Worker.to_jv worker
 
 let post_with_transfer worker msg transfers =

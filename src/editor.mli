@@ -1,5 +1,4 @@
 type highlight_spec = Line of int | Range of int * int * int
-
 type t
 
 val make : Brr.El.t -> t

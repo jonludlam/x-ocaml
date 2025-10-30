@@ -1,9 +1,19 @@
+(rule
+ (target version.ml)
+ (action
+  (with-stdout-to
+   %{target}
+   (bash
+    "echo \"(* Auto-generated version file *)\" && echo \"let version = \\\"$(date '+%Y-%m-%d %H:%M:%S')\\\"\""))))
+
 (library
  (name x_worker)
  (libraries
   brr
   js_of_ocaml
+  js_of_ocaml-ppx.as-lib
   js_of_ocaml-toplevel
+  ppxlib_register
   x-ocaml.protocol
   x-ocaml.lib
   merlin-js.worker
@@ -20,6 +30,10 @@
    (progn
     (cat %{deps})
     (echo "Ast_mapper\n")
+    (echo "Jv\n")
+    (echo "Js_of_ocaml\n")
+    (echo "Js_of_ocaml__Js\n")
+    (echo "Js_of_ocaml__WebGL\n")
     (echo "X_ocaml_lib\n")
     (echo "X_ocaml_lib__X_canvas\n")
     (echo "X_ocaml_lib__X_context\n")))))
@@ -29,7 +43,12 @@
  (deps
   (glob_files ../worker-lib/.x_ocaml_lib.objs/byte/*.cmi))
  (action
-  (run jsoo_listunits -o %{target} stdlib %{dep:../worker-lib/x_ocaml_lib.cma}
+  (run
+   jsoo_listunits
+   -o
+   %{target}
+   stdlib
+   %{dep:../worker-lib/x_ocaml_lib.cma}
    %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib__.cmi}
    %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib.cmi}
    %{dep:../worker-lib/.x_ocaml_lib.objs/byte/x_ocaml_lib__X_canvas.cmi}

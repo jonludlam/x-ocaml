@@ -4,7 +4,6 @@ type id = int
 
 (* Widget types *)
 type widget_id = int
-
 type widget_kind = Canvas of { width : int; height : int }
 
 type widget_event =

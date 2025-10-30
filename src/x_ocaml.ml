@@ -26,7 +26,8 @@ let () =
   | Top_response_at (id, loc, msg) -> Cell.add_message (find_by_id id) loc msg
   | Top_response (id, msg) -> Cell.completed_run (find_by_id id) msg
   | Merlin_response (id, msg) -> Cell.receive_merlin (find_by_id id) msg
-  | Create_widget (id, widget_id, kind) -> Cell.create_widget (find_by_id id) ~widget_id kind
+  | Create_widget (id, widget_id, kind) ->
+      Cell.create_widget (find_by_id id) ~widget_id kind
 
 let () = Client.post worker Setup
 
@@ -112,7 +113,7 @@ let () =
     | None -> (
         (* Try parsing as numeric ID *)
         match int_of_string_opt str_id with
-        | Some id -> (try Some (find_by_id id) with _ -> None)
+        | Some id -> ( try Some (find_by_id id) with _ -> None)
         | None -> None)
   in
   let api =

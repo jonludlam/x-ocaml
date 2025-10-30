@@ -77,7 +77,8 @@ let render_highlights cm =
               let from = line_start + char_start in
               let to_ = line_start + char_end + 1 in
               Some
-                (Jv.call mark_decoration "range" [| Jv.of_int from; Jv.of_int to_ |]
+                (Jv.call mark_decoration "range"
+                   [| Jv.of_int from; Jv.of_int to_ |]
                 |> Range.of_jv)
         with _ -> None)
       cm.highlight_specs
@@ -87,7 +88,8 @@ let render_highlights cm =
 
 let refresh_highlights ed =
   Code_mirror.Editor.View.dispatch ed.view
-  @@ Code_mirror.Compartment.reconfigure ed.highlight_comp [ render_highlights ed ]
+  @@ Code_mirror.Compartment.reconfigure ed.highlight_comp
+       [ render_highlights ed ]
 
 let custom_ln editor =
   Code_mirror.Editor.View.line_numbers (fun x ->

@@ -70,13 +70,12 @@ let set_prev ~prev t =
   match prev with
   | None ->
       Editor.set_previous_lines t.cm 0;
-      refresh_lines_from ~editor:t
-      (* run t *)
+      refresh_lines_from ~editor:t (* run t *)
   | Some p ->
       assert (p.next = None);
       p.next <- Some t;
       refresh_lines_from ~editor:p
-      (* run t *)
+(* run t *)
 
 let set_source_from_html editor this =
   let doc = Webcomponent.text_content this in
@@ -114,8 +113,8 @@ let init_css shadow ~extra_style ~inline_style =
             ();
         ]
 
-let init ~id ?extra_style ?inline_style ?(nomerlin = false)
-    ?(highlight = []) worker this =
+let init ~id ?extra_style ?inline_style ?(nomerlin = false) ?(highlight = [])
+    worker this =
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
@@ -144,8 +143,7 @@ let init ~id ?extra_style ?inline_style ?(nomerlin = false)
 
   if not nomerlin then (
     Merlin_ext.set_context merlin (fun () -> pre_source editor);
-    Editor.configure_merlin cm (Merlin_ext.extensions merlin_worker)
-  );
+    Editor.configure_merlin cm (Merlin_ext.extensions merlin_worker));
 
   (* Set highlight specs if provided *)
   if highlight <> [] then Editor.set_highlight_specs cm highlight;
