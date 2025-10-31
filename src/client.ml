@@ -65,6 +65,6 @@ let to_jv worker = Worker.to_jv worker
 
 let post_with_transfer worker msg transfers =
   let worker_jv = Worker.to_jv worker in
-  let transfer_array = Jv.of_array Fun.id (Array.of_list transfers) in
+  let transfer_array = Jv.of_jv_list transfers in
   let _ = Jv.call worker_jv "postMessage" [| msg; transfer_array |] in
   ()

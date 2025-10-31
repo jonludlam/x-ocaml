@@ -304,29 +304,7 @@ let load_texture gl url =
   let texture_2d = Jv.Int.get gl "TEXTURE_2D" in
   let _ = Jv.call gl "bindTexture" [| Jv.of_int texture_2d; texture |] in
 
-  (* Put a single blue pixel in the texture while we wait for image to load *)
-  let level = 0 in
-  let internal_format = Jv.Int.get gl "RGBA" in
-  let width = 1 in
-  let height = 1 in
-  let border = 0 in
-  let src_format = Jv.Int.get gl "RGBA" in
-  let src_type = Jv.Int.get gl "UNSIGNED_BYTE" in
-  let uint8_array_constructor = Jv.get Jv.global "Uint8Array" in
-  let pixel_data = Jv.of_jv_array [| Jv.of_int 0; Jv.of_int 0; Jv.of_int 255; Jv.of_int 255 |] in
-  let pixel = Jv.new' uint8_array_constructor [| pixel_data |] in
-
-  let _ = Jv.call gl "texImage2D" [|
-    Jv.of_int texture_2d;
-    Jv.of_int level;
-    Jv.of_int internal_format;
-    Jv.of_int width;
-    Jv.of_int height;
-    Jv.of_int border;
-    Jv.of_int src_format;
-    Jv.of_int src_type;
-    pixel
-  |] in
+  (* We'll skip the placeholder pixel and just load the image directly *)
 
   (* Create an Image element to load the texture *)
   let image_constructor = Jv.get Jv.global "Image" in
@@ -344,6 +322,10 @@ let load_texture gl url =
     |] in
 
     (* Upload the image to the texture *)
+    let level = 0 in
+    let internal_format = Jv.Int.get gl "RGBA" in
+    let src_format = Jv.Int.get gl "RGBA" in
+    let src_type = Jv.Int.get gl "UNSIGNED_BYTE" in
     let _ = Jv.call gl "texImage2D" [|
       Jv.of_int texture_2d;
       Jv.of_int level;
