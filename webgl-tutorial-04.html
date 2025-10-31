@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Tutorial 4: Animating Objects</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #007bff;
+            margin-top: 30px;
+        }
+        .description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .example {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>WebGL Tutorial 4: Animating Objects with WebGL</h1>
+
+    <p class="description">
+        In this tutorial, we'll make our colored square rotate. We'll build on the previous example
+        by adding rotation transformations and creating an animation loop using
+        <code>requestAnimationFrame</code>.
+    </p>
+
+    <div class="example">
+        <h2>The Shaders</h2>
+        <p class="description">
+            The shaders remain unchanged from the previous tutorial—we still have vertex positions
+            and colors with interpolation between vertices.
+        </p>
+        <x-ocaml>
+(* Vertex shader program *)
+let vsSource = {|
+  attribute vec4 aVertexPosition;
+  attribute vec4 aVertexColor;
+
+  uniform mat4 uModelViewMatrix;
+  uniform mat4 uProjectionMatrix;
+
+  varying lowp vec4 vColor;
+
+  void main(void) {
+    gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+    vColor = aVertexColor;
+  }
+|};;
+
+(* Fragment shader program *)
+let fsSource = {|
+  varying lowp vec4 vColor;
+
+  void main(void) {
+    gl_FragColor = vColor;
+  }
+|};;
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Initializing the Shaders</h2>
+        <p class="description">
+            Shader initialization remains the same.
+        </p>
+        <x-ocaml>
+(* Compile a shader from source code *)
+let load_shader gl shader_type source =
+  let shader = Jv.to_int (Jv.call gl "createShader" [| Jv.of_int shader_type |]) in
+  let _ = Jv.call gl "shaderSource" [| Jv.of_int shader; Jv.of_string source |] in
+  let _ = Jv.call gl "compileShader" [| Jv.of_int shader |] in
+
+  (* Check if compilation succeeded *)
+  let compile_status = Jv.Int.get gl "COMPILE_STATUS" in
+  let success = Jv.to_bool (Jv.call gl "getShaderParameter"
+    [| Jv.of_int shader; Jv.of_int compile_status |]) in
+
+  if not success then begin
+    let info_log = Jv.to_string (Jv.call gl "getShaderInfoLog" [| Jv.of_int shader |]) in
+    Printf.printf "Shader compilation failed: %s\n" info_log;
+    let _ = Jv.call gl "deleteShader" [| Jv.of_int shader |] in
+    None
+  end else
+    Some shader
+;;
+
+(* Initialize a shader program by linking vertex and fragment shaders *)
+let init_shader_program gl =
+  let vertex_shader_type = Jv.Int.get gl "VERTEX_SHADER" in
+  let fragment_shader_type = Jv.Int.get gl "FRAGMENT_SHADER" in
+
+  match load_shader gl vertex_shader_type vsSource with
+  | None -> None
+  | Some vertex_shader ->
+      match load_shader gl fragment_shader_type fsSource with
+      | None -> None
+      | Some fragment_shader ->
+          let program = Jv.to_int (Jv.call gl "createProgram" [||]) in
+          let _ = Jv.call gl "attachShader" [| Jv.of_int program; Jv.of_int vertex_shader |] in
+          let _ = Jv.call gl "attachShader" [| Jv.of_int program; Jv.of_int fragment_shader |] in
+          let _ = Jv.call gl "linkProgram" [| Jv.of_int program |] in
+
+          (* Check if linking succeeded *)
+          let link_status = Jv.Int.get gl "LINK_STATUS" in
+          let success = Jv.to_bool (Jv.call gl "getProgramParameter"
+            [| Jv.of_int program; Jv.of_int link_status |]) in
+
+          if not success then begin
+            let info_log = Jv.to_string (Jv.call gl "getProgramInfoLog" [| Jv.of_int program |]) in
+            Printf.printf "Program linking failed: %s\n" info_log;
+            None
+          end else
+            Some program
+;;
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Creating the Buffers</h2>
+        <p class="description">
+            Buffer creation is also unchanged from the previous tutorial.
+        </p>
+        <x-ocaml>
+(* Create and initialize the position buffer *)
+let init_position_buffer gl =
+  let position_buffer = Jv.call gl "createBuffer" [||] in
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
+
+  (* Define the square's vertex positions *)
+  let positions = [|
+    -0.5;  0.5;   (* top left *)
+     0.5;  0.5;   (* top right *)
+    -0.5; -0.5;   (* bottom left *)
+     0.5; -0.5;   (* bottom right *)
+  |] in
+
+  (* Convert to Float32Array and upload to GPU *)
+  let float32_array_constructor = Jv.get Jv.global "Float32Array" in
+  let positions_array = Jv.new' float32_array_constructor [| Jv.of_array Jv.of_float positions |] in
+
+  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
+  let _ = Jv.call gl "bufferData" [|
+    Jv.of_int array_buffer;
+    positions_array;
+    Jv.of_int static_draw
+  |] in
+
+  position_buffer
+;;
+
+(* Create and initialize the color buffer *)
+let init_color_buffer gl =
+  let color_buffer = Jv.call gl "createBuffer" [||] in
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; color_buffer |] in
+
+  (* Define colors for each vertex (RGBA) *)
+  let colors = [|
+    1.0; 1.0; 1.0; 1.0;  (* white for top left *)
+    1.0; 0.0; 0.0; 1.0;  (* red for top right *)
+    0.0; 1.0; 0.0; 1.0;  (* green for bottom left *)
+    0.0; 0.0; 1.0; 1.0;  (* blue for bottom right *)
+  |] in
+
+  (* Convert to Float32Array and upload to GPU *)
+  let float32_array_constructor = Jv.get Jv.global "Float32Array" in
+  let colors_array = Jv.new' float32_array_constructor [| Jv.of_array Jv.of_float colors |] in
+
+  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
+  let _ = Jv.call gl "bufferData" [|
+    Jv.of_int array_buffer;
+    colors_array;
+    Jv.of_int static_draw
+  |] in
+
+  color_buffer
+;;
+
+(* Initialize all buffers and return them as a tuple *)
+let init_buffers gl =
+  let position_buffer = init_position_buffer gl in
+  let color_buffer = init_color_buffer gl in
+  (position_buffer, color_buffer)
+;;
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Matrix Helper Functions</h2>
+        <p class="description">
+            To rotate our square, we need functions to create and manipulate 4x4 transformation matrices.
+            We'll create helper functions for matrix multiplication and rotation around the Z-axis.
+        </p>
+        <x-ocaml>
+(* Multiply two 4x4 matrices *)
+let mat4_multiply a b =
+  let result = Array.make 16 0.0 in
+  for i = 0 to 3 do
+    for j = 0 to 3 do
+      let sum = ref 0.0 in
+      for k = 0 to 3 do
+        sum := !sum +. a.(i * 4 + k) *. b.(k * 4 + j)
+      done;
+      result.(i * 4 + j) <- !sum
+    done
+  done;
+  result
+;;
+
+(* Create a rotation matrix around the Z-axis *)
+(* WebGL matrices are column-major, so we arrange by columns *)
+let mat4_rotate_z angle =
+  let c = cos angle in
+  let s = sin angle in
+  [|
+    c;   -.s;  0.0; 0.0;  (* first column *)
+    s;    c;   0.0; 0.0;  (* second column *)
+    0.0;  0.0; 1.0; 0.0;  (* third column *)
+    0.0;  0.0; 0.0; 1.0;  (* fourth column *)
+  |]
+;;
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Drawing the Scene</h2>
+        <p class="description">
+            The <code>draw_scene</code> function now takes a rotation parameter. We apply this
+            rotation to the model-view matrix before rendering, which causes the square to appear
+            rotated around its center.
+        </p>
+        <x-ocaml>
+let draw_scene gl program_info buffers rotation =
+  let (position_buffer, color_buffer) = buffers in
+
+  (* Clear to black, fully opaque *)
+  let _ = Jv.call gl "clearColor" [|
+    Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 1.0
+  |] in
+  let _ = Jv.call gl "clearDepth" [| Jv.of_float 1.0 |] in
+
+  (* Enable depth testing *)
+  let depth_test = Jv.Int.get gl "DEPTH_TEST" in
+  let _ = Jv.call gl "enable" [| Jv.of_int depth_test |] in
+  let lequal = Jv.Int.get gl "LEQUAL" in
+  let _ = Jv.call gl "depthFunc" [| Jv.of_int lequal |] in
+
+  (* Clear the canvas *)
+  let color_bit = Jv.Int.get gl "COLOR_BUFFER_BIT" in
+  let depth_bit = Jv.Int.get gl "DEPTH_BUFFER_BIT" in
+  let _ = Jv.call gl "clear" [| Jv.of_int (color_bit lor depth_bit) |] in
+
+  (* Create identity matrix *)
+  let projection_matrix = [|
+    1.0; 0.0; 0.0; 0.0;
+    0.0; 1.0; 0.0; 0.0;
+    0.0; 0.0; 1.0; 0.0;
+    0.0; 0.0; 0.0; 1.0;
+  |] in
+
+  (* Start with identity matrix, then apply rotation *)
+  let identity = [|
+    1.0; 0.0; 0.0; 0.0;
+    0.0; 1.0; 0.0; 0.0;
+    0.0; 0.0; 1.0; 0.0;
+    0.0; 0.0; 0.0; 1.0;
+  |] in
+
+  (* Apply rotation around Z-axis *)
+  let rotation_matrix = mat4_rotate_z rotation in
+  let model_view_matrix = mat4_multiply rotation_matrix identity in
+
+  (* Bind the position buffer *)
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
+
+  (* Tell WebGL how to pull out the positions *)
+  let vertex_position = Jv.to_int (Jv.get program_info "attribLocations_vertexPosition") in
+  let float_type = Jv.Int.get gl "FLOAT" in
+  let _ = Jv.call gl "vertexAttribPointer" [|
+    Jv.of_int vertex_position;
+    Jv.of_int 2;           (* 2 components per iteration *)
+    Jv.of_int float_type;  (* the data is 32bit floats *)
+    Jv.of_bool false;      (* don't normalize *)
+    Jv.of_int 0;           (* stride *)
+    Jv.of_int 0;           (* offset *)
+  |] in
+  let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_position |] in
+
+  (* Bind the color buffer *)
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; color_buffer |] in
+
+  (* Tell WebGL how to pull out the colors *)
+  let vertex_color = Jv.to_int (Jv.get program_info "attribLocations_vertexColor") in
+  let _ = Jv.call gl "vertexAttribPointer" [|
+    Jv.of_int vertex_color;
+    Jv.of_int 4;           (* 4 components per iteration (RGBA) *)
+    Jv.of_int float_type;  (* the data is 32bit floats *)
+    Jv.of_bool false;      (* don't normalize *)
+    Jv.of_int 0;           (* stride *)
+    Jv.of_int 0;           (* offset *)
+  |] in
+  let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_color |] in
+
+  (* Tell WebGL to use our program *)
+  let _ = Jv.call gl "useProgram" [| Jv.get program_info "program" |] in
+
+  (* Set the shader uniforms *)
+  let projection_uniform = Jv.get program_info "uniformLocations_projection" in
+  let modelview_uniform = Jv.get program_info "uniformLocations_modelView" in
+
+  let float32_array = Jv.get Jv.global "Float32Array" in
+  let proj_array = Jv.new' float32_array [| Jv.of_array Jv.of_float projection_matrix |] in
+  let mv_array = Jv.new' float32_array [| Jv.of_array Jv.of_float model_view_matrix |] in
+
+  let _ = Jv.call gl "uniformMatrix4fv" [|
+    projection_uniform;
+    Jv.of_bool false;
+    proj_array
+  |] in
+
+  let _ = Jv.call gl "uniformMatrix4fv" [|
+    modelview_uniform;
+    Jv.of_bool false;
+    mv_array
+  |] in
+
+  (* Draw the square *)
+  let triangle_strip = Jv.Int.get gl "TRIANGLE_STRIP" in
+  let _ = Jv.call gl "drawArrays" [|
+    Jv.of_int triangle_strip;
+    Jv.of_int 0;
+    Jv.of_int 4
+  |] in
+
+  ()
+;;
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Creating the Animation Loop</h2>
+        <p class="description">
+            Finally, we create the animation loop using <code>requestAnimationFrame</code>.
+            This function is called repeatedly by the browser (typically 60 times per second),
+            and we update the rotation angle on each frame. We use delta time to ensure the
+            animation speed is independent of the frame rate.
+        </p>
+        <x-ocaml>
+(* Create a canvas widget *)
+let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480
+
+(* Console for logging animation progress *)
+let console = Jv.get Jv.global "console"
+
+(* Global references for animation *)
+let gl_ref = ref (Jv.null)
+let program_info_ref = ref (Jv.null)
+let buffers_ref = ref (Jv.null, Jv.null)
+let start_time_ref = ref None
+
+(* Animation loop using requestAnimationFrame *)
+let rec animate timestamp =
+  (* Calculate rotation based on elapsed time *)
+  let start_time = match !start_time_ref with
+    | None ->
+        start_time_ref := Some timestamp;
+        timestamp
+    | Some t -> t
+  in
+  let elapsed = (timestamp -. start_time) /. 1000.0 in  (* Convert to seconds *)
+  let rotation = elapsed in  (* Rotate at 1 radian per second *)
+
+  (* Render the scene *)
+  if not (Jv.is_null !gl_ref) then begin
+    draw_scene !gl_ref !program_info_ref !buffers_ref rotation;
+
+    (* Log every 60 frames (approximately once per second) *)
+    if mod_float timestamp 1000.0 < 16.7 then
+      let _ = Jv.call console "log" [|
+        Jv.of_string (Printf.sprintf "Animating... rotation=%.2f radians" rotation)
+      |] in ()
+  end;
+
+  (* Request next frame *)
+  let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
+    [| Jv.callback ~arity:1 animate |] in
+  ()
+
+(* Main initialization *)
+let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
+  let offscreen = X_ocaml_lib.X_canvas.get_offscreen canvas in
+
+  let attrs = Jv.obj [|
+    "alpha", Jv.of_bool false;
+    "antialias", Jv.of_bool true;
+    "depth", Jv.of_bool true;
+  |] in
+
+  let gl = Jv.call offscreen "getContext" [| Jv.of_string "webgl"; attrs |] in
+
+  if Jv.is_null gl then
+    print_endline "Unable to initialize WebGL."
+  else begin
+    print_endline "WebGL initialized";
+
+    match init_shader_program gl with
+    | None -> print_endline "Failed to initialize shader program"
+    | Some program -> begin
+        print_endline "Shader program created";
+
+        (* Get attribute locations *)
+        let vertex_position_loc = Jv.call gl "getAttribLocation" [|
+          Jv.of_int program; Jv.of_string "aVertexPosition"
+        |] in
+        let vertex_color_loc = Jv.call gl "getAttribLocation" [|
+          Jv.of_int program; Jv.of_string "aVertexColor"
+        |] in
+
+        (* Get uniform locations *)
+        let projection_location = Jv.call gl "getUniformLocation" [|
+          Jv.of_int program; Jv.of_string "uProjectionMatrix"
+        |] in
+        let modelview_location = Jv.call gl "getUniformLocation" [|
+          Jv.of_int program; Jv.of_string "uModelViewMatrix"
+        |] in
+
+        let program_info = Jv.obj [|
+          "program", Jv.of_int program;
+          "attribLocations_vertexPosition", vertex_position_loc;
+          "attribLocations_vertexColor", vertex_color_loc;
+          "uniformLocations_projection", projection_location;
+          "uniformLocations_modelView", modelview_location;
+        |] in
+
+        let buffers = init_buffers gl in
+        print_endline "Buffers initialized";
+
+        (* Store in global refs *)
+        gl_ref := gl;
+        program_info_ref := program_info;
+        buffers_ref := buffers;
+
+        (* Draw initial frame *)
+        draw_scene gl program_info buffers 0.0;
+        print_endline "Initial frame drawn";
+
+        (* Start the animation loop! *)
+        let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
+          [| Jv.callback ~arity:1 animate |] in
+        print_endline "Animation started! The square should now be rotating.";
+        let _ = Jv.call console "log" [| Jv.of_string "Animation loop started!" |] in
+        ()
+      end
+  end
+)
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Result</h2>
+        <p class="description">
+            The square is now automatically rotating! The animation loop runs at 60 frames per second,
+            continuously calling <code>requestAnimationFrame</code> to render the next frame. Open your
+            browser's developer console (F12) to see the animation progress logs.
+        </p>
+        <p class="description">
+            <strong>Key points about this implementation:</strong>
+        </p>
+        <ul>
+            <li>The animation uses <code>requestAnimationFrame</code> which works perfectly in Web Workers</li>
+            <li>Callbacks are created using <code>Jv.callback ~arity:1</code> to wrap OCaml functions for JavaScript</li>
+            <li>Time-based animation ensures smooth rotation independent of frame rate</li>
+            <li>All rendering happens in the Web Worker using OffscreenCanvas</li>
+            <li>Console logging helps verify the animation is running</li>
+        </ul>
+    </div>
+
+    <!-- Load x-ocaml -->
+    <script async
+      src="./x-ocaml.js?v=23"
+      src-worker="./x-ocaml.worker+effects.js?v=23"
+    ></script>
+</body>
+</html>
