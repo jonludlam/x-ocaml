@@ -369,9 +369,9 @@ let mat4_rotate_z angle =
 let draw_scene gl program_info buffers rotation_x rotation_y rotation_z =
   let (position_buffer, color_buffer, index_buffer) = buffers in
 
-  (* Clear to black, fully opaque *)
+  (* Clear to dark gray background *)
   let _ = Jv.call gl "clearColor" [|
-    Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 1.0
+    Jv.of_float 0.2; Jv.of_float 0.2; Jv.of_float 0.2; Jv.of_float 1.0
   |] in
   let _ = Jv.call gl "clearDepth" [| Jv.of_float 1.0 |] in
 
@@ -399,7 +399,8 @@ let draw_scene gl program_info buffers rotation_x rotation_y rotation_z =
 
   (* Combine rotations: Z * Y * X *)
   let rotation = mat4_multiply (mat4_multiply rot_z rot_y) rot_x in
-  let model_view_matrix = mat4_multiply translation rotation in
+  (* Apply rotation first, then translation *)
+  let model_view_matrix = mat4_multiply rotation translation in
 
   (* Bind the position buffer *)
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
@@ -504,10 +505,10 @@ let rec animate timestamp =
   in
   let elapsed = (timestamp -. start_time) /. 1000.0 in
 
-  (* Different rotation speeds for each axis *)
-  let rotation_x = elapsed *. 0.7 in
-  let rotation_y = elapsed *. 0.9 in
-  let rotation_z = elapsed *. 1.1 in
+  (* Different rotation speeds for each axis (slower for better viewing) *)
+  let rotation_x = elapsed *. 0.5 in
+  let rotation_y = elapsed *. 0.7 in
+  let rotation_z = elapsed *. 0.3 in
 
   (* Render the scene *)
   if not (Jv.is_null !gl_ref) then begin
