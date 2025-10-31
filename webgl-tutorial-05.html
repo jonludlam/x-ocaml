@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Tutorial 5: Creating 3D Objects</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #007bff;
+            margin-top: 30px;
+        }
+        .description {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .example {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1>WebGL Tutorial 5: Creating 3D Objects Using WebGL</h1>
+
+    <p class="description">
+        In this tutorial, we'll expand from 2D to 3D by creating a cube. We'll learn about:
+    </p>
+    <ul>
+        <li>Using <code>gl.drawElements()</code> with indexed vertex data</li>
+        <li>Creating a proper perspective projection matrix</li>
+        <li>Defining 24 vertices (4 per face with different colors)</li>
+        <li>Rotating the cube on multiple axes simultaneously</li>
+    </ul>
+
+    <div class="example">
+        <h2>The Shaders</h2>
+        <p class="description">
+            The shaders remain the same as before—we still use 4x4 matrices for transformations
+            and interpolate colors between vertices.
+        </p>
+        <x-ocaml>
+(* Vertex shader program *)
+let vsSource = {|
+  attribute vec4 aVertexPosition;
+  attribute vec4 aVertexColor;
+
+  uniform mat4 uModelViewMatrix;
+  uniform mat4 uProjectionMatrix;
+
+  varying lowp vec4 vColor;
+
+  void main(void) {
+    gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+    vColor = aVertexColor;
+  }
+|}
+
+(* Fragment shader program *)
+let fsSource = {|
+  varying lowp vec4 vColor;
+
+  void main(void) {
+    gl_FragColor = vColor;
+  }
+|}
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Shader Compilation</h2>
+        <p class="description">
+            Shader compilation remains unchanged from previous tutorials.
+        </p>
+        <x-ocaml>
+(* Compile a shader from source code *)
+let load_shader gl shader_type source =
+  let shader = Jv.to_int (Jv.call gl "createShader" [| Jv.of_int shader_type |]) in
+  let _ = Jv.call gl "shaderSource" [| Jv.of_int shader; Jv.of_string source |] in
+  let _ = Jv.call gl "compileShader" [| Jv.of_int shader |] in
+
+  (* Check if compilation succeeded *)
+  let compile_status = Jv.Int.get gl "COMPILE_STATUS" in
+  let success = Jv.to_bool (Jv.call gl "getShaderParameter"
+    [| Jv.of_int shader; Jv.of_int compile_status |]) in
+
+  if not success then begin
+    let info_log = Jv.to_string (Jv.call gl "getShaderInfoLog" [| Jv.of_int shader |]) in
+    Printf.printf "Shader compilation failed: %s\n" info_log;
+    let _ = Jv.call gl "deleteShader" [| Jv.of_int shader |] in
+    None
+  end else
+    Some shader
+
+(* Initialize a shader program by linking vertex and fragment shaders *)
+let init_shader_program gl =
+  let vertex_shader_type = Jv.Int.get gl "VERTEX_SHADER" in
+  let fragment_shader_type = Jv.Int.get gl "FRAGMENT_SHADER" in
+
+  match load_shader gl vertex_shader_type vsSource with
+  | None -> None
+  | Some vertex_shader ->
+      match load_shader gl fragment_shader_type fsSource with
+      | None -> None
+      | Some fragment_shader ->
+          let program = Jv.to_int (Jv.call gl "createProgram" [||]) in
+          let _ = Jv.call gl "attachShader" [| Jv.of_int program; Jv.of_int vertex_shader |] in
+          let _ = Jv.call gl "attachShader" [| Jv.of_int program; Jv.of_int fragment_shader |] in
+          let _ = Jv.call gl "linkProgram" [| Jv.of_int program |] in
+
+          (* Check if linking succeeded *)
+          let link_status = Jv.Int.get gl "LINK_STATUS" in
+          let success = Jv.to_bool (Jv.call gl "getProgramParameter"
+            [| Jv.of_int program; Jv.of_int link_status |]) in
+
+          if not success then begin
+            let info_log = Jv.to_string (Jv.call gl "getProgramInfoLog" [| Jv.of_int program |]) in
+            Printf.printf "Program linking failed: %s\n" info_log;
+            None
+          end else
+            Some program
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Creating the Cube Buffers</h2>
+        <p class="description">
+            Now we define a cube with 6 faces. Each face needs 4 vertices with the same color,
+            giving us 24 total vertices (not just 8 corners). We'll also create an index buffer
+            to efficiently reference these vertices.
+        </p>
+        <x-ocaml>
+(* Create position buffer for a cube *)
+let init_position_buffer gl =
+  let position_buffer = Jv.call gl "createBuffer" [||] in
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
+
+  (* Define all 24 vertices (4 per face, 6 faces) *)
+  (* Each vertex is (x, y, z) *)
+  let positions = [|
+    (* Front face *)
+    -1.0; -1.0;  1.0;
+     1.0; -1.0;  1.0;
+     1.0;  1.0;  1.0;
+    -1.0;  1.0;  1.0;
+
+    (* Back face *)
+    -1.0; -1.0; -1.0;
+    -1.0;  1.0; -1.0;
+     1.0;  1.0; -1.0;
+     1.0; -1.0; -1.0;
+
+    (* Top face *)
+    -1.0;  1.0; -1.0;
+    -1.0;  1.0;  1.0;
+     1.0;  1.0;  1.0;
+     1.0;  1.0; -1.0;
+
+    (* Bottom face *)
+    -1.0; -1.0; -1.0;
+     1.0; -1.0; -1.0;
+     1.0; -1.0;  1.0;
+    -1.0; -1.0;  1.0;
+
+    (* Right face *)
+     1.0; -1.0; -1.0;
+     1.0;  1.0; -1.0;
+     1.0;  1.0;  1.0;
+     1.0; -1.0;  1.0;
+
+    (* Left face *)
+    -1.0; -1.0; -1.0;
+    -1.0; -1.0;  1.0;
+    -1.0;  1.0;  1.0;
+    -1.0;  1.0; -1.0;
+  |] in
+
+  (* Convert to Float32Array and upload to GPU *)
+  let float32_array_constructor = Jv.get Jv.global "Float32Array" in
+  let positions_array = Jv.new' float32_array_constructor [| Jv.of_array Jv.of_float positions |] in
+
+  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
+  let _ = Jv.call gl "bufferData" [|
+    Jv.of_int array_buffer;
+    positions_array;
+    Jv.of_int static_draw
+  |] in
+
+  position_buffer
+
+(* Create color buffer - one color per face *)
+let init_color_buffer gl =
+  let color_buffer = Jv.call gl "createBuffer" [||] in
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; color_buffer |] in
+
+  (* Define face colors *)
+  let face_colors = [|
+    [| 1.0; 1.0; 1.0; 1.0 |];  (* Front face: white *)
+    [| 1.0; 0.0; 0.0; 1.0 |];  (* Back face: red *)
+    [| 0.0; 1.0; 0.0; 1.0 |];  (* Top face: green *)
+    [| 0.0; 0.0; 1.0; 1.0 |];  (* Bottom face: blue *)
+    [| 1.0; 1.0; 0.0; 1.0 |];  (* Right face: yellow *)
+    [| 1.0; 0.0; 1.0; 1.0 |];  (* Left face: purple *)
+  |] in
+
+  (* Expand colors to all 4 vertices per face *)
+  let colors = Array.make (24 * 4) 0.0 in
+  for face = 0 to 5 do
+    for vertex = 0 to 3 do
+      let idx = (face * 4 + vertex) * 4 in
+      colors.(idx + 0) <- face_colors.(face).(0);
+      colors.(idx + 1) <- face_colors.(face).(1);
+      colors.(idx + 2) <- face_colors.(face).(2);
+      colors.(idx + 3) <- face_colors.(face).(3);
+    done
+  done;
+
+  (* Convert to Float32Array and upload to GPU *)
+  let float32_array_constructor = Jv.get Jv.global "Float32Array" in
+  let colors_array = Jv.new' float32_array_constructor [| Jv.of_array Jv.of_float colors |] in
+
+  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
+  let _ = Jv.call gl "bufferData" [|
+    Jv.of_int array_buffer;
+    colors_array;
+    Jv.of_int static_draw
+  |] in
+
+  color_buffer
+
+(* Create index buffer for efficient rendering *)
+let init_index_buffer gl =
+  let index_buffer = Jv.call gl "createBuffer" [||] in
+  let element_array_buffer = Jv.Int.get gl "ELEMENT_ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int element_array_buffer; index_buffer |] in
+
+  (* Define indices for 12 triangles (2 per face, 6 faces) *)
+  let indices = [|
+    0;  1;  2;    0;  2;  3;   (* Front *)
+    4;  5;  6;    4;  6;  7;   (* Back *)
+    8;  9; 10;    8; 10; 11;   (* Top *)
+   12; 13; 14;   12; 14; 15;   (* Bottom *)
+   16; 17; 18;   16; 18; 19;   (* Right *)
+   20; 21; 22;   20; 22; 23;   (* Left *)
+  |] in
+
+  (* Convert to Uint16Array *)
+  let uint16_array_constructor = Jv.get Jv.global "Uint16Array" in
+  let indices_array = Jv.new' uint16_array_constructor [| Jv.of_array Jv.of_int indices |] in
+
+  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
+  let _ = Jv.call gl "bufferData" [|
+    Jv.of_int element_array_buffer;
+    indices_array;
+    Jv.of_int static_draw
+  |] in
+
+  index_buffer
+
+(* Initialize all buffers *)
+let init_buffers gl =
+  let position_buffer = init_position_buffer gl in
+  let color_buffer = init_color_buffer gl in
+  let index_buffer = init_index_buffer gl in
+  (position_buffer, color_buffer, index_buffer)
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Matrix Operations</h2>
+        <p class="description">
+            We need more sophisticated matrix operations for 3D rendering: perspective projection,
+            translation, and rotation around all three axes.
+        </p>
+        <x-ocaml>
+(* Create a perspective projection matrix *)
+let mat4_perspective fov aspect near far =
+  let f = 1.0 /. tan (fov /. 2.0) in
+  let range_inv = 1.0 /. (near -. far) in
+  [|
+    f /. aspect; 0.0; 0.0; 0.0;
+    0.0; f; 0.0; 0.0;
+    0.0; 0.0; (near +. far) *. range_inv; -1.0;
+    0.0; 0.0; near *. far *. range_inv *. 2.0; 0.0;
+  |]
+
+(* Create a translation matrix *)
+let mat4_translate x y z =
+  [|
+    1.0; 0.0; 0.0; 0.0;
+    0.0; 1.0; 0.0; 0.0;
+    0.0; 0.0; 1.0; 0.0;
+    x;   y;   z;   1.0;
+  |]
+
+(* Multiply two 4x4 matrices *)
+let mat4_multiply a b =
+  let result = Array.make 16 0.0 in
+  for i = 0 to 3 do
+    for j = 0 to 3 do
+      let sum = ref 0.0 in
+      for k = 0 to 3 do
+        sum := !sum +. a.(i * 4 + k) *. b.(k * 4 + j)
+      done;
+      result.(i * 4 + j) <- !sum
+    done
+  done;
+  result
+
+(* Create a rotation matrix around the X-axis *)
+let mat4_rotate_x angle =
+  let c = cos angle in
+  let s = sin angle in
+  [|
+    1.0; 0.0; 0.0; 0.0;
+    0.0; c;   s;   0.0;
+    0.0; -.s; c;   0.0;
+    0.0; 0.0; 0.0; 1.0;
+  |]
+
+(* Create a rotation matrix around the Y-axis *)
+let mat4_rotate_y angle =
+  let c = cos angle in
+  let s = sin angle in
+  [|
+    c;   0.0; -.s; 0.0;
+    0.0; 1.0; 0.0; 0.0;
+    s;   0.0; c;   0.0;
+    0.0; 0.0; 0.0; 1.0;
+  |]
+
+(* Create a rotation matrix around the Z-axis *)
+let mat4_rotate_z angle =
+  let c = cos angle in
+  let s = sin angle in
+  [|
+    c;   s;   0.0; 0.0;
+    -.s; c;   0.0; 0.0;
+    0.0; 0.0; 1.0; 0.0;
+    0.0; 0.0; 0.0; 1.0;
+  |]
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Drawing the 3D Scene</h2>
+        <p class="description">
+            The draw function now uses <code>gl.drawElements()</code> instead of <code>gl.drawArrays()</code>,
+            and applies a perspective projection along with rotation on all three axes.
+        </p>
+        <x-ocaml>
+let draw_scene gl program_info buffers rotation_x rotation_y rotation_z =
+  let (position_buffer, color_buffer, index_buffer) = buffers in
+
+  (* Clear to black, fully opaque *)
+  let _ = Jv.call gl "clearColor" [|
+    Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 1.0
+  |] in
+  let _ = Jv.call gl "clearDepth" [| Jv.of_float 1.0 |] in
+
+  (* Enable depth testing *)
+  let depth_test = Jv.Int.get gl "DEPTH_TEST" in
+  let _ = Jv.call gl "enable" [| Jv.of_int depth_test |] in
+  let lequal = Jv.Int.get gl "LEQUAL" in
+  let _ = Jv.call gl "depthFunc" [| Jv.of_int lequal |] in
+
+  (* Clear the canvas *)
+  let color_bit = Jv.Int.get gl "COLOR_BUFFER_BIT" in
+  let depth_bit = Jv.Int.get gl "DEPTH_BUFFER_BIT" in
+  let _ = Jv.call gl "clear" [| Jv.of_int (color_bit lor depth_bit) |] in
+
+  (* Create perspective projection matrix *)
+  let fov = Float.pi /. 4.0 in  (* 45 degrees *)
+  let aspect = 640.0 /. 480.0 in
+  let projection_matrix = mat4_perspective fov aspect 0.1 100.0 in
+
+  (* Create model-view matrix: translate then rotate *)
+  let translation = mat4_translate 0.0 0.0 (-6.0) in
+  let rot_x = mat4_rotate_x rotation_x in
+  let rot_y = mat4_rotate_y rotation_y in
+  let rot_z = mat4_rotate_z rotation_z in
+
+  (* Combine rotations: Z * Y * X *)
+  let rotation = mat4_multiply (mat4_multiply rot_z rot_y) rot_x in
+  let model_view_matrix = mat4_multiply translation rotation in
+
+  (* Bind the position buffer *)
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
+
+  (* Tell WebGL how to pull out the positions *)
+  let vertex_position = Jv.to_int (Jv.get program_info "attribLocations_vertexPosition") in
+  let float_type = Jv.Int.get gl "FLOAT" in
+  let _ = Jv.call gl "vertexAttribPointer" [|
+    Jv.of_int vertex_position;
+    Jv.of_int 3;           (* 3 components per iteration (x, y, z) *)
+    Jv.of_int float_type;  (* the data is 32bit floats *)
+    Jv.of_bool false;      (* don't normalize *)
+    Jv.of_int 0;           (* stride *)
+    Jv.of_int 0;           (* offset *)
+  |] in
+  let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_position |] in
+
+  (* Bind the color buffer *)
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; color_buffer |] in
+
+  (* Tell WebGL how to pull out the colors *)
+  let vertex_color = Jv.to_int (Jv.get program_info "attribLocations_vertexColor") in
+  let _ = Jv.call gl "vertexAttribPointer" [|
+    Jv.of_int vertex_color;
+    Jv.of_int 4;           (* 4 components per iteration (RGBA) *)
+    Jv.of_int float_type;  (* the data is 32bit floats *)
+    Jv.of_bool false;      (* don't normalize *)
+    Jv.of_int 0;           (* stride *)
+    Jv.of_int 0;           (* offset *)
+  |] in
+  let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_color |] in
+
+  (* Bind the index buffer *)
+  let element_array_buffer = Jv.Int.get gl "ELEMENT_ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int element_array_buffer; index_buffer |] in
+
+  (* Tell WebGL to use our program *)
+  let _ = Jv.call gl "useProgram" [| Jv.get program_info "program" |] in
+
+  (* Set the shader uniforms *)
+  let projection_uniform = Jv.get program_info "uniformLocations_projection" in
+  let modelview_uniform = Jv.get program_info "uniformLocations_modelView" in
+
+  let float32_array = Jv.get Jv.global "Float32Array" in
+  let proj_array = Jv.new' float32_array [| Jv.of_array Jv.of_float projection_matrix |] in
+  let mv_array = Jv.new' float32_array [| Jv.of_array Jv.of_float model_view_matrix |] in
+
+  let _ = Jv.call gl "uniformMatrix4fv" [|
+    projection_uniform;
+    Jv.of_bool false;
+    proj_array
+  |] in
+
+  let _ = Jv.call gl "uniformMatrix4fv" [|
+    modelview_uniform;
+    Jv.of_bool false;
+    mv_array
+  |] in
+
+  (* Draw the cube using indices *)
+  let triangles = Jv.Int.get gl "TRIANGLES" in
+  let unsigned_short = Jv.Int.get gl "UNSIGNED_SHORT" in
+  let _ = Jv.call gl "drawElements" [|
+    Jv.of_int triangles;
+    Jv.of_int 36;              (* 36 indices = 12 triangles *)
+    Jv.of_int unsigned_short;
+    Jv.of_int 0                (* offset *)
+  |] in
+
+  ()
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Animation Loop</h2>
+        <p class="description">
+            The animation loop now updates three rotation angles, causing the cube to spin
+            on multiple axes simultaneously.
+        </p>
+        <x-ocaml>
+(* Create a canvas widget *)
+let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480
+
+(* Console for logging *)
+let console = Jv.get Jv.global "console"
+
+(* Global references for animation *)
+let gl_ref = ref (Jv.null)
+let program_info_ref = ref (Jv.null)
+let buffers_ref = ref (Jv.null, Jv.null, Jv.null)
+let start_time_ref = ref None
+
+(* Animation loop *)
+let rec animate timestamp =
+  (* Calculate rotation based on elapsed time *)
+  let start_time = match !start_time_ref with
+    | None ->
+        start_time_ref := Some timestamp;
+        timestamp
+    | Some t -> t
+  in
+  let elapsed = (timestamp -. start_time) /. 1000.0 in
+
+  (* Different rotation speeds for each axis *)
+  let rotation_x = elapsed *. 0.7 in
+  let rotation_y = elapsed *. 0.9 in
+  let rotation_z = elapsed *. 1.1 in
+
+  (* Render the scene *)
+  if not (Jv.is_null !gl_ref) then begin
+    draw_scene !gl_ref !program_info_ref !buffers_ref rotation_x rotation_y rotation_z;
+
+    (* Log occasionally *)
+    if mod_float timestamp 1000.0 < 16.7 then
+      let _ = Jv.call console "log" [|
+        Jv.of_string (Printf.sprintf "Cube rotating... elapsed=%.2fs" elapsed)
+      |] in ()
+  end;
+
+  (* Request next frame *)
+  let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
+    [| Jv.callback ~arity:1 animate |] in
+  ()
+
+(* Main initialization *)
+let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
+  let offscreen = X_ocaml_lib.X_canvas.get_offscreen canvas in
+
+  let attrs = Jv.obj [|
+    "alpha", Jv.of_bool false;
+    "antialias", Jv.of_bool true;
+    "depth", Jv.of_bool true;
+  |] in
+
+  let gl = Jv.call offscreen "getContext" [| Jv.of_string "webgl"; attrs |] in
+
+  if Jv.is_null gl then
+    print_endline "Unable to initialize WebGL."
+  else begin
+    print_endline "WebGL initialized";
+
+    match init_shader_program gl with
+    | None -> print_endline "Failed to initialize shader program"
+    | Some program -> begin
+        print_endline "Shader program created";
+
+        (* Get attribute locations *)
+        let vertex_position_loc = Jv.call gl "getAttribLocation" [|
+          Jv.of_int program; Jv.of_string "aVertexPosition"
+        |] in
+        let vertex_color_loc = Jv.call gl "getAttribLocation" [|
+          Jv.of_int program; Jv.of_string "aVertexColor"
+        |] in
+
+        (* Get uniform locations *)
+        let projection_location = Jv.call gl "getUniformLocation" [|
+          Jv.of_int program; Jv.of_string "uProjectionMatrix"
+        |] in
+        let modelview_location = Jv.call gl "getUniformLocation" [|
+          Jv.of_int program; Jv.of_string "uModelViewMatrix"
+        |] in
+
+        let program_info = Jv.obj [|
+          "program", Jv.of_int program;
+          "attribLocations_vertexPosition", vertex_position_loc;
+          "attribLocations_vertexColor", vertex_color_loc;
+          "uniformLocations_projection", projection_location;
+          "uniformLocations_modelView", modelview_location;
+        |] in
+
+        let buffers = init_buffers gl in
+        print_endline "Buffers initialized (24 vertices, 36 indices)";
+
+        (* Store in global refs *)
+        gl_ref := gl;
+        program_info_ref := program_info;
+        buffers_ref := buffers;
+
+        (* Draw initial frame *)
+        draw_scene gl program_info buffers 0.0 0.0 0.0;
+        print_endline "Initial frame drawn";
+
+        (* Start the animation loop! *)
+        let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
+          [| Jv.callback ~arity:1 animate |] in
+        print_endline "Animation started! The cube should now be rotating.";
+        let _ = Jv.call console "log" [| Jv.of_string "3D cube animation loop started!" |] in
+        ()
+      end
+  end
+)
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Result</h2>
+        <p class="description">
+            You should now see a 3D cube rotating in space! Each face has a different color,
+            and the cube rotates on all three axes simultaneously.
+        </p>
+        <p class="description">
+            <strong>Key concepts demonstrated:</strong>
+        </p>
+        <ul>
+            <li><strong>Indexed rendering</strong>: Using <code>gl.drawElements()</code> with an index buffer to efficiently reference vertices</li>
+            <li><strong>3D geometry</strong>: 24 vertices (4 per face) instead of just 8 corners, allowing per-face colors</li>
+            <li><strong>Perspective projection</strong>: Objects farther away appear smaller, creating depth</li>
+            <li><strong>Multi-axis rotation</strong>: Rotating around X, Y, and Z axes at different speeds</li>
+            <li><strong>Depth testing</strong>: Faces properly occlude each other based on their distance from the camera</li>
+        </ul>
+    </div>
+
+    <!-- Load x-ocaml -->
+    <script async
+      src="./x-ocaml.js?v=23"
+      src-worker="./x-ocaml.worker+effects.js?v=23"
+    ></script>
+</body>
+</html>
