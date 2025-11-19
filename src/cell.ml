@@ -11,15 +11,29 @@ type t = {
   worker : Client.t;
   merlin_worker : Merlin_ext.Client.worker;
   run_on : [ `Click | `Load ];
+  filename : string option;
 }
 
 let id t = t.id
 
 let pre_source t =
-  let rec go acc t =
-    match t.prev with
-    | None -> String.concat "\n" acc
-    | Some e -> go (Editor.source e.cm :: acc) e
+  let target_filename = t.filename in
+  let rec go acc current =
+    match current.prev with
+    | None ->
+        let result = String.concat "\n" acc in
+        Brr.Console.log ["pre_source collected sources:"; result];
+        result
+    | Some e when e.filename = target_filename ->
+        Brr.Console.log ["pre_source: found matching cell with filename";
+                         Option.value ~default:"<none>" e.filename;
+                         "source:"; Editor.source e.cm];
+        go (Editor.source e.cm :: acc) e
+    | Some e ->
+        Brr.Console.log ["pre_source: skipping cell with different filename";
+                         Option.value ~default:"<none>" e.filename;
+                         "target:"; Option.value ~default:"<none>" target_filename];
+        go acc e  (* Skip cells with different filename, keep searching *)
   in
   let s = go [] t in
   if s = "" then s else s ^ " ;;\n"
@@ -62,7 +76,7 @@ let rec run editor =
         editor.status <- Running;
         let code_txt = Editor.source editor.cm in
         let line_number = 1 + Editor.get_previous_lines editor.cm in
-        Client.eval ~id:editor.id ~line_number editor.worker code_txt)
+        Client.eval ~id:editor.id ~line_number ?filename:editor.filename editor.worker code_txt)
 
 let set_prev ~prev t =
   let () = match t.prev with None -> () | Some prev -> prev.next <- None in
@@ -112,7 +126,7 @@ let init_css shadow ~extra_style ~inline_style =
             ();
         ]
 
-let init ~id ~run_on ?extra_style ?inline_style worker this =
+let init ~id ~run_on ?filename ?extra_style ?inline_style worker this =
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
@@ -122,7 +136,7 @@ let init ~id ~run_on ?extra_style ?inline_style worker this =
 
   let cm = Editor.make shadow in
 
-  let merlin = Merlin_ext.make ~id worker in
+  let merlin = Merlin_ext.make ~id ?filename worker in
   let merlin_worker = Merlin_ext.Client.make_worker merlin in
   let editor =
     {
@@ -134,6 +148,7 @@ let init ~id ~run_on ?extra_style ?inline_style worker this =
       worker;
       merlin_worker;
       run_on;
+      filename;
     }
   in
   Editor.on_change cm (fun () -> invalidate_after ~editor);

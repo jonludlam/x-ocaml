@@ -52,8 +52,9 @@ let _ =
     | Some s -> s
     | None -> Option.value ~default:"load" run_on
   in
+  let filename = Webcomponent.get_attribute this "filename" in
   let id = List.length !all in
-  let editor = Cell.init ~id ~run_on ?extra_style ?inline_style worker this in
+  let editor = Cell.init ~id ~run_on ?filename ?extra_style ?inline_style worker this in
   all := editor :: !all;
   Cell.set_prev ~prev editor;
   if List.for_all Cell.loadable !all then Cell.run editor;

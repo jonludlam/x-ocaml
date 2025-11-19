@@ -1,11 +1,11 @@
 module Worker = Brr_webworkers.Worker
 
-type t = { id : int; mutable context : unit -> string; client : Client.t }
+type t = { id : int; mutable context : unit -> string; client : Client.t; filename : string option }
 
 let set_context t fn = t.context <- fn
 
-let make ~id client =
-  { id; context = (fun () -> failwith "Merlin_ext.context"); client }
+let make ~id ?filename client =
+  { id; context = (fun () -> failwith "Merlin_ext.context"); client; filename }
 
 let fix_position pre_len = function
   | `Offset at -> `Offset (at + pre_len)
@@ -22,13 +22,13 @@ let fix_request t msg =
   let pre = t.context () in
   let pre_len = String.length pre in
   match msg with
-  | Protocol.Complete_prefix (src, position) ->
+  | Protocol.Complete_prefix (src, position, _) ->
       let position = fix_position pre_len position in
-      Protocol.Complete_prefix (pre ^ src, position)
-  | Protocol.Type_enclosing (src, position) ->
+      Protocol.Complete_prefix (pre ^ src, position, t.filename)
+  | Protocol.Type_enclosing (src, position, _) ->
       let position = fix_position pre_len position in
-      Protocol.Type_enclosing (pre ^ src, position)
-  | Protocol.All_errors src -> Protocol.All_errors (pre ^ src)
+      Protocol.Type_enclosing (pre ^ src, position, t.filename)
+  | Protocol.All_errors (src, _) -> Protocol.All_errors (pre ^ src, t.filename)
   | Protocol.Add_cmis _ as other -> other
 
 let fix_answer ~pre ~doc msg =

@@ -4,7 +4,7 @@ type id = int
 
 type request =
   | Merlin of id * Merlin_protocol.action
-  | Eval of id * int * string
+  | Eval of id * int * string * string option (* id, line_number, code, filename *)
   | Format of id * string
   | Format_config of string
   | Setup

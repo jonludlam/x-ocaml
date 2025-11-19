@@ -3,6 +3,7 @@ type t
 val init :
   id:int ->
   run_on:[ `Click | `Load ] ->
+  ?filename:string ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
   Client.t ->

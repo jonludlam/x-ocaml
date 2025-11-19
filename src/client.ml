@@ -21,8 +21,15 @@ let absolute_url url =
   if
     not
       (String.starts_with ~prefix:"http:" url
-      || String.starts_with ~prefix:"https:" url)
-  then current_url ^ url
+      || String.starts_with ~prefix:"https:" url
+      || String.starts_with ~prefix:"file:" url
+      || String.starts_with ~prefix:"/" url)
+  then
+    (* Strip leading ./ if present *)
+    let url = if String.starts_with ~prefix:"./" url then String.sub url 2 (String.length url - 2) else url in
+    (* Ensure there's a separator between current_url and the relative path *)
+    let separator = if String.ends_with ~suffix:"/" current_url then "" else "/" in
+    current_url ^ separator ^ url
   else url
 
 let wrap_url ?extra_load url =
@@ -57,7 +64,7 @@ let on_message t fn =
 
 let post worker msg = Worker.post worker (X_protocol.req_to_bytes msg)
 
-let eval ~id ~line_number worker code =
-  post worker (Eval (id, line_number, code))
+let eval ~id ~line_number ?filename worker code =
+  post worker (Eval (id, line_number, code, filename))
 
 let fmt ~id worker code = post worker (Format (id, code))

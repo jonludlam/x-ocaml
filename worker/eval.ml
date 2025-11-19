@@ -26,8 +26,36 @@ end = struct
 end
 
 module Environment = struct
+  (* Track environments by filename. Each filename has its own environment.
+     When filename is None, we use the default sequential behavior with cell IDs. *)
+  module Filename_map = Map.Make(String)
+
+  type env_state = Env.t * Value_env.t
+
+  let file_environments : env_state Filename_map.t ref = ref Filename_map.empty
+  let default_env : env_state ref = ref (!Toploop.toplevel_env, Value_env.empty)
   let environments = ref []
-  let init () = environments := [ (0, !Toploop.toplevel_env, Value_env.empty) ]
+
+  let init () =
+    default_env := (!Toploop.toplevel_env, Value_env.empty);
+    environments := [ (0, !Toploop.toplevel_env, Value_env.empty) ]
+
+  let reset_by_filename filename =
+    let (typing_env, value_env) =
+      try Filename_map.find filename !file_environments
+      with Not_found -> !default_env
+    in
+    Toploop.toplevel_env := typing_env;
+    Value_env.restore value_env
+
+  let capture_by_filename filename =
+    let (previous_env, previous_values) =
+      try Filename_map.find filename !file_environments
+      with Not_found -> !default_env
+    in
+    let idents = Env.diff previous_env !Toploop.toplevel_env in
+    let values = Value_env.capture previous_values idents in
+    file_environments := Filename_map.add filename (!Toploop.toplevel_env, values) !file_environments
 
   let reset id =
     let rec go id = function
@@ -79,15 +107,19 @@ let preprocess_phrase phrase =
   | Ptop_def str -> Ptop_def (preprocess_structure str)
   | Ptop_dir _ as x -> x
 
-let execute ~id ~line_number ~output code_text =
-  Environment.reset id;
+let execute ~id ~line_number ~output ?filename code_text =
+  (* Use filename-based environment if provided, otherwise use ID-based *)
+  (match filename with
+   | Some fname -> Environment.reset_by_filename fname
+   | None -> Environment.reset id);
   let outputs = ref [] in
   let buf = Buffer.create 64 in
   let caml_ppf = Format.formatter_of_buffer buf in
   let content = code_text ^ " ;;" in
   let lexer = Lexing.from_string content in
+  let pos_fname = Option.value ~default:"" filename in
   Lexing.set_position lexer
-    { pos_fname = ""; pos_lnum = line_number; pos_bol = 0; pos_cnum = 0 };
+    { pos_fname; pos_lnum = line_number; pos_bol = 0; pos_cnum = 0 };
   let phrases = parse_use_file ~caml_ppf lexer in
   Js_of_ocaml.Sys_js.set_channel_flusher stdout (fun str ->
       outputs := Stdout str :: !outputs);
@@ -135,7 +167,10 @@ let execute ~id ~line_number ~output code_text =
                 respond ~at_loc)
             sub_phrases)
     phrases;
-  Environment.capture id;
+  (* Save environment state *)
+  (match filename with
+   | Some fname -> Environment.capture_by_filename fname
+   | None -> Environment.capture id);
   get_out ()
 
 let () =
