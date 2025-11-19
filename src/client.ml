@@ -18,19 +18,22 @@ let current_url =
   Jstr.to_string (Uri.to_jstr url)
 
 let absolute_url url =
-  if
-    not
-      (String.starts_with ~prefix:"http:" url
+  (* If URL is already absolute, return it as-is *)
+  if String.starts_with ~prefix:"http:" url
       || String.starts_with ~prefix:"https:" url
       || String.starts_with ~prefix:"file:" url
-      || String.starts_with ~prefix:"/" url)
-  then
+      || String.starts_with ~prefix:"/" url
+      || String.starts_with ~prefix:"data:" url
+  then url
+  (* If current URL is about:srcdoc or similar, can't make relative URLs absolute *)
+  else if String.starts_with ~prefix:"about:" current_url
+  then url  (* Return as-is, hope it works or is handled elsewhere *)
+  else
     (* Strip leading ./ if present *)
     let url = if String.starts_with ~prefix:"./" url then String.sub url 2 (String.length url - 2) else url in
     (* Ensure there's a separator between current_url and the relative path *)
     let separator = if String.ends_with ~suffix:"/" current_url then "" else "/" in
     current_url ^ separator ^ url
-  else url
 
 let wrap_url ?extra_load url =
   let url = absolute_url url in
