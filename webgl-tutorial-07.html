@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGL Tutorial 6: Using Textures</title>
+    <title>WebGL Tutorial 7: Lighting</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -38,56 +38,80 @@
             display: block;
             margin: 20px auto;
         }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
     </style>
 </head>
 <body>
-    <h1>WebGL Tutorial 6: Using Textures in WebGL</h1>
+    <h1>WebGL Tutorial 7: Lighting in WebGL</h1>
 
     <p class="description">
-        In this tutorial, we'll map a texture onto our 3D cube. We'll learn about:
+        In this tutorial, we'll add realistic lighting to our textured cube using a simplified Phong lighting model.
+        We'll learn about:
     </p>
     <ul>
-        <li><strong>Loading images</strong> as WebGL textures using fetch and ImageBitmap</li>
-        <li><strong>Mapping texture coordinates</strong> to vertices (UV mapping)</li>
-        <li><strong>Modifying shaders</strong> to sample from textures instead of using colors</li>
-        <li><strong>Handling texture orientation</strong> with Y-coordinate flipping</li>
-        <li><strong>Power-of-2 textures</strong> and appropriate texture parameters</li>
+        <li><strong>Surface normals</strong> - Vectors perpendicular to surfaces that define their orientation</li>
+        <li><strong>Ambient lighting</strong> - Non-directional light that illuminates all surfaces equally</li>
+        <li><strong>Directional lighting</strong> - Light from a specific direction (like sunlight)</li>
+        <li><strong>Normal matrices</strong> - Transforming normals correctly when objects rotate</li>
+        <li><strong>Per-vertex lighting</strong> - Calculating lighting in the vertex shader (Gouraud shading)</li>
     </ul>
 
     <div class="example">
-        <h2>Step 1: Texture-Enabled Shaders</h2>
+        <h2>Step 1: Lighting-Enabled Shaders</h2>
         <p class="description">
-            We update our shaders to use texture coordinates instead of colors. The <strong>vertex shader</strong>
-            receives 2D texture coordinates (UV coordinates) and passes them to the <strong>fragment shader</strong>,
-            which samples the texture at those coordinates to determine the pixel color.
+            We update our shaders to calculate lighting. The <strong>vertex shader</strong> receives normal vectors,
+            transforms them, and calculates lighting intensity. The <strong>fragment shader</strong> applies the
+            lighting to the texture color.
         </p>
         <p class="description">
-            Texture coordinates range from (0,0) at the bottom-left to (1,1) at the top-right of the texture image.
+            The lighting calculation uses the <strong>dot product</strong> between the surface normal and light direction
+            to determine how directly the light hits the surface. Surfaces facing the light are brighter.
         </p>
         <x-ocaml>
-(* Vertex shader - passes texture coordinates to fragment shader *)
+(* Vertex shader - calculates per-vertex lighting *)
 let vsSource = {|
   attribute vec4 aVertexPosition;
   attribute vec2 aTextureCoord;
+  attribute vec3 aVertexNormal;
 
   uniform mat4 uModelViewMatrix;
   uniform mat4 uProjectionMatrix;
+  uniform mat4 uNormalMatrix;
 
   varying highp vec2 vTextureCoord;
+  varying highp vec3 vLighting;
 
   void main(void) {
     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
     vTextureCoord = aTextureCoord;
+
+    // Apply lighting effect
+    highp vec3 ambientLight = vec3(0.3, 0.3, 0.3);
+    highp vec3 directionalLightColor = vec3(1, 1, 1);
+    highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
+
+    highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+
+    highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+    vLighting = ambientLight + (directionalLightColor * directional);
   }
 |}
 
-(* Fragment shader - samples color from texture *)
+(* Fragment shader - applies lighting to texture *)
 let fsSource = {|
   varying highp vec2 vTextureCoord;
+  varying highp vec3 vLighting;
+
   uniform sampler2D uSampler;
 
   void main(void) {
-    gl_FragColor = texture2D(uSampler, vTextureCoord);
+    highp vec4 texelColor = texture2D(uSampler, vTextureCoord);
+    gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
   }
 |}
         </x-ocaml>
@@ -96,8 +120,7 @@ let fsSource = {|
     <div class="example">
         <h2>Step 2: Shader Compilation</h2>
         <p class="description">
-            The shader compilation process is identical to previous tutorials. We compile the vertex and fragment shaders,
-            then link them into a shader program.
+            Shader compilation remains the same as previous tutorials.
         </p>
         <x-ocaml>
 (* Compile a shader from source code *)
@@ -106,7 +129,6 @@ let load_shader gl shader_type source =
   let _ = Jv.call gl "shaderSource" [| Jv.of_int shader; Jv.of_string source |] in
   let _ = Jv.call gl "compileShader" [| Jv.of_int shader |] in
 
-  (* Check compilation status *)
   let compile_status = Jv.Int.get gl "COMPILE_STATUS" in
   let success = Jv.to_bool (Jv.call gl "getShaderParameter"
     [| Jv.of_int shader; Jv.of_int compile_status |]) in
@@ -134,7 +156,6 @@ let init_shader_program gl =
           let _ = Jv.call gl "attachShader" [| program; Jv.of_int fragment_shader |] in
           let _ = Jv.call gl "linkProgram" [| program |] in
 
-          (* Check linking status *)
           let link_status = Jv.Int.get gl "LINK_STATUS" in
           let success = Jv.to_bool (Jv.call gl "getProgramParameter"
             [| program; Jv.of_int link_status |]) in
@@ -151,8 +172,7 @@ let init_shader_program gl =
     <div class="example">
         <h2>Step 3: Position Buffer</h2>
         <p class="description">
-            The position buffer remains the same as Tutorial 5 - we define the 8 vertices of a cube,
-            with each face composed of 4 vertices. The cube has dimensions 2x2x2 centered at the origin.
+            The position buffer remains unchanged from Tutorial 6.
         </p>
         <x-ocaml>
 let init_position_buffer gl =
@@ -160,38 +180,19 @@ let init_position_buffer gl =
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
   let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
 
-  (* 24 vertices (4 per face * 6 faces) *)
   let positions = [|
     (* Front face *)
-    -1.0; -1.0;  1.0;
-     1.0; -1.0;  1.0;
-     1.0;  1.0;  1.0;
-    -1.0;  1.0;  1.0;
+    -1.0; -1.0;  1.0;  1.0; -1.0;  1.0;  1.0;  1.0;  1.0; -1.0;  1.0;  1.0;
     (* Back face *)
-    -1.0; -1.0; -1.0;
-    -1.0;  1.0; -1.0;
-     1.0;  1.0; -1.0;
-     1.0; -1.0; -1.0;
+    -1.0; -1.0; -1.0; -1.0;  1.0; -1.0;  1.0;  1.0; -1.0;  1.0; -1.0; -1.0;
     (* Top face *)
-    -1.0;  1.0; -1.0;
-    -1.0;  1.0;  1.0;
-     1.0;  1.0;  1.0;
-     1.0;  1.0; -1.0;
+    -1.0;  1.0; -1.0; -1.0;  1.0;  1.0;  1.0;  1.0;  1.0;  1.0;  1.0; -1.0;
     (* Bottom face *)
-    -1.0; -1.0; -1.0;
-     1.0; -1.0; -1.0;
-     1.0; -1.0;  1.0;
-    -1.0; -1.0;  1.0;
+    -1.0; -1.0; -1.0;  1.0; -1.0; -1.0;  1.0; -1.0;  1.0; -1.0; -1.0;  1.0;
     (* Right face *)
-     1.0; -1.0; -1.0;
-     1.0;  1.0; -1.0;
-     1.0;  1.0;  1.0;
-     1.0; -1.0;  1.0;
+     1.0; -1.0; -1.0;  1.0;  1.0; -1.0;  1.0;  1.0;  1.0;  1.0; -1.0;  1.0;
     (* Left face *)
-    -1.0; -1.0; -1.0;
-    -1.0; -1.0;  1.0;
-    -1.0;  1.0;  1.0;
-    -1.0;  1.0; -1.0;
+    -1.0; -1.0; -1.0; -1.0; -1.0;  1.0; -1.0;  1.0;  1.0; -1.0;  1.0; -1.0;
   |] in
 
   let float32_array_constructor = Jv.get Jv.global "Float32Array" in
@@ -210,16 +211,56 @@ let init_position_buffer gl =
     </div>
 
     <div class="example">
-        <h2>Step 4: Texture Coordinate Buffer</h2>
+        <h2>Step 4: Normal Vectors Buffer</h2>
         <p class="description">
-            The texture coordinate buffer maps each vertex to a position in the texture image.
-            Coordinates range from <code>(0,0)</code> at the bottom-left to <code>(1,1)</code> at the top-right.
-            Each face of the cube gets the full texture mapped onto it.
+            The <strong>normal buffer</strong> contains vectors perpendicular to each face of the cube.
+            These normals define which direction each surface is facing, which is essential for lighting calculations.
         </p>
         <p class="description">
-            For each of the 6 faces, we specify 4 texture coordinates corresponding to the 4 corners of the texture:
-            <code>(0,0)</code> bottom-left, <code>(1,0)</code> bottom-right, <code>(1,1)</code> top-right,
-            <code>(0,1)</code> top-left.
+            For a cube, each face has a constant normal direction. For example, the front face (+Z) has a normal
+            of <code>(0, 0, 1)</code>, meaning it faces directly along the positive Z axis.
+        </p>
+        <x-ocaml>
+let init_normal_buffer gl =
+  let normal_buffer = Jv.call gl "createBuffer" [||] in
+  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; normal_buffer |] in
+
+  (* Normal vectors for each face (4 vertices per face, all with same normal) *)
+  let normals = [|
+    (* Front face: pointing towards +Z *)
+     0.0;  0.0;  1.0;   0.0;  0.0;  1.0;   0.0;  0.0;  1.0;   0.0;  0.0;  1.0;
+    (* Back face: pointing towards -Z *)
+     0.0;  0.0; -1.0;   0.0;  0.0; -1.0;   0.0;  0.0; -1.0;   0.0;  0.0; -1.0;
+    (* Top face: pointing towards +Y *)
+     0.0;  1.0;  0.0;   0.0;  1.0;  0.0;   0.0;  1.0;  0.0;   0.0;  1.0;  0.0;
+    (* Bottom face: pointing towards -Y *)
+     0.0; -1.0;  0.0;   0.0; -1.0;  0.0;   0.0; -1.0;  0.0;   0.0; -1.0;  0.0;
+    (* Right face: pointing towards +X *)
+     1.0;  0.0;  0.0;   1.0;  0.0;  0.0;   1.0;  0.0;  0.0;   1.0;  0.0;  0.0;
+    (* Left face: pointing towards -X *)
+    -1.0;  0.0;  0.0;  -1.0;  0.0;  0.0;  -1.0;  0.0;  0.0;  -1.0;  0.0;  0.0;
+  |] in
+
+  let float32_array_constructor = Jv.get Jv.global "Float32Array" in
+  let normals_array = Jv.new' float32_array_constructor
+    [| Jv.of_array Jv.of_float normals |] in
+
+  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
+  let _ = Jv.call gl "bufferData" [|
+    Jv.of_int array_buffer;
+    normals_array;
+    Jv.of_int static_draw
+  |] in
+
+  normal_buffer
+        </x-ocaml>
+    </div>
+
+    <div class="example">
+        <h2>Step 5: Texture Coordinate and Index Buffers</h2>
+        <p class="description">
+            These buffers remain unchanged from Tutorial 6.
         </p>
         <x-ocaml>
 let init_texture_buffer gl =
@@ -227,7 +268,6 @@ let init_texture_buffer gl =
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
   let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; texture_coord_buffer |] in
 
-  (* Texture coordinates for each face *)
   let texture_coordinates = [|
     (* Front *)  0.0; 0.0;  1.0; 0.0;  1.0; 1.0;  0.0; 1.0;
     (* Back *)   0.0; 0.0;  1.0; 0.0;  1.0; 1.0;  0.0; 1.0;
@@ -249,22 +289,12 @@ let init_texture_buffer gl =
   |] in
 
   texture_coord_buffer
-        </x-ocaml>
-    </div>
 
-    <div class="example">
-        <h2>Step 5: Index Buffer</h2>
-        <p class="description">
-            The index buffer defines which vertices form each triangle. Each face has 2 triangles (6 indices).
-            This is identical to Tutorial 5.
-        </p>
-        <x-ocaml>
 let init_index_buffer gl =
   let index_buffer = Jv.call gl "createBuffer" [||] in
   let element_array_buffer = Jv.Int.get gl "ELEMENT_ARRAY_BUFFER" in
   let _ = Jv.call gl "bindBuffer" [| Jv.of_int element_array_buffer; index_buffer |] in
 
-  (* 6 faces * 2 triangles * 3 vertices = 36 indices *)
   let indices = [|
      0;  1;  2;    0;  2;  3;    (* Front *)
      4;  5;  6;    4;  6;  7;    (* Back *)
@@ -290,30 +320,18 @@ let init_index_buffer gl =
 (* Initialize all buffers *)
 let init_buffers gl =
   let position_buffer = init_position_buffer gl in
+  let normal_buffer = init_normal_buffer gl in
   let texture_buffer = init_texture_buffer gl in
   let index_buffer = init_index_buffer gl in
-  (position_buffer, texture_buffer, index_buffer)
+  (position_buffer, normal_buffer, texture_buffer, index_buffer)
         </x-ocaml>
     </div>
 
     <div class="example">
         <h2>Step 6: Loading Textures</h2>
         <p class="description">
-            Loading textures in a Web Worker requires using <code>fetch()</code> and <code>createImageBitmap()</code>
-            instead of the <code>Image</code> constructor (which isn't available in workers).
+            Texture loading remains the same as Tutorial 6.
         </p>
-        <p class="description">
-            The process:
-        </p>
-        <ol>
-            <li>Create a WebGL texture object and bind it</li>
-            <li>Upload a 1×1 blue placeholder pixel for immediate use</li>
-            <li>Asynchronously fetch the image file</li>
-            <li>Convert the response to a Blob</li>
-            <li>Create an ImageBitmap from the Blob</li>
-            <li>Upload the ImageBitmap to the texture</li>
-            <li>Set appropriate texture parameters based on whether the image dimensions are powers of 2</li>
-        </ol>
         <x-ocaml>
 let load_texture gl url =
   let texture = Jv.call gl "createTexture" [||] in
@@ -343,7 +361,7 @@ let load_texture gl url =
     pixel
   |] in
 
-  (* Load the actual image asynchronously using fetch + createImageBitmap *)
+  (* Load the actual image asynchronously *)
   let fetch_promise = Jv.call Jv.global "fetch" [| Jv.of_string url |] in
 
   let then_blob = Jv.callback ~arity:1 (fun response ->
@@ -359,14 +377,12 @@ let load_texture gl url =
   let then_upload = Jv.callback ~arity:1 (fun bitmap ->
     let _ = Jv.call gl "bindTexture" [| Jv.of_int texture_2d; texture |] in
 
-    (* Flip Y coordinate to match WebGL's bottom-up coordinate system *)
     let unpack_flip_y = Jv.Int.get gl "UNPACK_FLIP_Y_WEBGL" in
     let _ = Jv.call gl "pixelStorei" [|
       Jv.of_int unpack_flip_y;
       Jv.of_bool true
     |] in
 
-    (* Upload the bitmap to the texture *)
     let _ = Jv.call gl "texImage2D" [|
       Jv.of_int texture_2d;
       Jv.of_int level;
@@ -376,17 +392,14 @@ let load_texture gl url =
       bitmap
     |] in
 
-    (* Check if image dimensions are powers of 2 *)
     let img_width = Jv.Int.get bitmap "width" in
     let img_height = Jv.Int.get bitmap "height" in
     let is_power_of_2 w = (w land (w - 1)) = 0 in
 
     if is_power_of_2 img_width && is_power_of_2 img_height then begin
-      (* Power of 2: generate mipmaps *)
       let _ = Jv.call gl "generateMipmap" [| Jv.of_int texture_2d |] in
       ()
     end else begin
-      (* Not power of 2: use CLAMP_TO_EDGE and LINEAR filtering *)
       let texture_wrap_s = Jv.Int.get gl "TEXTURE_WRAP_S" in
       let texture_wrap_t = Jv.Int.get gl "TEXTURE_WRAP_T" in
       let texture_min_filter = Jv.Int.get gl "TEXTURE_MIN_FILTER" in
@@ -430,8 +443,8 @@ let load_texture gl url =
     <div class="example">
         <h2>Step 7: Matrix Operations</h2>
         <p class="description">
-            Matrix operations are unchanged from Tutorial 5. We use the same perspective projection,
-            translation, and rotation matrices.
+            We use the same matrix operations as before, plus we'll need to calculate a
+            <strong>normal matrix</strong> in the drawing function to properly transform normals when the cube rotates.
         </p>
         <x-ocaml>
 (* Create a perspective projection matrix *)
@@ -498,26 +511,119 @@ let mat4_rotate_z angle =
     0.0; 0.0; 1.0; 0.0;
     0.0; 0.0; 0.0; 1.0;
   |]
+
+(* Invert a 4x4 matrix - needed for normal matrix calculation *)
+let mat4_invert m =
+  let result = Array.make 16 0.0 in
+
+  (* Calculate matrix of minors, cofactors and adjugate *)
+  result.(0) <- m.(5) *. m.(10) *. m.(15) -. m.(5) *. m.(11) *. m.(14) -.
+                m.(9) *. m.(6) *. m.(15) +. m.(9) *. m.(7) *. m.(14) +.
+                m.(13) *. m.(6) *. m.(11) -. m.(13) *. m.(7) *. m.(10);
+
+  result.(4) <- -.m.(4) *. m.(10) *. m.(15) +. m.(4) *. m.(11) *. m.(14) +.
+                m.(8) *. m.(6) *. m.(15) -. m.(8) *. m.(7) *. m.(14) -.
+                m.(12) *. m.(6) *. m.(11) +. m.(12) *. m.(7) *. m.(10);
+
+  result.(8) <- m.(4) *. m.(9) *. m.(15) -. m.(4) *. m.(11) *. m.(13) -.
+                m.(8) *. m.(5) *. m.(15) +. m.(8) *. m.(7) *. m.(13) +.
+                m.(12) *. m.(5) *. m.(11) -. m.(12) *. m.(7) *. m.(9);
+
+  result.(12) <- -.m.(4) *. m.(9) *. m.(14) +. m.(4) *. m.(10) *. m.(13) +.
+                 m.(8) *. m.(5) *. m.(14) -. m.(8) *. m.(6) *. m.(13) -.
+                 m.(12) *. m.(5) *. m.(10) +. m.(12) *. m.(6) *. m.(9);
+
+  result.(1) <- -.m.(1) *. m.(10) *. m.(15) +. m.(1) *. m.(11) *. m.(14) +.
+                m.(9) *. m.(2) *. m.(15) -. m.(9) *. m.(3) *. m.(14) -.
+                m.(13) *. m.(2) *. m.(11) +. m.(13) *. m.(3) *. m.(10);
+
+  result.(5) <- m.(0) *. m.(10) *. m.(15) -. m.(0) *. m.(11) *. m.(14) -.
+                m.(8) *. m.(2) *. m.(15) +. m.(8) *. m.(3) *. m.(14) +.
+                m.(12) *. m.(2) *. m.(11) -. m.(12) *. m.(3) *. m.(10);
+
+  result.(9) <- -.m.(0) *. m.(9) *. m.(15) +. m.(0) *. m.(11) *. m.(13) +.
+                m.(8) *. m.(1) *. m.(15) -. m.(8) *. m.(3) *. m.(13) -.
+                m.(12) *. m.(1) *. m.(11) +. m.(12) *. m.(3) *. m.(9);
+
+  result.(13) <- m.(0) *. m.(9) *. m.(14) -. m.(0) *. m.(10) *. m.(13) -.
+                 m.(8) *. m.(1) *. m.(14) +. m.(8) *. m.(2) *. m.(13) +.
+                 m.(12) *. m.(1) *. m.(10) -. m.(12) *. m.(2) *. m.(9);
+
+  result.(2) <- m.(1) *. m.(6) *. m.(15) -. m.(1) *. m.(7) *. m.(14) -.
+                m.(5) *. m.(2) *. m.(15) +. m.(5) *. m.(3) *. m.(14) +.
+                m.(13) *. m.(2) *. m.(7) -. m.(13) *. m.(3) *. m.(6);
+
+  result.(6) <- -.m.(0) *. m.(6) *. m.(15) +. m.(0) *. m.(7) *. m.(14) +.
+                m.(4) *. m.(2) *. m.(15) -. m.(4) *. m.(3) *. m.(14) -.
+                m.(12) *. m.(2) *. m.(7) +. m.(12) *. m.(3) *. m.(6);
+
+  result.(10) <- m.(0) *. m.(5) *. m.(15) -. m.(0) *. m.(7) *. m.(13) -.
+                 m.(4) *. m.(1) *. m.(15) +. m.(4) *. m.(3) *. m.(13) +.
+                 m.(12) *. m.(1) *. m.(7) -. m.(12) *. m.(3) *. m.(5);
+
+  result.(14) <- -.m.(0) *. m.(5) *. m.(14) +. m.(0) *. m.(6) *. m.(13) +.
+                 m.(4) *. m.(1) *. m.(14) -. m.(4) *. m.(2) *. m.(13) -.
+                 m.(12) *. m.(1) *. m.(6) +. m.(12) *. m.(2) *. m.(5);
+
+  result.(3) <- -.m.(1) *. m.(6) *. m.(11) +. m.(1) *. m.(7) *. m.(10) +.
+                m.(5) *. m.(2) *. m.(11) -. m.(5) *. m.(3) *. m.(10) -.
+                m.(9) *. m.(2) *. m.(7) +. m.(9) *. m.(3) *. m.(6);
+
+  result.(7) <- m.(0) *. m.(6) *. m.(11) -. m.(0) *. m.(7) *. m.(10) -.
+                m.(4) *. m.(2) *. m.(11) +. m.(4) *. m.(3) *. m.(10) +.
+                m.(8) *. m.(2) *. m.(7) -. m.(8) *. m.(3) *. m.(6);
+
+  result.(11) <- -.m.(0) *. m.(5) *. m.(11) +. m.(0) *. m.(7) *. m.(9) +.
+                 m.(4) *. m.(1) *. m.(11) -. m.(4) *. m.(3) *. m.(9) -.
+                 m.(8) *. m.(1) *. m.(7) +. m.(8) *. m.(3) *. m.(5);
+
+  result.(15) <- m.(0) *. m.(5) *. m.(10) -. m.(0) *. m.(6) *. m.(9) -.
+                 m.(4) *. m.(1) *. m.(10) +. m.(4) *. m.(2) *. m.(9) +.
+                 m.(8) *. m.(1) *. m.(6) -. m.(8) *. m.(2) *. m.(5);
+
+  (* Calculate determinant *)
+  let det = m.(0) *. result.(0) +. m.(1) *. result.(4) +.
+            m.(2) *. result.(8) +. m.(3) *. result.(12) in
+
+  (* Multiply by 1/determinant *)
+  for i = 0 to 15 do
+    result.(i) <- result.(i) /. det
+  done;
+
+  result
+
+(* Transpose a 4x4 matrix *)
+let mat4_transpose m =
+  [|
+    m.(0); m.(4); m.(8);  m.(12);
+    m.(1); m.(5); m.(9);  m.(13);
+    m.(2); m.(6); m.(10); m.(14);
+    m.(3); m.(7); m.(11); m.(15);
+  |]
         </x-ocaml>
     </div>
 
     <div class="example">
-        <h2>Step 8: Drawing the Textured Scene</h2>
+        <h2>Step 8: Drawing the Lit Scene</h2>
         <p class="description">
-            The drawing function is similar to Tutorial 5, but now we:
+            The drawing function now includes:
         </p>
         <ul>
-            <li>Bind the <strong>texture coordinate buffer</strong> as a vertex attribute</li>
-            <li><strong>Activate texture unit 0</strong> and bind our texture to it</li>
-            <li>Tell the shader's <strong>sampler uniform</strong> to use texture unit 0</li>
+            <li>Binding the <strong>normal buffer</strong> as a vertex attribute</li>
+            <li>Calculating the <strong>normal matrix</strong> by inverting and transposing the model-view matrix</li>
+            <li>Passing the normal matrix to the vertex shader as a uniform</li>
         </ul>
+        <p class="description">
+            The normal matrix ensures that when we rotate the cube, the normals rotate correctly too.
+            Simply using the model-view matrix would distort normals if we applied non-uniform scaling.
+        </p>
         <x-ocaml>
 let draw_scene gl program_info texture buffers rotation_x rotation_y rotation_z =
-  let (position_buffer, texture_buffer, index_buffer) = buffers in
+  let (position_buffer, normal_buffer, texture_buffer, index_buffer) = buffers in
 
   (* Clear the canvas *)
   let _ = Jv.call gl "clearColor" [|
-    Jv.of_float 0.2; Jv.of_float 0.2; Jv.of_float 0.2; Jv.of_float 1.0
+    Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 1.0
   |] in
   let _ = Jv.call gl "clearDepth" [| Jv.of_float 1.0 |] in
   let depth_test = Jv.Int.get gl "DEPTH_TEST" in
@@ -541,6 +647,9 @@ let draw_scene gl program_info texture buffers rotation_x rotation_y rotation_z 
   let rotation = mat4_multiply (mat4_multiply rot_z rot_y) rot_x in
   let model_view_matrix = mat4_multiply rotation translation in
 
+  (* Calculate normal matrix: transpose(inverse(model_view_matrix)) *)
+  let normal_matrix = mat4_transpose (mat4_invert model_view_matrix) in
+
   (* Bind position buffer *)
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
   let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
@@ -556,12 +665,25 @@ let draw_scene gl program_info texture buffers rotation_x rotation_y rotation_z 
   |] in
   let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_position |] in
 
+  (* Bind normal buffer *)
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; normal_buffer |] in
+  let vertex_normal = Jv.to_int (Jv.get program_info "attribLocations_vertexNormal") in
+  let _ = Jv.call gl "vertexAttribPointer" [|
+    Jv.of_int vertex_normal;
+    Jv.of_int 3;
+    Jv.of_int float_type;
+    Jv.of_bool false;
+    Jv.of_int 0;
+    Jv.of_int 0;
+  |] in
+  let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_normal |] in
+
   (* Bind texture coordinate buffer *)
   let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; texture_buffer |] in
   let texture_coord = Jv.to_int (Jv.get program_info "attribLocations_textureCoord") in
   let _ = Jv.call gl "vertexAttribPointer" [|
     Jv.of_int texture_coord;
-    Jv.of_int 2;  (* 2 components per iteration (u, v) *)
+    Jv.of_int 2;
     Jv.of_int float_type;
     Jv.of_bool false;
     Jv.of_int 0;
@@ -579,9 +701,13 @@ let draw_scene gl program_info texture buffers rotation_x rotation_y rotation_z 
   (* Set matrix uniforms *)
   let projection_uniform = Jv.get program_info "uniformLocations_projection" in
   let modelview_uniform = Jv.get program_info "uniformLocations_modelView" in
+  let normal_uniform = Jv.get program_info "uniformLocations_normalMatrix" in
+
   let float32_array = Jv.get Jv.global "Float32Array" in
   let proj_array = Jv.new' float32_array [| Jv.of_array Jv.of_float projection_matrix |] in
   let mv_array = Jv.new' float32_array [| Jv.of_array Jv.of_float model_view_matrix |] in
+  let normal_array = Jv.new' float32_array [| Jv.of_array Jv.of_float normal_matrix |] in
+
   let _ = Jv.call gl "uniformMatrix4fv" [|
     projection_uniform;
     Jv.of_bool false;
@@ -592,14 +718,17 @@ let draw_scene gl program_info texture buffers rotation_x rotation_y rotation_z 
     Jv.of_bool false;
     mv_array
   |] in
+  let _ = Jv.call gl "uniformMatrix4fv" [|
+    normal_uniform;
+    Jv.of_bool false;
+    normal_array
+  |] in
 
-  (* Bind the texture to texture unit 0 *)
+  (* Bind texture *)
   let texture0 = Jv.Int.get gl "TEXTURE0" in
   let texture_2d = Jv.Int.get gl "TEXTURE_2D" in
   let _ = Jv.call gl "activeTexture" [| Jv.of_int texture0 |] in
   let _ = Jv.call gl "bindTexture" [| Jv.of_int texture_2d; texture |] in
-
-  (* Tell the shader to use texture unit 0 *)
   let sampler_uniform = Jv.get program_info "uniformLocations_uSampler" in
   let _ = Jv.call gl "uniform1i" [| sampler_uniform; Jv.of_int 0 |] in
 
@@ -618,14 +747,11 @@ let draw_scene gl program_info texture buffers rotation_x rotation_y rotation_z 
     </div>
 
     <div class="example">
-        <h2>Step 9: Animation Loop and Main Initialization</h2>
+        <h2>Step 9: Animation and Main Initialization</h2>
         <p class="description">
-            Finally, we set up the canvas, initialize WebGL, create our shader program, load the texture,
-            and start the animation loop. The animation rotates the cube on all three axes.
-        </p>
-        <p class="description">
-            All the functions we defined in previous cells (shaders, buffers, matrices, drawing, texture loading)
-            are available here and can be called normally.
+            Finally, we initialize everything and start the animation loop. The lit, textured cube
+            will rotate smoothly, with lighting that changes as different faces turn toward or away
+            from the light source.
         </p>
         <x-ocaml>
 (* Create canvas *)
@@ -635,7 +761,7 @@ let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480
 let gl_ref = ref (Jv.null)
 let program_info_ref = ref (Jv.null)
 let texture_ref = ref (Jv.null)
-let buffers_ref = ref (Jv.null, Jv.null, Jv.null)
+let buffers_ref = ref (Jv.null, Jv.null, Jv.null, Jv.null)
 let start_time_ref = ref None
 
 (* Animation loop *)
@@ -678,18 +804,26 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
     | Some program -> begin
         print_endline "Shader program created";
 
-        (* Get attribute and uniform locations *)
+        (* Get attribute locations *)
         let vertex_position_loc = Jv.call gl "getAttribLocation" [|
           program; Jv.of_string "aVertexPosition"
+        |] in
+        let vertex_normal_loc = Jv.call gl "getAttribLocation" [|
+          program; Jv.of_string "aVertexNormal"
         |] in
         let texture_coord_loc = Jv.call gl "getAttribLocation" [|
           program; Jv.of_string "aTextureCoord"
         |] in
+
+        (* Get uniform locations *)
         let projection_location = Jv.call gl "getUniformLocation" [|
           program; Jv.of_string "uProjectionMatrix"
         |] in
         let modelview_location = Jv.call gl "getUniformLocation" [|
           program; Jv.of_string "uModelViewMatrix"
+        |] in
+        let normal_matrix_location = Jv.call gl "getUniformLocation" [|
+          program; Jv.of_string "uNormalMatrix"
         |] in
         let sampler_location = Jv.call gl "getUniformLocation" [|
           program; Jv.of_string "uSampler"
@@ -698,17 +832,19 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
         let program_info = Jv.obj [|
           "program", program;
           "attribLocations_vertexPosition", vertex_position_loc;
+          "attribLocations_vertexNormal", vertex_normal_loc;
           "attribLocations_textureCoord", texture_coord_loc;
           "uniformLocations_projection", projection_location;
           "uniformLocations_modelView", modelview_location;
+          "uniformLocations_normalMatrix", normal_matrix_location;
           "uniformLocations_uSampler", sampler_location;
         |] in
 
         (* Initialize buffers *)
         let buffers = init_buffers gl in
-        print_endline "Buffers initialized";
+        print_endline "Buffers initialized (including normals)";
 
-        (* Load texture - hardcoded URL for localhost demo *)
+        (* Load texture *)
         let texture = load_texture gl "http://localhost:8000/camel.png" in
         print_endline "Texture loading started";
 
@@ -725,7 +861,7 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
         (* Start animation *)
         let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
           [| Jv.callback ~arity:1 animate |] in
-        print_endline "Animation started! The textured cube should now be rotating."
+        print_endline "Animation started! The lit, textured cube should now be rotating."
       end
   end
 )
@@ -735,24 +871,30 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
     <div class="example">
         <h2>Result</h2>
         <p class="description">
-            You should now see a 3D cube with the OCaml camel logo texture mapped onto each face!
-            The texture loads asynchronously - you'll see a blue placeholder initially, then the
-            camel texture appears when the image finishes loading.
+            You should now see a rotating 3D cube with the OCaml camel logo texture, beautifully lit with
+            realistic shading! As the cube rotates, you'll notice:
         </p>
+        <ul>
+            <li><strong>Ambient lighting</strong> provides a base level of illumination to all faces</li>
+            <li><strong>Directional lighting</strong> makes faces brighter when they face the light direction</li>
+            <li><strong>Smooth rotation</strong> with lighting that updates dynamically as faces turn</li>
+            <li><strong>Realistic depth</strong> from the combination of texture and lighting</li>
+        </ul>
         <p class="description">
             <strong>Key concepts demonstrated:</strong>
         </p>
         <ul>
-            <li><strong>Texture loading</strong>: Using fetch() and createImageBitmap() to load images in a Web Worker</li>
-            <li><strong>Texture coordinates</strong>: Mapping 2D texture space (0,0 to 1,1) onto 3D geometry</li>
-            <li><strong>Texture sampling</strong>: Using texture2D() in shaders to fetch pixel colors from textures</li>
-            <li><strong>Image orientation</strong>: Flipping Y coordinates with UNPACK_FLIP_Y_WEBGL to match WebGL's coordinate system</li>
-            <li><strong>Power-of-2 handling</strong>: Different texture parameters for power-of-2 vs non-power-of-2 images</li>
-            <li><strong>Asynchronous loading</strong>: Using Promises to handle image loading without blocking rendering</li>
+            <li><strong>Normal vectors</strong>: Defining surface orientation for lighting calculations</li>
+            <li><strong>Phong lighting model</strong>: Combining ambient and directional light sources</li>
+            <li><strong>Normal matrix transformation</strong>: Correctly orienting normals when objects rotate</li>
+            <li><strong>Per-vertex lighting</strong>: Computing lighting in the vertex shader (Gouraud shading)</li>
+            <li><strong>Dot product</strong>: Using vector math to determine light intensity based on surface angle</li>
         </ul>
         <p class="description">
-            <strong>Note:</strong> This example uses a hardcoded localhost URL for the texture. In a production environment,
-            you would want to use a relative URL or pass the base URL as a configuration parameter.
+            The lighting calculation happens in the vertex shader, then the lighting values are interpolated
+            across the face and applied to the texture in the fragment shader. This is known as
+            <strong>Gouraud shading</strong>, which is computationally efficient but can miss fine lighting details
+            within polygons.
         </p>
     </div>
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGL Tutorial 4: Animating Objects</title>
+    <title>WebGL Tutorial 2: Adding 2D Content</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -36,43 +36,55 @@
     </style>
 </head>
 <body>
-    <h1>WebGL Tutorial 4: Animating Objects with WebGL</h1>
+    <h1>WebGL Tutorial 2: Adding 2D Content to WebGL</h1>
 
     <p class="description">
-        In this tutorial, we'll make our colored square rotate. We'll build on the previous example
-        by adding rotation transformations and creating an animation loop using
-        <code>requestAnimationFrame</code>.
+        Once you've successfully created a WebGL context, you can start rendering into it.
+        A simple example to start with is to draw an untextured square plane, so let's start there,
+        by building code to draw a square plane.
     </p>
+
+    <div class="example">
+        <h2>Creating the Canvas</h2>
+        <p class="description">
+            First, we need to create a canvas element to render into. The x-ocaml library provides
+            a canvas widget that we can use for WebGL rendering.
+        </p>
+        <x-ocaml>
+(* Create a canvas widget *)
+let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480;;
+        </x-ocaml>
+    </div>
 
     <div class="example">
         <h2>The Shaders</h2>
         <p class="description">
-            The shaders remain unchanged from the previous tutorial—we still have vertex positions
-            and colors with interpolation between vertices.
+            Shaders are programs, written in GLSL, that run on the GPU. There are two types of shaders:
+        </p>
+        <ul>
+            <li><strong>Vertex shader:</strong> Transforms vertex positions from model space to clip space coordinates</li>
+            <li><strong>Fragment shader:</strong> Determines the color of each pixel</li>
+        </ul>
+        <p class="description">
+            In this example, our vertex shader applies projection and model-view matrices to transform vertices,
+            and our fragment shader simply outputs white for every pixel.
         </p>
         <x-ocaml>
 (* Vertex shader program *)
 let vsSource = {|
   attribute vec4 aVertexPosition;
-  attribute vec4 aVertexColor;
-
   uniform mat4 uModelViewMatrix;
   uniform mat4 uProjectionMatrix;
 
-  varying lowp vec4 vColor;
-
-  void main(void) {
+  void main() {
     gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-    vColor = aVertexColor;
   }
 |};;
 
 (* Fragment shader program *)
 let fsSource = {|
-  varying lowp vec4 vColor;
-
-  void main(void) {
-    gl_FragColor = vColor;
+  void main() {
+    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
   }
 |};;
         </x-ocaml>
@@ -81,7 +93,9 @@ let fsSource = {|
     <div class="example">
         <h2>Initializing the Shaders</h2>
         <p class="description">
-            Shader initialization remains the same.
+            After defining the shaders, we need to compile them and link them into a shader program.
+            This involves creating shader objects, compiling the GLSL source code, and linking them together.
+            We also include error checking to report any compilation or linking failures.
         </p>
         <x-ocaml>
 (* Compile a shader from source code *)
@@ -136,13 +150,19 @@ let init_shader_program gl =
     </div>
 
     <div class="example">
-        <h2>Creating the Buffers</h2>
+        <h2>Creating the Square Plane</h2>
         <p class="description">
-            Buffer creation is also unchanged from the previous tutorial.
+            Now that we have our shaders in place, we can create the actual object we want to draw.
+            Since WebGL only renders triangles, we'll use a triangle strip to create our square from
+            four vertices. The vertices are defined in clip space coordinates (ranging from -1 to 1).
+        </p>
+        <p class="description">
+            We create a buffer to hold the vertex positions, then upload the position data to the GPU
+            using a Float32Array. The buffer will be used later when we render the scene.
         </p>
         <x-ocaml>
 (* Create and initialize the position buffer *)
-let init_position_buffer gl =
+let init_buffers gl =
   let position_buffer = Jv.call gl "createBuffer" [||] in
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
   let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
@@ -168,92 +188,24 @@ let init_position_buffer gl =
 
   position_buffer
 ;;
-
-(* Create and initialize the color buffer *)
-let init_color_buffer gl =
-  let color_buffer = Jv.call gl "createBuffer" [||] in
-  let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
-  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; color_buffer |] in
-
-  (* Define colors for each vertex (RGBA) *)
-  let colors = [|
-    1.0; 1.0; 1.0; 1.0;  (* white for top left *)
-    1.0; 0.0; 0.0; 1.0;  (* red for top right *)
-    0.0; 1.0; 0.0; 1.0;  (* green for bottom left *)
-    0.0; 0.0; 1.0; 1.0;  (* blue for bottom right *)
-  |] in
-
-  (* Convert to Float32Array and upload to GPU *)
-  let float32_array_constructor = Jv.get Jv.global "Float32Array" in
-  let colors_array = Jv.new' float32_array_constructor [| Jv.of_array Jv.of_float colors |] in
-
-  let static_draw = Jv.Int.get gl "STATIC_DRAW" in
-  let _ = Jv.call gl "bufferData" [|
-    Jv.of_int array_buffer;
-    colors_array;
-    Jv.of_int static_draw
-  |] in
-
-  color_buffer
-;;
-
-(* Initialize all buffers and return them as a tuple *)
-let init_buffers gl =
-  let position_buffer = init_position_buffer gl in
-  let color_buffer = init_color_buffer gl in
-  (position_buffer, color_buffer)
-;;
-        </x-ocaml>
-    </div>
-
-    <div class="example">
-        <h2>Matrix Helper Functions</h2>
-        <p class="description">
-            To rotate our square, we need functions to create and manipulate 4x4 transformation matrices.
-            We'll create helper functions for matrix multiplication and rotation around the Z-axis.
-        </p>
-        <x-ocaml>
-(* Multiply two 4x4 matrices *)
-let mat4_multiply a b =
-  let result = Array.make 16 0.0 in
-  for i = 0 to 3 do
-    for j = 0 to 3 do
-      let sum = ref 0.0 in
-      for k = 0 to 3 do
-        sum := !sum +. a.(i * 4 + k) *. b.(k * 4 + j)
-      done;
-      result.(i * 4 + j) <- !sum
-    done
-  done;
-  result
-;;
-
-(* Create a rotation matrix around the Z-axis *)
-(* WebGL matrices are column-major, so we arrange by columns *)
-let mat4_rotate_z angle =
-  let c = cos angle in
-  let s = sin angle in
-  [|
-    c;   -.s;  0.0; 0.0;  (* first column *)
-    s;    c;   0.0; 0.0;  (* second column *)
-    0.0;  0.0; 1.0; 0.0;  (* third column *)
-    0.0;  0.0; 0.0; 1.0;  (* fourth column *)
-  |]
-;;
         </x-ocaml>
     </div>
 
     <div class="example">
         <h2>Drawing the Scene</h2>
         <p class="description">
-            The <code>draw_scene</code> function now takes a rotation parameter. We apply this
-            rotation to the model-view matrix before rendering, which causes the square to appear
-            rotated around its center.
+            Once the buffers are created, we can actually render the scene. The <code>draw_scene</code>
+            function performs the following steps:
         </p>
+        <ul>
+            <li>Clear the canvas to black</li>
+            <li>Set up the projection and model-view matrices (identity matrices for this simple 2D example)</li>
+            <li>Bind the position buffer and tell WebGL how to interpret the data</li>
+            <li>Activate the shader program and set the uniform variables</li>
+            <li>Draw the square using the triangle strip primitive</li>
+        </ul>
         <x-ocaml>
-let draw_scene gl program_info buffers rotation =
-  let (position_buffer, color_buffer) = buffers in
-
+let draw_scene gl program_info buffers =
   (* Clear to black, fully opaque *)
   let _ = Jv.call gl "clearColor" [|
     Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 0.0; Jv.of_float 1.0
@@ -271,7 +223,7 @@ let draw_scene gl program_info buffers rotation =
   let depth_bit = Jv.Int.get gl "DEPTH_BUFFER_BIT" in
   let _ = Jv.call gl "clear" [| Jv.of_int (color_bit lor depth_bit) |] in
 
-  (* Create identity matrix *)
+  (* Create identity matrices *)
   let projection_matrix = [|
     1.0; 0.0; 0.0; 0.0;
     0.0; 1.0; 0.0; 0.0;
@@ -279,24 +231,23 @@ let draw_scene gl program_info buffers rotation =
     0.0; 0.0; 0.0; 1.0;
   |] in
 
-  (* Start with identity matrix, then apply rotation *)
-  let identity = [|
+  let model_view_matrix = [|
     1.0; 0.0; 0.0; 0.0;
     0.0; 1.0; 0.0; 0.0;
     0.0; 0.0; 1.0; 0.0;
     0.0; 0.0; 0.0; 1.0;
   |] in
 
-  (* Apply rotation around Z-axis *)
-  let rotation_matrix = mat4_rotate_z rotation in
-  let model_view_matrix = mat4_multiply rotation_matrix identity in
-
   (* Bind the position buffer *)
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
-  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; position_buffer |] in
+  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; buffers |] in
 
-  (* Tell WebGL how to pull out the positions *)
-  let vertex_position = Jv.to_int (Jv.get program_info "attribLocations_vertexPosition") in
+  (* Tell WebGL how to pull out the positions from buffer *)
+  let vertex_position = Jv.to_int (Jv.call gl "getAttribLocation" [|
+    Jv.get program_info "program";
+    Jv.of_string "aVertexPosition"
+  |]) in
+
   let float_type = Jv.Int.get gl "FLOAT" in
   let _ = Jv.call gl "vertexAttribPointer" [|
     Jv.of_int vertex_position;
@@ -307,21 +258,6 @@ let draw_scene gl program_info buffers rotation =
     Jv.of_int 0;           (* offset *)
   |] in
   let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_position |] in
-
-  (* Bind the color buffer *)
-  let _ = Jv.call gl "bindBuffer" [| Jv.of_int array_buffer; color_buffer |] in
-
-  (* Tell WebGL how to pull out the colors *)
-  let vertex_color = Jv.to_int (Jv.get program_info "attribLocations_vertexColor") in
-  let _ = Jv.call gl "vertexAttribPointer" [|
-    Jv.of_int vertex_color;
-    Jv.of_int 4;           (* 4 components per iteration (RGBA) *)
-    Jv.of_int float_type;  (* the data is 32bit floats *)
-    Jv.of_bool false;      (* don't normalize *)
-    Jv.of_int 0;           (* stride *)
-    Jv.of_int 0;           (* offset *)
-  |] in
-  let _ = Jv.call gl "enableVertexAttribArray" [| Jv.of_int vertex_color |] in
 
   (* Tell WebGL to use our program *)
   let _ = Jv.call gl "useProgram" [| Jv.get program_info "program" |] in
@@ -354,62 +290,21 @@ let draw_scene gl program_info buffers rotation =
     Jv.of_int 4
   |] in
 
-  ()
+  print_endline "Square drawn!"
 ;;
         </x-ocaml>
     </div>
 
     <div class="example">
-        <h2>Creating the Animation Loop</h2>
+        <h2>Putting It All Together</h2>
         <p class="description">
-            Finally, we create the animation loop using <code>requestAnimationFrame</code>.
-            This function is called repeatedly by the browser (typically 60 times per second),
-            and we update the rotation angle on each frame. We use delta time to ensure the
-            animation speed is independent of the frame rate.
+            Finally, we initialize the WebGL context, compile our shaders, create the buffers,
+            and render the scene. This code waits for the canvas to be ready, gets a WebGL context,
+            and then executes the complete rendering pipeline.
         </p>
         <x-ocaml>
-(* Create a canvas widget *)
-let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480
-
-(* Console for logging animation progress *)
-let console = Jv.get Jv.global "console"
-
-(* Global references for animation *)
-let gl_ref = ref (Jv.null)
-let program_info_ref = ref (Jv.null)
-let buffers_ref = ref (Jv.null, Jv.null)
-let start_time_ref = ref None
-
-(* Animation loop using requestAnimationFrame *)
-let rec animate timestamp =
-  (* Calculate rotation based on elapsed time *)
-  let start_time = match !start_time_ref with
-    | None ->
-        start_time_ref := Some timestamp;
-        timestamp
-    | Some t -> t
-  in
-  let elapsed = (timestamp -. start_time) /. 1000.0 in  (* Convert to seconds *)
-  let rotation = elapsed in  (* Rotate at 1 radian per second *)
-
-  (* Render the scene *)
-  if not (Jv.is_null !gl_ref) then begin
-    draw_scene !gl_ref !program_info_ref !buffers_ref rotation;
-
-    (* Log every 60 frames (approximately once per second) *)
-    if mod_float timestamp 1000.0 < 16.7 then
-      let _ = Jv.call console "log" [|
-        Jv.of_string (Printf.sprintf "Animating... rotation=%.2f radians" rotation)
-      |] in ()
-  end;
-
-  (* Request next frame *)
-  let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
-    [| Jv.callback ~arity:1 animate |] in
-  ()
-
 (* Main initialization *)
-let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
+let _ = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
   let offscreen = X_ocaml_lib.X_canvas.get_offscreen canvas in
 
   let attrs = Jv.obj [|
@@ -430,14 +325,6 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
     | Some program -> begin
         print_endline "Shader program created";
 
-        (* Get attribute locations *)
-        let vertex_position_loc = Jv.call gl "getAttribLocation" [|
-          Jv.of_int program; Jv.of_string "aVertexPosition"
-        |] in
-        let vertex_color_loc = Jv.call gl "getAttribLocation" [|
-          Jv.of_int program; Jv.of_string "aVertexColor"
-        |] in
-
         (* Get uniform locations *)
         let projection_location = Jv.call gl "getUniformLocation" [|
           Jv.of_int program; Jv.of_string "uProjectionMatrix"
@@ -448,8 +335,6 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
 
         let program_info = Jv.obj [|
           "program", Jv.of_int program;
-          "attribLocations_vertexPosition", vertex_position_loc;
-          "attribLocations_vertexColor", vertex_color_loc;
           "uniformLocations_projection", projection_location;
           "uniformLocations_modelView", modelview_location;
         |] in
@@ -457,44 +342,11 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
         let buffers = init_buffers gl in
         print_endline "Buffers initialized";
 
-        (* Store in global refs *)
-        gl_ref := gl;
-        program_info_ref := program_info;
-        buffers_ref := buffers;
-
-        (* Draw initial frame *)
-        draw_scene gl program_info buffers 0.0;
-        print_endline "Initial frame drawn";
-
-        (* Start the animation loop! *)
-        let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
-          [| Jv.callback ~arity:1 animate |] in
-        print_endline "Animation started! The square should now be rotating.";
-        let _ = Jv.call console "log" [| Jv.of_string "Animation loop started!" |] in
-        ()
+        draw_scene gl program_info buffers;
       end
   end
 )
         </x-ocaml>
-    </div>
-
-    <div class="example">
-        <h2>Result</h2>
-        <p class="description">
-            The square is now automatically rotating! The animation loop runs at 60 frames per second,
-            continuously calling <code>requestAnimationFrame</code> to render the next frame. Open your
-            browser's developer console (F12) to see the animation progress logs.
-        </p>
-        <p class="description">
-            <strong>Key points about this implementation:</strong>
-        </p>
-        <ul>
-            <li>The animation uses <code>requestAnimationFrame</code> which works perfectly in Web Workers</li>
-            <li>Callbacks are created using <code>Jv.callback ~arity:1</code> to wrap OCaml functions for JavaScript</li>
-            <li>Time-based animation ensures smooth rotation independent of frame rate</li>
-            <li>All rendering happens in the Web Worker using OffscreenCanvas</li>
-            <li>Console logging helps verify the animation is running</li>
-        </ul>
     </div>
 
     <!-- Load x-ocaml -->

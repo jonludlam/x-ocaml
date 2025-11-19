@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGL Tutorial 4: Animating Objects</title>
+    <title>WebGL Tutorial 3: Using Shaders to Apply Color</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -36,19 +36,21 @@
     </style>
 </head>
 <body>
-    <h1>WebGL Tutorial 4: Animating Objects with WebGL</h1>
+    <h1>WebGL Tutorial 3: Using Shaders to Apply Color in WebGL</h1>
 
     <p class="description">
-        In this tutorial, we'll make our colored square rotate. We'll build on the previous example
-        by adding rotation transformations and creating an animation loop using
-        <code>requestAnimationFrame</code>.
+        In the previous tutorial, we created a white square. Now we'll add color to it by applying
+        different colors to each vertex. WebGL will automatically interpolate the colors between
+        vertices, creating a smooth gradient effect.
     </p>
 
     <div class="example">
         <h2>The Shaders</h2>
         <p class="description">
-            The shaders remain unchanged from the previous tutorial—we still have vertex positions
-            and colors with interpolation between vertices.
+            The key change from the previous tutorial is in the shaders. We now have a vertex color
+            attribute that gets passed from the vertex shader to the fragment shader using a
+            <code>varying</code> variable. WebGL automatically interpolates the varying values
+            between vertices, creating smooth color gradients.
         </p>
         <x-ocaml>
 (* Vertex shader program *)
@@ -81,7 +83,8 @@ let fsSource = {|
     <div class="example">
         <h2>Initializing the Shaders</h2>
         <p class="description">
-            Shader initialization remains the same.
+            The shader initialization code remains the same as before—we compile the vertex and
+            fragment shaders and link them into a program.
         </p>
         <x-ocaml>
 (* Compile a shader from source code *)
@@ -138,7 +141,17 @@ let init_shader_program gl =
     <div class="example">
         <h2>Creating the Buffers</h2>
         <p class="description">
-            Buffer creation is also unchanged from the previous tutorial.
+            Now we need two buffers: one for vertex positions (as before) and a new one for vertex colors.
+            We'll assign a different color to each corner of the square:
+        </p>
+        <ul>
+            <li>Top left: White</li>
+            <li>Top right: Red</li>
+            <li>Bottom left: Green</li>
+            <li>Bottom right: Blue</li>
+        </ul>
+        <p class="description">
+            The colors are defined as RGBA values, with each component ranging from 0.0 to 1.0.
         </p>
         <x-ocaml>
 (* Create and initialize the position buffer *)
@@ -207,51 +220,14 @@ let init_buffers gl =
     </div>
 
     <div class="example">
-        <h2>Matrix Helper Functions</h2>
-        <p class="description">
-            To rotate our square, we need functions to create and manipulate 4x4 transformation matrices.
-            We'll create helper functions for matrix multiplication and rotation around the Z-axis.
-        </p>
-        <x-ocaml>
-(* Multiply two 4x4 matrices *)
-let mat4_multiply a b =
-  let result = Array.make 16 0.0 in
-  for i = 0 to 3 do
-    for j = 0 to 3 do
-      let sum = ref 0.0 in
-      for k = 0 to 3 do
-        sum := !sum +. a.(i * 4 + k) *. b.(k * 4 + j)
-      done;
-      result.(i * 4 + j) <- !sum
-    done
-  done;
-  result
-;;
-
-(* Create a rotation matrix around the Z-axis *)
-(* WebGL matrices are column-major, so we arrange by columns *)
-let mat4_rotate_z angle =
-  let c = cos angle in
-  let s = sin angle in
-  [|
-    c;   -.s;  0.0; 0.0;  (* first column *)
-    s;    c;   0.0; 0.0;  (* second column *)
-    0.0;  0.0; 1.0; 0.0;  (* third column *)
-    0.0;  0.0; 0.0; 1.0;  (* fourth column *)
-  |]
-;;
-        </x-ocaml>
-    </div>
-
-    <div class="example">
         <h2>Drawing the Scene</h2>
         <p class="description">
-            The <code>draw_scene</code> function now takes a rotation parameter. We apply this
-            rotation to the model-view matrix before rendering, which causes the square to appear
-            rotated around its center.
+            The drawing code is similar to before, but now we need to bind and enable both the
+            position and color attributes. WebGL will automatically interpolate the colors between
+            vertices, creating smooth gradients across the square's surface.
         </p>
         <x-ocaml>
-let draw_scene gl program_info buffers rotation =
+let draw_scene gl program_info buffers =
   let (position_buffer, color_buffer) = buffers in
 
   (* Clear to black, fully opaque *)
@@ -271,7 +247,7 @@ let draw_scene gl program_info buffers rotation =
   let depth_bit = Jv.Int.get gl "DEPTH_BUFFER_BIT" in
   let _ = Jv.call gl "clear" [| Jv.of_int (color_bit lor depth_bit) |] in
 
-  (* Create identity matrix *)
+  (* Create identity matrices *)
   let projection_matrix = [|
     1.0; 0.0; 0.0; 0.0;
     0.0; 1.0; 0.0; 0.0;
@@ -279,17 +255,12 @@ let draw_scene gl program_info buffers rotation =
     0.0; 0.0; 0.0; 1.0;
   |] in
 
-  (* Start with identity matrix, then apply rotation *)
-  let identity = [|
+  let model_view_matrix = [|
     1.0; 0.0; 0.0; 0.0;
     0.0; 1.0; 0.0; 0.0;
     0.0; 0.0; 1.0; 0.0;
     0.0; 0.0; 0.0; 1.0;
   |] in
-
-  (* Apply rotation around Z-axis *)
-  let rotation_matrix = mat4_rotate_z rotation in
-  let model_view_matrix = mat4_multiply rotation_matrix identity in
 
   (* Bind the position buffer *)
   let array_buffer = Jv.Int.get gl "ARRAY_BUFFER" in
@@ -354,62 +325,24 @@ let draw_scene gl program_info buffers rotation =
     Jv.of_int 4
   |] in
 
-  ()
+  print_endline "Colored square drawn!"
 ;;
         </x-ocaml>
     </div>
 
     <div class="example">
-        <h2>Creating the Animation Loop</h2>
+        <h2>Putting It All Together</h2>
         <p class="description">
-            Finally, we create the animation loop using <code>requestAnimationFrame</code>.
-            This function is called repeatedly by the browser (typically 60 times per second),
-            and we update the rotation angle on each frame. We use delta time to ensure the
-            animation speed is independent of the frame rate.
+            The initialization code now needs to get the location of both the position and color
+            attributes from the shader program. We also create the canvas here so it appears at
+            the bottom of the page.
         </p>
         <x-ocaml>
 (* Create a canvas widget *)
-let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480
-
-(* Console for logging animation progress *)
-let console = Jv.get Jv.global "console"
-
-(* Global references for animation *)
-let gl_ref = ref (Jv.null)
-let program_info_ref = ref (Jv.null)
-let buffers_ref = ref (Jv.null, Jv.null)
-let start_time_ref = ref None
-
-(* Animation loop using requestAnimationFrame *)
-let rec animate timestamp =
-  (* Calculate rotation based on elapsed time *)
-  let start_time = match !start_time_ref with
-    | None ->
-        start_time_ref := Some timestamp;
-        timestamp
-    | Some t -> t
-  in
-  let elapsed = (timestamp -. start_time) /. 1000.0 in  (* Convert to seconds *)
-  let rotation = elapsed in  (* Rotate at 1 radian per second *)
-
-  (* Render the scene *)
-  if not (Jv.is_null !gl_ref) then begin
-    draw_scene !gl_ref !program_info_ref !buffers_ref rotation;
-
-    (* Log every 60 frames (approximately once per second) *)
-    if mod_float timestamp 1000.0 < 16.7 then
-      let _ = Jv.call console "log" [|
-        Jv.of_string (Printf.sprintf "Animating... rotation=%.2f radians" rotation)
-      |] in ()
-  end;
-
-  (* Request next frame *)
-  let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
-    [| Jv.callback ~arity:1 animate |] in
-  ()
+let canvas_id = X_ocaml_lib.X_canvas.create ~width:640 ~height:480;;
 
 (* Main initialization *)
-let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
+let _ = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
   let offscreen = X_ocaml_lib.X_canvas.get_offscreen canvas in
 
   let attrs = Jv.obj [|
@@ -457,48 +390,15 @@ let () = X_ocaml_lib.X_canvas.when_ready canvas_id (fun canvas ->
         let buffers = init_buffers gl in
         print_endline "Buffers initialized";
 
-        (* Store in global refs *)
-        gl_ref := gl;
-        program_info_ref := program_info;
-        buffers_ref := buffers;
-
-        (* Draw initial frame *)
-        draw_scene gl program_info buffers 0.0;
-        print_endline "Initial frame drawn";
-
-        (* Start the animation loop! *)
-        let _ = Jv.to_int @@ Jv.call Jv.global "requestAnimationFrame"
-          [| Jv.callback ~arity:1 animate |] in
-        print_endline "Animation started! The square should now be rotating.";
-        let _ = Jv.call console "log" [| Jv.of_string "Animation loop started!" |] in
-        ()
+        draw_scene gl program_info buffers;
       end
   end
 )
         </x-ocaml>
     </div>
 
-    <div class="example">
-        <h2>Result</h2>
-        <p class="description">
-            The square is now automatically rotating! The animation loop runs at 60 frames per second,
-            continuously calling <code>requestAnimationFrame</code> to render the next frame. Open your
-            browser's developer console (F12) to see the animation progress logs.
-        </p>
-        <p class="description">
-            <strong>Key points about this implementation:</strong>
-        </p>
-        <ul>
-            <li>The animation uses <code>requestAnimationFrame</code> which works perfectly in Web Workers</li>
-            <li>Callbacks are created using <code>Jv.callback ~arity:1</code> to wrap OCaml functions for JavaScript</li>
-            <li>Time-based animation ensures smooth rotation independent of frame rate</li>
-            <li>All rendering happens in the Web Worker using OffscreenCanvas</li>
-            <li>Console logging helps verify the animation is running</li>
-        </ul>
-    </div>
-
     <!-- Load x-ocaml -->
-    <script async
+   <script async
       src="https://jon.ludl.am/experiments/x-ocaml/x-ocaml.js"
       src-worker="https://jon.ludl.am/experiments/x-ocaml/x-ocaml.worker+effects.js"
     ></script>

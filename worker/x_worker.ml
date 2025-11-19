@@ -44,16 +44,19 @@ let run () =
     with _ -> (
       (* Not a marshaled message, try as raw JavaScript object *)
       let obj = Jv.repr data in
+      Brr.Console.log [ "Received non-marshaled message:"; obj ];
       try
         let msg_type = Jv.to_jstr (Jv.get obj "type") in
+        Brr.Console.log [ "Message type:"; msg_type ];
         if Jstr.equal msg_type (Jstr.v "offscreen_canvas") then
           let widget_id = Jv.Int.get obj "widget_id" in
           let canvas = Jv.get obj "canvas" in
+          Brr.Console.log [ "Registering canvas with widget_id:"; Jv.of_int widget_id ];
           let _ = X_ocaml_lib.X_canvas.register_offscreen widget_id canvas in
           ()
       with err ->
         Brr.Console.error
-          [ "Error processing widget message:"; Printexc.to_string err ])
+          [ "Error processing widget message:"; Printexc.to_string err; "Message data:"; obj ])
   in
   let _listener =
     Brr.Ev.listen Brr_io.Message.Ev.message handle_message Brr.G.target

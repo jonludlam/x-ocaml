@@ -47,19 +47,34 @@ let create ~width ~height =
 
 (* Called when OffscreenCanvas is transferred to worker *)
 let register_offscreen widget_id offscreen =
+  Brr.Console.log [ "register_offscreen called with widget_id:"; Jv.of_int widget_id ];
   let width = Jv.Int.get offscreen "width" in
+  Brr.Console.log [ "Got width:"; Jv.of_int width ];
   let height = Jv.Int.get offscreen "height" in
+  Brr.Console.log [ "Got height:"; Jv.of_int height ];
   (* Don't get a context yet - let the user choose (2d, webgl, webgl2, etc.) *)
   let ctx = Jv.null in
+  Brr.Console.log [ "Created null ctx" ];
   let canvas = { id = widget_id; offscreen; ctx; width; height } in
+  Brr.Console.log [ "Created canvas record" ];
   Hashtbl.add widgets widget_id canvas;
+  Brr.Console.log [ "Added to hashtbl" ];
 
   (* Call ready callbacks *)
   (match Hashtbl.find_opt ready_callbacks widget_id with
   | Some callbacks ->
-      List.iter (fun cb -> cb canvas) callbacks;
+      Brr.Console.log [ "Calling ready callbacks for widget"; Jv.of_int widget_id; "count:"; Jv.of_int (List.length callbacks) ];
+      List.iter (fun cb ->
+        try
+          Brr.Console.log [ "Calling callback..." ];
+          cb canvas;
+          Brr.Console.log [ "Callback completed successfully" ]
+        with e ->
+          Brr.Console.error [ "Error in ready callback:"; Jv.of_string (Printexc.to_string e) ]
+      ) callbacks;
       Hashtbl.remove ready_callbacks widget_id
-  | None -> ());
+  | None ->
+      Brr.Console.log [ "No callbacks registered for widget"; Jv.of_int widget_id ]);
 
   canvas
 

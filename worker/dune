@@ -34,6 +34,7 @@
     (echo "Js_of_ocaml\n")
     (echo "Js_of_ocaml__Js\n")
     (echo "Js_of_ocaml__WebGL\n")
+    (echo "Js_of_ocaml__\n")
     (echo "X_ocaml_lib\n")
     (echo "X_ocaml_lib__X_canvas\n")
     (echo "X_ocaml_lib__X_context\n")))))
