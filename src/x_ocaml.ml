@@ -25,7 +25,12 @@ let () =
   | Top_response (id, msg) -> Cell.completed_run (find_by_id id) msg
   | Merlin_response (id, msg) -> Cell.receive_merlin (find_by_id id) msg
 
-let () = Client.post worker Setup
+let warnings_config =
+  match current_attribute "warnings" with
+  | None -> None
+  | Some w -> Some (Jstr.to_string w)
+
+let () = Client.post worker (Setup warnings_config)
 
 let () =
   match current_attribute "x-ocamlformat" with

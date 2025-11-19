@@ -7,7 +7,7 @@ type request =
   | Eval of id * int * string * string option (* id, line_number, code, filename *)
   | Format of id * string
   | Format_config of string
-  | Setup
+  | Setup of string option (* warnings config *)
 
 type output =
   | Stdout of string
