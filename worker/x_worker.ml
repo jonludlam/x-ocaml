@@ -25,5 +25,5 @@ let run () =
       let result = Eval.execute ~output ~id ~line_number ?filename code in
       respond (Top_response (id, result))
   | Setup warnings_config ->
-      Eval.setup_toplevel ();
+      Eval.setup_toplevel ?warnings:warnings_config ();
       Option.iter Merlin_worker.set_warnings warnings_config

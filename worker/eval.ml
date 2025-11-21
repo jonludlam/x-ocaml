@@ -79,9 +79,17 @@ module Environment = struct
     environments := (id, !Toploop.toplevel_env, values) :: !environments
 end
 
-let setup_toplevel () =
+let setup_toplevel ?warnings () =
   let _ = JsooTop.initialize () in
   Sys.interactive := false;
+  (* Configure compiler warnings if provided *)
+  Option.iter (fun w ->
+    try
+      let _alerts = Warnings.parse_options false w in
+      ()
+    with exn ->
+      Brr.Console.error [Jstr.of_string "Failed to parse warnings config:"; Jstr.of_string (Printexc.to_string exn)]
+  ) warnings;
   Environment.init ()
 
 let rec parse_use_file ~caml_ppf lex =

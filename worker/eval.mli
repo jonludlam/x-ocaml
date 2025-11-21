@@ -1,4 +1,4 @@
-val setup_toplevel : unit -> unit
+val setup_toplevel : ?warnings:string -> unit -> unit
 
 val execute :
   id:int ->
