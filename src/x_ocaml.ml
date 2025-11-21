@@ -64,3 +64,37 @@ let _ =
   Cell.set_prev ~prev editor;
   if List.for_all Cell.loadable !all then Cell.run editor;
   ()
+
+(* JavaScript API *)
+let () =
+  (* Set source code for a cell by ID *)
+  Jv.set Jv.global "xOcamlSetSource" (Jv.repr (fun id_jv source_jv ->
+    let id = Jv.to_int id_jv in
+    let source = Jv.to_string source_jv in
+    try
+      let cell = find_by_id id in
+      Cell.set_source cell source
+    with Not_found ->
+      Brr.Console.error [Jstr.of_string ("x-ocaml cell with id " ^ string_of_int id ^ " not found")]
+  ));
+
+  (* Get source code for a cell by ID *)
+  Jv.set Jv.global "xOcamlGetSource" (Jv.repr (fun id_jv ->
+    let id = Jv.to_int id_jv in
+    try
+      let cell = find_by_id id in
+      Jv.of_string (Cell.get_source cell)
+    with Not_found ->
+      Brr.Console.error [Jstr.of_string ("x-ocaml cell with id " ^ string_of_int id ^ " not found")];
+      Jv.null
+  ));
+
+  (* Run a cell by ID *)
+  Jv.set Jv.global "xOcamlRun" (Jv.repr (fun id_jv ->
+    let id = Jv.to_int id_jv in
+    try
+      let cell = find_by_id id in
+      Cell.run cell
+    with Not_found ->
+      Brr.Console.error [Jstr.of_string ("x-ocaml cell with id " ^ string_of_int id ^ " not found")]
+  ))

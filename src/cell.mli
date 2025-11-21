@@ -11,6 +11,7 @@ val init :
   t
 
 val id : t -> int
+val get_source : t -> string
 val set_source : t -> string -> unit
 val add_message : t -> int -> X_protocol.output list -> unit
 val completed_run : t -> X_protocol.output list -> unit

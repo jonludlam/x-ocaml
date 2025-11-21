@@ -16,6 +16,8 @@ type t = {
 
 let id t = t.id
 
+let get_source t = Editor.source t.cm
+
 let pre_source t =
   let target_filename = t.filename in
   let rec go acc current =
