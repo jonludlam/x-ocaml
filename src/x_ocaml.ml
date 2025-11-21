@@ -106,14 +106,14 @@ let _ =
   (* Parse highlight attribute *)
   let highlight =
     match Webcomponent.get_attribute this "highlight" with
-    | Some attr -> parse_highlight_ranges (Jstr.to_string attr)
+    | Some attr -> parse_highlight_ranges attr
     | None -> []
   in
   let editor = Cell.init ~id ~run_on ?filename ?extra_style ?inline_style ~merlin ~highlight worker this in
   all := editor :: !all;
   (* Register string ID if provided *)
   (match Webcomponent.get_attribute this "id" with
-  | Some str_id -> Hashtbl.add id_map (Jstr.to_string str_id) editor
+  | Some str_id -> Hashtbl.add id_map str_id editor
   | None -> ());
   Cell.set_prev ~prev editor;
   if List.for_all Cell.loadable !all then Cell.run editor;
