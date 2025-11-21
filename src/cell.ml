@@ -10,7 +10,7 @@ type t = {
   cm : Editor.t;
   worker : Client.t;
   merlin_worker : Merlin_ext.Client.worker;
-  run_on : [ `Click | `Load ];
+  run_on : [ `Click | `Load | `Never ];
   filename : string option;
 }
 
@@ -132,10 +132,6 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true) worke
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
-  let run_btn = El.button [ El.txt (Jstr.of_string "Run") ] in
-  El.append_children shadow
-    [ El.div ~at:[ At.class' (Jstr.of_string "run_btn") ] [ run_btn ] ];
-
   let cm = Editor.make shadow in
 
   let merlin_ext = Merlin_ext.make ~id ?filename worker in
@@ -153,6 +149,19 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true) worke
       filename;
     }
   in
+
+  (* Only add run button if run_on is not Never *)
+  (match run_on with
+  | `Never -> ()
+  | `Click | `Load ->
+      let run_btn = El.button [ El.txt (Jstr.of_string "Run") ] in
+      El.append_children shadow
+        [ El.div ~at:[ At.class' (Jstr.of_string "run_btn") ] [ run_btn ] ];
+      let _ : Ev.listener =
+        Ev.listen Ev.click (fun _ev -> run editor) (El.as_target run_btn)
+      in
+      ());
+
   Editor.on_change cm (fun () -> invalidate_after ~editor);
   set_source_from_html editor this;
 
@@ -164,10 +173,6 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true) worke
   let () =
     Mutation_observer.observe ~target:(Webcomponent.as_target this)
     @@ Mutation_observer.create (fun _ _ -> set_source_from_html editor this)
-  in
-
-  let _ : Ev.listener =
-    Ev.listen Ev.click (fun _ev -> run editor) (El.as_target run_btn)
   in
 
   editor
@@ -206,4 +211,7 @@ let receive_merlin t msg =
   Merlin_ext.Client.on_message t.merlin_worker
     (Merlin_ext.fix_answer ~pre:(pre_source t) ~doc:(Editor.source t.cm) msg)
 
-let loadable t = t.run_on = `Load
+let loadable t =
+  match t.run_on with
+  | `Load -> true
+  | `Click | `Never -> false

@@ -2,7 +2,7 @@ type t
 
 val init :
   id:int ->
-  run_on:[ `Click | `Load ] ->
+  run_on:[ `Click | `Load | `Never ] ->
   ?filename:string ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->

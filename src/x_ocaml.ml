@@ -45,7 +45,10 @@ let elt_name =
 let extra_style = current_attribute "src-style"
 let inline_style = current_attribute "inline-style"
 let run_on = current_attribute "run-on" |> Option.map Jstr.to_string
-let run_on_of_string = function "click" -> `Click | "load" | _ -> `Load
+let run_on_of_string = function
+  | "click" -> `Click
+  | "never" -> `Never
+  | "load" | _ -> `Load
 
 let _ =
   Webcomponent.define elt_name @@ fun this ->
