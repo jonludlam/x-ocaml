@@ -116,7 +116,7 @@ let _ =
   | Some str_id -> Hashtbl.add id_map str_id editor
   | None -> ());
   Cell.set_prev ~prev editor;
-  if List.for_all Cell.loadable !all then Cell.run editor;
+  if Cell.loadable editor then Cell.run editor;
   ()
 
 (* JavaScript API *)
