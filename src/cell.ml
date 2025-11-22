@@ -133,6 +133,17 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true)
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
+  (* Add run button container BEFORE creating editor so it appears on top *)
+  let run_btn_container =
+    match run_on with
+    | `Never -> None
+    | `Click | `Load ->
+        let run_btn = El.button [ El.txt (Jstr.of_string "Run") ] in
+        let container = El.div ~at:[ At.class' (Jstr.of_string "run_btn") ] [ run_btn ] in
+        El.append_children shadow [ container ];
+        Some (run_btn, container)
+  in
+
   let cm = Editor.make shadow in
 
   let merlin_ext = Merlin_ext.make ~id ?filename worker in
@@ -151,13 +162,10 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true)
     }
   in
 
-  (* Only add run button if run_on is not Never *)
-  (match run_on with
-  | `Never -> ()
-  | `Click | `Load ->
-      let run_btn = El.button [ El.txt (Jstr.of_string "Run") ] in
-      El.append_children shadow
-        [ El.div ~at:[ At.class' (Jstr.of_string "run_btn") ] [ run_btn ] ];
+  (* Attach click event listener if run button was created *)
+  (match run_btn_container with
+  | None -> ()
+  | Some (run_btn, _) ->
       let _ : Ev.listener =
         Ev.listen Ev.click (fun _ev -> run editor) (El.as_target run_btn)
       in
