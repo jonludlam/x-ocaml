@@ -73,7 +73,7 @@ let rec run editor =
     editor.status <- Request_run;
     Editor.clear_messages editor.cm;
     match editor.prev with
-    | Some e when e.status <> Run_ok -> run e
+    | Some e when e.status <> Run_ok && e.run_on <> `Never -> run e
     | _ ->
         editor.status <- Running;
         let code_txt = Editor.source editor.cm in
