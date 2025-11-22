@@ -174,6 +174,12 @@ let () =
               | Some cell -> Cell.run cell
               | None ->
                   Brr.Console.error [Jstr.of_string "x-ocaml cell not found"]) );
+        ( "clearOutput",
+          Jv.callback ~arity:1 (fun id ->
+              match find_cell id with
+              | Some cell -> Cell.clear_output cell
+              | None ->
+                  Brr.Console.error [Jstr.of_string "x-ocaml cell not found"]) );
       |]
   in
   Jv.set Jv.global "xOcaml" api

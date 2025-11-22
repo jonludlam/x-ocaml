@@ -195,6 +195,10 @@ let set_source editor doc =
 
 let set_highlight editor specs = Editor.set_highlight_specs editor.cm specs
 
+let clear_output editor =
+  Editor.clear_messages editor.cm;
+  editor.status <- Not_run
+
 let render_message msg =
   let raw_html s =
     let el = El.div [] in
