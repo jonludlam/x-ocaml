@@ -102,9 +102,13 @@ table, tr, td, th {
 }
 
 /* Hide source code but show output when hide-source attribute is present */
-:host([hide-source]) .cm-line { display: none; }
-:host([hide-source]) .cm-gutters { display: none; }
-:host([hide-source]) .cm-activeLine { display: none; }
-:host([hide-source]) .cm-cursor { display: none; }
-:host([hide-source]) .run_btn { display: none; }
+:host([hide-source]) .cm-gutters { display: none !important; }
+:host([hide-source]) .cm-cursor { display: none !important; }
+:host([hide-source]) .cm-selectionBackground { display: none !important; }
+:host([hide-source]) .run_btn { display: none !important; }
 :host([hide-source]) .cm-editor { min-height: 0; }
+:host([hide-source]) .cm-line { height: 0 !important; overflow: hidden !important; font-size: 0 !important; }
+:host([hide-source]) .cm-activeLine { background: none !important; }
+:host([hide-source]) .caml_stdout { display: none !important; }
+:host([hide-source]) .caml_stderr { display: none !important; }
+:host([hide-source]) .caml_meta { display: none !important; }

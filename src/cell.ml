@@ -129,7 +129,7 @@ let init_css shadow ~extra_style ~inline_style =
         ]
 
 let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true)
-    ?(highlight = []) worker this =
+    ?(highlight = []) ?on_change worker this =
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
@@ -171,7 +171,9 @@ let init ~id ~run_on ?filename ?extra_style ?inline_style ?(merlin = true)
       in
       ());
 
-  Editor.on_change cm (fun () -> invalidate_after ~editor);
+  Editor.on_change cm (fun () ->
+    invalidate_after ~editor;
+    Option.iter (fun f -> f ()) on_change);
   set_source_from_html editor this;
 
   if merlin then (

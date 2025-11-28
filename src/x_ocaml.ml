@@ -1,7 +1,17 @@
 let all : Cell.t list ref = ref []
 let id_map : (string, Cell.t) Hashtbl.t = Hashtbl.create 16
+let dependents : (string, Cell.t list) Hashtbl.t = Hashtbl.create 16
 let find_by_id id = List.find (fun t -> Cell.id t = id) !all
 let find_by_string_id str_id = Hashtbl.find_opt id_map str_id
+
+let add_dependent ~source_id ~dependent_cell =
+  let current = try Hashtbl.find dependents source_id with Not_found -> [] in
+  Hashtbl.replace dependents source_id (dependent_cell :: current)
+
+let run_dependents source_id =
+  match Hashtbl.find_opt dependents source_id with
+  | None -> ()
+  | Some cells -> List.iter Cell.run cells
 
 let current_script =
   Brr.El.of_jv (Jv.get (Brr.Document.to_jv Brr.G.document) "currentScript")
@@ -109,11 +119,23 @@ let _ =
     | Some attr -> parse_highlight_ranges attr
     | None -> []
   in
-  let editor = Cell.init ~id ~run_on ?filename ?extra_style ?inline_style ~merlin ~highlight worker this in
+  (* Get string ID for this cell *)
+  let cell_id = Webcomponent.get_attribute this "id" in
+  (* Create on_change callback that runs dependents *)
+  let on_change =
+    match cell_id with
+    | Some str_id -> Some (fun () -> run_dependents str_id)
+    | None -> None
+  in
+  let editor = Cell.init ~id ~run_on ?filename ?extra_style ?inline_style ~merlin ~highlight ?on_change worker this in
   all := editor :: !all;
   (* Register string ID if provided *)
-  (match Webcomponent.get_attribute this "id" with
+  (match cell_id with
   | Some str_id -> Hashtbl.add id_map str_id editor
+  | None -> ());
+  (* Register as dependent if auto-run-on is specified *)
+  (match Webcomponent.get_attribute this "auto-run-on" with
+  | Some source_id -> add_dependent ~source_id ~dependent_cell:editor
   | None -> ());
   Cell.set_prev ~prev editor;
   if Cell.loadable editor then Cell.run editor;

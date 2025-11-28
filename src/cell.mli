@@ -8,6 +8,7 @@ val init :
   ?inline_style:Jstr.t ->
   ?merlin:bool ->
   ?highlight:Editor.highlight_spec list ->
+  ?on_change:(unit -> unit) ->
   Client.t ->
   Webcomponent.t ->
   t
