@@ -100,3 +100,11 @@ table, tr, td, th {
   border-collapse: collapse;
   padding: 0.2em;
 }
+
+/* Hide source code but show output when hide-source attribute is present */
+:host([hide-source]) .cm-line { display: none; }
+:host([hide-source]) .cm-gutters { display: none; }
+:host([hide-source]) .cm-activeLine { display: none; }
+:host([hide-source]) .cm-cursor { display: none; }
+:host([hide-source]) .run_btn { display: none; }
+:host([hide-source]) .cm-editor { min-height: 0; }
