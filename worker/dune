@@ -32,4 +32,5 @@
    -o
    %{target}
    stdlib
+   fmt
    %{dep:../worker-lib/x_ocaml_lib.cma})))

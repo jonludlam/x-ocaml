@@ -7,3 +7,6 @@ val execute :
   ?filename:string ->
   string ->
   X_protocol.output list
+
+val is_spec_content : string -> bool
+val execute_type_checks : id:int -> ?filename:string -> string -> X_protocol.output list

@@ -101,6 +101,83 @@ let rec parse_use_file ~caml_ppf lex =
 
 let ppx_rewriters = ref []
 
+(* Type checking support for spec cells *)
+let is_spec_content code =
+  (* Check if code looks like val declarations *)
+  let trimmed = String.trim code in
+  String.length trimmed >= 3 && String.sub trimmed 0 3 = "val"
+
+let parse_val_decls spec =
+  (* Parse "val name : type" declarations from spec string *)
+  let lines = String.split_on_char '\n' spec in
+  List.filter_map (fun line ->
+    let line = String.trim line in
+    if String.length line = 0 then None
+    else if String.length line >= 3 && String.sub line 0 3 = "val" then
+      (* Match "val name : type" *)
+      let rest = String.trim (String.sub line 3 (String.length line - 3)) in
+      match String.index_opt rest ':' with
+      | None -> None
+      | Some colon_pos ->
+          let name = String.trim (String.sub rest 0 colon_pos) in
+          let typ = String.trim (String.sub rest (colon_pos + 1) (String.length rest - colon_pos - 1)) in
+          if String.length name > 0 && String.length typ > 0 then Some (name, typ)
+          else None
+    else None
+  ) lines
+
+let check_type_constraint name expected_type =
+  (* Try to compile: let (_ : expected_type) = name *)
+  let code = Printf.sprintf "let (_ : %s) = %s ;;" expected_type name in
+  let lexer = Lexing.from_string code in
+  let buf = Buffer.create 64 in
+  let ppf = Format.formatter_of_buffer buf in
+  try
+    match !Toploop.parse_toplevel_phrase lexer with
+    | phrase ->
+        let success = Toploop.execute_phrase false ppf phrase in
+        Format.pp_print_flush ppf ();
+        if success then Ok ()
+        else Error (Buffer.contents buf)
+    | exception End_of_file -> Error "parse error"
+    | exception exn ->
+        Errors.report_error ppf exn;
+        Format.pp_print_flush ppf ();
+        Error (Buffer.contents buf)
+  with exn ->
+    Errors.report_error ppf exn;
+    Format.pp_print_flush ppf ();
+    Error (Buffer.contents buf)
+
+let escape_html s =
+  s |> String.split_on_char '&' |> String.concat "&amp;"
+    |> String.split_on_char '<' |> String.concat "&lt;"
+    |> String.split_on_char '>' |> String.concat "&gt;"
+
+let run_type_checks specs =
+  (* Run type checks and return HTML output *)
+  let results = List.map (fun (name, typ) ->
+    match check_type_constraint name typ with
+    | Ok () ->
+        Printf.sprintf "<div style=\"color: green;\">✓ %s : %s</div>"
+          (escape_html name) (escape_html typ)
+    | Error msg ->
+        Printf.sprintf "<div style=\"color: red;\">✗ %s : %s<pre style=\"margin: 0.2em 0 0.5em 1em; font-size: 0.9em;\">%s</pre></div>"
+          (escape_html name) (escape_html typ) (escape_html msg)
+  ) specs in
+  if results = [] then []
+  else [Html (String.concat "" results)]
+
+let execute_type_checks ~id:_ ?filename:_ code_text =
+  (* Environment is already in the correct state after impl cell ran -
+     the type check message is processed immediately after the impl completes *)
+  Brr.Console.log ["execute_type_checks called with:"; code_text];
+  let specs = parse_val_decls code_text in
+  Brr.Console.log ["parsed specs count:"; string_of_int (List.length specs)];
+  let result = run_type_checks specs in
+  Brr.Console.log ["type check result count:"; string_of_int (List.length result)];
+  result
+
 let preprocess_structure str =
   let open Ast_mapper in
   List.fold_right

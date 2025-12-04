@@ -20,10 +20,16 @@ let run () =
   | Format_config conf -> Ocamlfmt.configure conf
   | Format (id, code) -> ignore (reformat ~id code : string)
   | Eval (id, line_number, code, filename) ->
-      let code = reformat ~id code in
-      let output ~loc out = respond (Top_response_at (id, loc, out)) in
-      let result = Eval.execute ~output ~id ~line_number ?filename code in
-      respond (Top_response (id, result))
+      (* Check if this is spec content (type check request) *)
+      if Eval.is_spec_content code then
+        let result = Eval.execute_type_checks ~id ?filename code in
+        respond (Top_response (id, result))
+      else begin
+        let code = reformat ~id code in
+        let output ~loc out = respond (Top_response_at (id, loc, out)) in
+        let result = Eval.execute ~output ~id ~line_number ?filename code in
+        respond (Top_response (id, result))
+      end
   | Setup warnings_config ->
       Eval.setup_toplevel ?warnings:warnings_config ();
       Option.iter Merlin_worker.set_warnings warnings_config

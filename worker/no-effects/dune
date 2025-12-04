@@ -1,6 +1,6 @@
 (executable
  (name x_worker)
- (libraries x_worker)
+ (libraries x_worker fmt)
  (modes js)
  (js_of_ocaml
-  (flags --export=%{dep:../export.txt} --toplevel)))
+  (flags --export=%{dep:../export.txt} --toplevel -I /Users/jon/.opam/5.2.0+ox/lib/fmt/)))
