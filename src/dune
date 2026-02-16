@@ -3,8 +3,10 @@
  (libraries
   brr
   code-mirror
+  js_top_worker-client_fut
   merlin-js.client
   merlin-js.code-mirror
+  merlin-js.protocol
   x_protocol)
  (modes js)
  (preprocess
