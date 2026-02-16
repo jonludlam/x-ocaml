@@ -5,7 +5,9 @@ val init :
   run_on:[ `Click | `Load ] ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
-  Client.t ->
+  eval_fn:(id:int -> line_number:int -> string -> unit) ->
+  fmt_fn:(id:int -> string -> unit) ->
+  post_fn:(X_protocol.request -> unit) ->
   Webcomponent.t ->
   t
 
@@ -15,5 +17,6 @@ val add_message : t -> int -> X_protocol.output list -> unit
 val completed_run : t -> X_protocol.output list -> unit
 val set_prev : prev:t option -> t -> unit
 val receive_merlin : t -> Protocol.answer -> unit
+val start : t -> Webcomponent.t -> unit
 val loadable : t -> bool
 val run : t -> unit

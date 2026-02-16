@@ -1,11 +1,9 @@
-module Worker = Brr_webworkers.Worker
-
-type t = { id : int; mutable context : unit -> string; client : Client.t }
+type t = { id : int; mutable context : unit -> string; post_fn : X_protocol.request -> unit }
 
 let set_context t fn = t.context <- fn
 
-let make ~id client =
-  { id; context = (fun () -> failwith "Merlin_ext.context"); client }
+let make ~id post_fn =
+  { id; context = (fun () -> failwith "Merlin_ext.context"); post_fn }
 
 let fix_position pre_len = function
   | `Offset at -> `Offset (at + pre_len)
@@ -63,7 +61,7 @@ module Merlin_send = struct
 
   let post t msg =
     let msg = fix_request t msg in
-    Client.post t.client (Merlin (t.id, msg))
+    t.post_fn (Merlin (t.id, msg))
 end
 
 module Client = Merlin_client.Make (Merlin_send)

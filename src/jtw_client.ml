@@ -152,10 +152,13 @@ let init t =
   let _fut : unit Fut.t =
     let* result = W.init t.rpc config in
     (match result with
-     | Ok () -> ()
+     | Ok () ->
+       (* Setup the default environment (loads stdlib, etc.) *)
+       let* _setup = W.setup t.rpc "" in
+       Fut.return ()
      | Error (Api.InternalError _msg) ->
-       Console.(log [ str "jtw_client init error:"; str _msg ]));
-    Fut.return ()
+       Console.(log [ str "jtw_client init error:"; str _msg ]);
+       Fut.return ())
   in
   ()
 
@@ -244,7 +247,8 @@ let post t (req : X_protocol.request) =
     (* No-op: js_top_worker doesn't support format configuration *)
     ()
   | X_protocol.Setup ->
-    init t
+    (* init already called by make_jtw; no-op here *)
+    ()
 
 let eval ~id ~line_number t code =
   post t (X_protocol.Eval (id, line_number, code))

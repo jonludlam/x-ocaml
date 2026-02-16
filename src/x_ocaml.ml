@@ -11,26 +11,34 @@ let extra_load =
   | None -> None
   | Some url -> Some (Jstr.to_string url)
 
+let backend_name =
+  match current_attribute "backend" with
+  | None -> "builtin"
+  | Some name -> Jstr.to_string name
+
 let worker_url =
   match current_attribute "src-worker" with
-  | None -> failwith "x-ocaml script missing src-worker attribute"
+  | None ->
+      if backend_name = "builtin" then
+        failwith "x-ocaml script missing src-worker attribute"
+      else ""
   | Some url -> Jstr.to_string url
 
-let worker = Client.make ?extra_load worker_url
+let backend = Backend.make ~backend:backend_name ?extra_load worker_url
 
 let () =
-  Client.on_message worker @@ function
+  Backend.on_message backend @@ function
   | Formatted_source (id, code_fmt) -> Cell.set_source (find_by_id id) code_fmt
   | Top_response_at (id, loc, msg) -> Cell.add_message (find_by_id id) loc msg
   | Top_response (id, msg) -> Cell.completed_run (find_by_id id) msg
   | Merlin_response (id, msg) -> Cell.receive_merlin (find_by_id id) msg
 
-let () = Client.post worker Setup
+let () = Backend.post backend Setup
 
 let () =
   match current_attribute "x-ocamlformat" with
   | None -> ()
-  | Some conf -> Client.post worker (Format_config (Jstr.to_string conf))
+  | Some conf -> Backend.post backend (Format_config (Jstr.to_string conf))
 
 let elt_name =
   match current_attribute "elt-name" with
@@ -53,8 +61,12 @@ let _ =
     | None -> Option.value ~default:"load" run_on
   in
   let id = List.length !all in
-  let editor = Cell.init ~id ~run_on ?extra_style ?inline_style worker this in
+  let eval_fn ~id ~line_number code = Backend.eval ~id ~line_number backend code in
+  let fmt_fn ~id code = Backend.fmt ~id backend code in
+  let post_fn msg = Backend.post backend msg in
+  let editor = Cell.init ~id ~run_on ?extra_style ?inline_style ~eval_fn ~fmt_fn ~post_fn this in
   all := editor :: !all;
   Cell.set_prev ~prev editor;
+  Cell.start editor this;
   if List.for_all Cell.loadable !all then Cell.run editor;
   ()

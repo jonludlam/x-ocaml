@@ -8,7 +8,8 @@ type t = {
   mutable next : t option;
   mutable status : status;
   cm : Editor.t;
-  worker : Client.t;
+  eval_fn : id:int -> line_number:int -> string -> unit;
+  fmt_fn : id:int -> string -> unit;
   merlin_worker : Merlin_ext.Client.worker;
   run_on : [ `Click | `Load ];
 }
@@ -62,7 +63,7 @@ let rec run editor =
         editor.status <- Running;
         let code_txt = Editor.source editor.cm in
         let line_number = 1 + Editor.get_previous_lines editor.cm in
-        Client.eval ~id:editor.id ~line_number editor.worker code_txt)
+        editor.eval_fn ~id:editor.id ~line_number code_txt)
 
 let set_prev ~prev t =
   let () = match t.prev with None -> () | Some prev -> prev.next <- None in
@@ -81,7 +82,7 @@ let set_source_from_html editor this =
   let doc = String.trim doc in
   Editor.set_source editor.cm doc;
   invalidate_from ~editor;
-  Client.fmt ~id:editor.id editor.worker doc
+  editor.fmt_fn ~id:editor.id doc
 
 let init_css shadow ~extra_style ~inline_style =
   El.append_children shadow
@@ -112,7 +113,7 @@ let init_css shadow ~extra_style ~inline_style =
             ();
         ]
 
-let init ~id ~run_on ?extra_style ?inline_style worker this =
+let init ~id ~run_on ?extra_style ?inline_style ~eval_fn ~fmt_fn ~post_fn this =
   let shadow = Webcomponent.attach_shadow this in
   init_css shadow ~extra_style ~inline_style;
 
@@ -122,7 +123,7 @@ let init ~id ~run_on ?extra_style ?inline_style worker this =
 
   let cm = Editor.make shadow in
 
-  let merlin = Merlin_ext.make ~id worker in
+  let merlin = Merlin_ext.make ~id post_fn in
   let merlin_worker = Merlin_ext.Client.make_worker merlin in
   let editor =
     {
@@ -131,13 +132,13 @@ let init ~id ~run_on ?extra_style ?inline_style worker this =
       cm;
       prev = None;
       next = None;
-      worker;
+      eval_fn;
+      fmt_fn;
       merlin_worker;
       run_on;
     }
   in
   Editor.on_change cm (fun () -> invalidate_after ~editor);
-  set_source_from_html editor this;
 
   Merlin_ext.set_context merlin (fun () -> pre_source editor);
   Editor.configure_merlin cm (fun () -> Merlin_ext.extensions merlin_worker);
@@ -152,6 +153,9 @@ let init ~id ~run_on ?extra_style ?inline_style worker this =
   in
 
   editor
+
+let start editor this =
+  set_source_from_html editor this
 
 let set_source editor doc =
   Editor.set_source editor.cm doc;
