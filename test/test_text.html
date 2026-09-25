@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: awkward text</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <h1>Awkward text</h1>
+  <x-ocaml id="emoji">let camel = "🐫🐫";;
+let two = 2</x-ocaml>
+  <x-ocaml id="combining">let accent = "e&#x301;";;
+let n = String.length accent</x-ocaml>
+  <x-ocaml id="crlf"></x-ocaml>
+  <x-ocaml id="tabs">	let tabbed = 1;;
+	let tabbed2 = 2</x-ocaml>
+  <x-ocaml id="long">let long = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";;
+let after_long = 1</x-ocaml>
+  <x-ocaml id="comments">(* nothing but a comment, with an emoji 🐫 *)</x-ocaml>
+  <x-ocaml id="entities">let lt = 1 &lt; 2 &amp;&amp; "&gt;" = "&gt;"</x-ocaml>
+  <x-ocaml id="semis">let s = ";; not the end ;;";;
+let s2 = s</x-ocaml>
+  <x-ocaml id="noeol">print_string "no newline"; prerr_string "to stderr"</x-ocaml>
+  <x-ocaml id="overflow">let rec deep n = 1 + deep (n + 1) in deep 0</x-ocaml>
+  <x-ocaml id="after-overflow">let survived_overflow = true</x-ocaml>
+  <x-ocaml id="use">#use "no_such_file.ml";;</x-ocaml>
+  <x-ocaml id="exit">let () = exit 3</x-ocaml>
+  <x-ocaml id="after-exit">let survived_exit = true</x-ocaml>
+  <x-ocaml id="assert">assert (1 = 2)</x-ocaml>
+  <x-ocaml id="after-assert">let survived_assert = true</x-ocaml>
+  <script>
+    // The HTML parser turns CRLF into LF, so set it from a script.
+    document.getElementById('crlf').textContent = 'let crlf = 1;;\r\nlet crlf2 = 2';
+  </script>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    // The lines and outputs of a cell's editor in order: "L text" or "W text".
+    const layout = (id) => [...shadow(id).querySelector('.cm-content').children].map((ch) =>
+      (ch.classList.contains('cm-line') ? 'L ' : 'W ') + ch.textContent.replace(/\s+/g, ' ').trim());
+    // Each phrase's output right under its own line.
+    const underEach = (id, pairs) => {
+      const l = layout(id);
+      return pairs.every(([line, out]) => {
+        const i = l.findIndex((x) => x.startsWith('L ' + line));
+        return i >= 0 && l[i + 1] && l[i + 1].startsWith('W ') && l[i + 1].includes(out);
+      });
+    };
+
+    async function run() {
+      await waitFor(() => output('after-assert') !== '', 60000);
+      await sleep(3000);
+
+      check('emoji: each output under its own phrase', underEach('emoji', [['let camel', 'val camel'], ['let two', 'val two']]));
+      check('combining accent: likewise', underEach('combining', [['let accent', 'val accent'], ['let n', 'val n : int = 3']]));
+      check('CRLF source: two lines, each with its output', underEach('crlf', [['let crlf =', 'val crlf :'], ['let crlf2', 'val crlf2']]));
+      check('tabs: likewise', underEach('tabs', [['let tabbed =', 'val tabbed :'], ['let tabbed2', 'val tabbed2']]));
+      check('a very long line: the next phrase still gets its output', underEach('long', [['let after_long', 'val after_long']]));
+      check('a cell of only a comment runs, quietly', button('comments').getAttribute('aria-label') === 'Run');
+      check('HTML entities come through as characters', code('entities').includes('1 < 2 && ">" = ">"') && output('entities').includes('val lt : bool = true'));
+      check(';; inside a string is not the end of a phrase', output('semis').includes('val s2'));
+      check('output without a final newline, and on stderr, is shown', output('noeol').includes('no newline') && output('noeol').includes('to stderr'));
+      check('a stack overflow is reported', output('overflow').includes('Stack_overflow') || output('overflow').includes('overflow'));
+      check('and the next cell still runs', output('after-overflow').includes('val survived_overflow'));
+      check('#use of a missing file is reported', output('use').includes('Cannot find file no_such_file.ml'));
+      check('exit is reported, not obeyed', output('exit').includes('not implemented'));
+      check('and the page carries on', output('after-exit').includes('val survived_exit'));
+      check('a failed assert is reported as an exception', output('assert').includes('Exception'));
+      check('and does not stop the page', output('after-assert').includes('val survived_assert'));
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: no worker given</title>
+  <script src="lib.js"></script>
+  <script>
+    window.errorsLogged = [];
+    const error = console.error.bind(console);
+    console.error = (...a) => { window.errorsLogged.push(a.join(' ')); error(...a); };
+  </script>
+</head>
+<body>
+  <x-ocaml id="c">let c = 1</x-ocaml>
+  <script src="x-ocaml.js"></script>
+  <script>
+    async function run() {
+      await sleep(2000);
+      check('a script without src-worker says so', window.errorsLogged.some((e) => e.includes('src-worker')));
+      check('and throws nothing on the page', window.pageErrors.length === 0);
+      check('the cells stay as plain text', cell('c').shadowRoot === null && cell('c').textContent === 'let c = 1');
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

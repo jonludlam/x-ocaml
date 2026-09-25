@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: a base URL elsewhere</title>
+  <!-- The page is in /sub/, but its base is the site root. -->
+  <base href="../">
+  <script src="lib.js"></script>
+</head>
+<body>
+  <x-ocaml id="c">let based = 1</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      check('the worker is found against the page\'s base URL, not its directory',
+        await waitFor(() => output('c').includes('val based'), 30000));
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

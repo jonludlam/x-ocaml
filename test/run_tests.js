@@ -13,8 +13,40 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8766;
-const TIMEOUT = 60000;
-const PAGES = ['/test_modes.html', '/test_exercises.html', '/test_stop.html'];
+const TIMEOUT = 120000;
+const PAGES = [
+  // One page per feature
+  '/test_modes.html',
+  '/test_exercises.html',
+  '/test_stop.html',
+  // Trying to break them
+  '/test_links.html',
+  '/test_saved_edge.html',
+  '/test_storage_denied.html',
+  '/test_storage_full.html',
+  '/test_running_edge.html',
+  '/test_flood.html',
+  '/test_many_lines.html',
+  '/test_text.html',
+  '/test_script_attrs.html',
+  '/test_no_worker.html',
+  '/sub/test_base.html',
+  // The fixes beneath the fork
+  '/sub/test_worker_relative.html',
+  '/sub/test_worker_absolute.html',
+  '/test_elements.html',
+  '/test_big_frame.html',
+];
+
+// Example pages are checked only for running without errors: every cell
+// that runs on load has run, and nothing threw.
+const EXAMPLES = [
+  '/examples/tutorial.html',
+  '/examples/running.html',
+  '/examples/on_click.html',
+  '/examples/theming.html',
+  '/examples/text.html',
+];
 
 const testDir = __dirname;
 const rootDir = path.resolve(testDir, '..');
@@ -48,6 +80,25 @@ function serve() {
       console.log(`${p}: ${r.passed}/${r.total} passed`);
       for (const d of r.details) console.log(`  [${d.ok ? 'PASS' : 'FAIL'}] ${d.name}`);
       failed += r.failed;
+    }
+    for (const p of EXAMPLES) {
+      const errors = [];
+      const onError = (e) => errors.push(e.message);
+      const onConsole = (m) => { if (m.type() === 'error') errors.push(m.text()); };
+      page.on('pageerror', onError);
+      page.on('console', onConsole);
+      await page.goto(`http://localhost:${PORT}${p}`);
+      // Settled: no cell running, or waiting to.
+      const settled = await page.waitForFunction(() => {
+        const cells = [...document.querySelectorAll('*')].filter((e) => e.shadowRoot);
+        return cells.length > 0 && cells.every((c) => !c.shadowRoot.querySelector('.run_btn button.running'));
+      }, null, { timeout: TIMEOUT, polling: 500 }).then(() => true, () => false);
+      await page.waitForTimeout(1000);
+      page.off('pageerror', onError);
+      page.off('console', onConsole);
+      const ok = settled && errors.length === 0;
+      console.log(`${p}: ${ok ? 'runs without errors' : 'FAIL ' + (settled ? errors.join(' | ') : 'cells still running')}`);
+      if (!ok) failed++;
     }
   } catch (e) {
     console.error(e.message);

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: running and stopping, the awkward cases</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <x-ocaml id="first">let first = 1</x-ocaml>
+  <!-- About two seconds of work, then a result -->
+  <x-ocaml id="slow" run-on="click">let rec spin n = if n = 0 then "done" else spin (n - 1)
+let result = spin 300_000_000</x-ocaml>
+  <x-ocaml id="last" run-on="click">let last = first + 1</x-ocaml>
+  <x-ocaml id="loop" run-on="click">let rec forever () = forever () in forever ()</x-ocaml>
+  <x-ocaml id="after" run-on="click">let after = 1</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    const label = (id) => button(id).getAttribute('aria-label');
+
+    async function run() {
+      await waitFor(() => output('first').includes('val first'), 30000);
+
+      // R1: edit a cell while it runs; its result is for code no longer shown.
+      button('slow').click();
+      check('R1: a running cell shows Stop', await waitFor(() => label('slow') === 'Stop', 5000));
+      type('slow', '(* edited *) ');
+      await sleep(200);   // CodeMirror notices typing on its next frame
+      check('R1: editing it puts its button back to Run', label('slow') === 'Run');
+      await sleep(4000);
+      check('R1: and the old code\'s result is not shown against the new', !output('slow').includes('done'));
+      button('slow').click();
+      check('R1: running the edited code shows its own result',
+        await waitFor(() => output('slow').includes('val result : string = "done"'), 20000));
+
+      // R2: a cell queued behind a runaway cell shows it, and can stop it.
+      button('loop').click();
+      await waitFor(() => label('loop') === 'Stop', 10000);
+      button('after').click();
+      await sleep(300);
+      check('R2: a cell waiting behind a running one shows Stop too', label('after') === 'Stop');
+      button('after').click();
+      await sleep(300);
+      check('R2: and stopping it stops the runaway cell', label('loop') === 'Run' && label('after') === 'Run');
+
+      // R3: stop, then run straight away.
+      button('loop').click();
+      check('R3: running again after a Stop works', await waitFor(() => label('loop') === 'Stop', 15000));
+      button('loop').click();
+      button('last').click();
+      check('R3: a cell runs the cells before it on the fresh worker',
+        await waitFor(() => output('last').includes('val last : int = 2'), 20000));
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>
