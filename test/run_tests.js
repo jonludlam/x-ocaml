@@ -61,12 +61,25 @@ function serve() {
       page.on('pageerror', onError);
       page.on('console', onConsole);
       await page.goto(`http://localhost:${PORT}${p}`);
-      // Settled: no cell running, or waiting to.
+      // Settled: no cell running, or waiting to, and the cells that run on
+      // load have answered (a js_top_worker page loads its universe first).
       const settled = await page.waitForFunction(() => {
         const cells = [...document.querySelectorAll('*')].filter((e) => e.shadowRoot);
-        return cells.length > 0 && cells.every((c) => !c.shadowRoot.querySelector('.run_btn button.running'));
+        const answered = (c) => c.shadowRoot.querySelector('.caml_stdout, .caml_stderr, .caml_meta');
+        return cells.length > 0 && cells.every((c) => !c.shadowRoot.querySelector('.run_btn button.running'))
+          && (cells.some(answered) || cells.every((c) => c.getAttribute('run-on') === 'click'));
       }, null, { timeout: TIMEOUT, polling: 500 }).then(() => true, () => false);
       await page.waitForTimeout(1000);
+      // An example whose code does not compile or raises is broken too,
+      // unless the cell says it shows an error on purpose, or it is an
+      // exercise (and its tests), which fail until the reader writes it.
+      const failing = await page.evaluate(() =>
+        [...document.querySelectorAll('*')]
+          .filter((e) => e.shadowRoot && e.getAttribute('data-expect') !== 'error'
+            && !['exercise', 'test'].includes(e.getAttribute('mode')))
+          .map((c) => [...c.shadowRoot.querySelectorAll('.caml_stderr, .caml_meta')].map((o) => o.textContent).join(' '))
+          .filter((t) => /(^|\s)(Error|Exception):|Stack overflow/.test(t)));
+      for (const f of failing) errors.push('a cell failed: ' + f.slice(0, 200));
       page.off('pageerror', onError);
       page.off('console', onConsole);
       const ok = settled && errors.length === 0;
