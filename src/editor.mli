@@ -1,6 +1,6 @@
 type t
 
-val make : Brr.El.t -> t
+val make : ?read_only:bool -> Brr.El.t -> t
 val source : t -> string
 val set_source : t -> string -> unit
 val clear : t -> unit

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml cell modes</title>
+</head>
+<body>
+  <h1>x-ocaml cell modes</h1>
+
+  <!-- T1: a hidden cell's definitions reach the next cell -->
+  <x-ocaml id="t1-hidden" mode="hidden">let secret = 42</x-ocaml>
+  <x-ocaml id="t1-use">let t1 = secret + 1</x-ocaml>
+
+  <!-- T2: interactive, explicit and by default -->
+  <x-ocaml id="t2" mode="interactive">let t2 = 1 + 2</x-ocaml>
+  <x-ocaml id="t2-default">let t2_default = 99</x-ocaml>
+
+  <!-- T3: an exercise and the test that names it -->
+  <x-ocaml id="t3-ex" mode="exercise" data-id="double">let double x = x * 2</x-ocaml>
+  <x-ocaml id="t3-test" mode="test" data-for="double">assert (double 5 = 10)</x-ocaml>
+
+  <!-- T4: merlin turned off -->
+  <x-ocaml id="t4" mode="exercise" data-merlin="false">let t4 : int = "not merlin"</x-ocaml>
+
+  <!-- T5: a failing test, linked by position to the exercise before it.
+       (It fails with failwith, not assert: a failed assert currently stops
+       the builtin worker.) -->
+  <x-ocaml id="t5-ex" mode="exercise">let fact n = n</x-ocaml>
+  <x-ocaml id="t5-test" mode="test">if fact 3 <> 6 then failwith "fact 3 should be 6"</x-ocaml>
+
+  <!-- T6: a test that does not typecheck -->
+  <x-ocaml id="t6-ex" mode="exercise">let six = 6</x-ocaml>
+  <x-ocaml id="t6-test" mode="test">let _ : string = six</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+
+  <script>
+    window.testResults = { total: 0, passed: 0, failed: 0, done: false, details: [] };
+
+    function check(name, ok) {
+      const r = window.testResults;
+      r.total++; ok ? r.passed++ : r.failed++;
+      r.details.push({ name, ok: !!ok });
+    }
+
+    const cell = (id) => document.getElementById(id);
+    const shadow = (id) => cell(id).shadowRoot;
+    const editor = (id) => shadow(id) && shadow(id).querySelector('.cm-editor');
+    const readOnly = (id) =>
+      editor(id).querySelector('.cm-content').getAttribute('aria-readonly') === 'true';
+    const output = (id) =>
+      [...shadow(id).querySelectorAll('.caml_stdout, .caml_stderr, .caml_meta')]
+        .map((e) => e.textContent).join('\n');
+    const verdict = (id) => {
+      const i = shadow(id).querySelector('.test-indicator');
+      return i ? i.textContent : null;
+    };
+
+    function waitFor(pred, ms) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        (function poll() {
+          let ok = false;
+          try { ok = pred(); } catch (e) {}
+          if (ok || Date.now() - start > ms) resolve(ok);
+          else setTimeout(poll, 200);
+        })();
+      });
+    }
+
+    async function run() {
+      await waitFor(() => verdict('t6-test'), 30000);
+
+      check('T1: a hidden cell shows nothing', shadow('t1-hidden').children.length === 0);
+      check('T1: the next cell sees its definitions', output('t1-use').includes('val t1 : int = 43'));
+
+      check('T2: an interactive cell is editable', editor('t2') && !readOnly('t2'));
+      check('T2: cells are interactive by default', editor('t2-default') && !readOnly('t2-default'));
+
+      check('T3: an exercise is editable', !readOnly('t3-ex'));
+      check('T3: a test is read-only', readOnly('t3-test'));
+      check('T3: a passing test shows a tick', verdict('t3-test') === '✓');
+
+      await waitFor(() => output('t4').includes('Error'), 10000);
+      await new Promise((r) => setTimeout(r, 1500));
+      check('T4: without merlin, no lint marks', shadow('t4').querySelector('.cm-lintRange') === null);
+
+      check('T5: a failing test shows a cross', verdict('t5-test') === '✗');
+      check('T6: a test that does not typecheck shows !', verdict('t6-test') === '!');
+
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>
