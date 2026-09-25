@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Running and stopping</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Running and stopping</h1>
+
+  <p>While a cell runs, its button turns into a spinning stop button. So does
+    the button of any cell waiting for it.</p>
+
+  <x-ocaml>let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)</x-ocaml>
+
+  <p>This takes a few seconds; the spinner shows it is working.</p>
+  <x-ocaml run-on="click">let slow = fib 32</x-ocaml>
+
+  <p>Quick, and it runs the slow cell above it first if that has not run.</p>
+  <x-ocaml run-on="click">let quick = fib 20</x-ocaml>
+
+  <p>This never ends. Run it, then press the button again to stop it.
+    Stopping is drastic: OCaml code cannot be interrupted, so x-ocaml starts
+    a fresh toplevel, which knows nothing of what ran before, and every cell
+    is cleared. Run the quick cell above again afterwards: it runs the cells
+    above it first, on the new toplevel. (A cell below this one could never
+    run: it would run this one first.)</p>
+  <x-ocaml run-on="click">let rec forever n = forever (n + 1) in forever 0</x-ocaml>
+
+  <p class="note">Edit a cell while it runs and its result is thrown away when
+    it comes: it would be for code that is no longer there.</p>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Lists, a short tutorial</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Lists, a short tutorial</h1>
+
+  <p>Every cell on this page runs in turn, top to bottom, and each sees what
+    the cells before it defined. Edit any cell and run it again with the
+    button on its right; the cells after it are cleared, since what they
+    printed may no longer be true.</p>
+
+  <!-- Hidden: the reader never sees this, but everything below can use it. -->
+  <x-ocaml mode="hidden">let check name ok = if not ok then failwith ("check failed: " ^ name)</x-ocaml>
+
+  <h2>Building lists</h2>
+  <p>A list is either empty, <code>[]</code>, or an element in front of a
+    list, <code>x :: rest</code>.</p>
+  <x-ocaml>let numbers = 1 :: 2 :: 3 :: []
+let same = [1; 2; 3]
+let equal = numbers = same</x-ocaml>
+
+  <h2>Exercise: the length of a list</h2>
+  <p>Write <code>length</code>, which counts the elements of a list. Your
+    version is kept in this browser, so you can reload the page without
+    losing it; <em>Reset</em> brings back the start.</p>
+  <x-ocaml mode="exercise" data-id="length">let rec length l =
+  match l with
+  | [] -> 0
+  | _ :: rest -> 1 + length rest</x-ocaml>
+
+  <p>The tests below run each time the exercise does. Unfold them to see
+    what they check.</p>
+  <x-ocaml mode="test">check "empty" (length [] = 0);
+check "three" (length [1; 2; 3] = 3)</x-ocaml>
+
+  <h2>Exercise: the sum of a list</h2>
+  <p>This one is yours to finish: at the moment it fails, and so do its
+    tests.</p>
+  <x-ocaml mode="exercise" data-id="sum">let rec sum l = failwith "write sum"</x-ocaml>
+  <x-ocaml mode="test">check "empty" (sum [] = 0);
+check "three" (sum [1; 2; 3] = 6)</x-ocaml>
+
+  <h2>Tests that name their exercise</h2>
+  <p>A test normally checks the nearest exercise above it. With
+    <code>data-for</code> it names one by its <code>data-id</code>, so a
+    page can gather its tests at the end.</p>
+  <x-ocaml mode="exercise" data-id="rev">let rev l = List.fold_left (fun acc x -> x :: acc) [] l</x-ocaml>
+  <x-ocaml>let unrelated = "tests need not follow their exercise"</x-ocaml>
+  <x-ocaml mode="test" data-for="rev">check "rev" (rev [1; 2; 3] = [3; 2; 1]);
+check "twice" (rev (rev [1; 2]) = [1; 2])</x-ocaml>
+
+  <p class="note">A test's verdict is read from what it prints: an exception
+    is a failure (&#x2717;), any other error, such as a type error, a
+    problem with the test itself (!).</p>
+
+  <p class="note">x-ocaml formats each cell with ocamlformat unless told not
+    to. This page tells it not to, with <code>x-ocamlformat="disable"</code>
+    on its script tag: the formatter would write <code>1 :: 2 :: 3 :: []</code>
+    as <code>[ 1; 2; 3 ]</code>, which is the point of the first cell.</p>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"
+          x-ocamlformat="disable"></script>
+</body>
+</html>
