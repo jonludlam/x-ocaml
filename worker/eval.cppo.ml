@@ -18,11 +18,19 @@ end = struct
     List.fold_left
       (fun t ident ->
         let name = Translmod.toplevel_name ident in
+#if defined OXCAML
+        let v = Toploop.getvalue name in
+#else
         let v = Topeval.getvalue name in
+#endif
         String_map.add name v t)
       t idents
 
+#if defined OXCAML
+  let restore t = String_map.iter (fun name v -> Toploop.setvalue name v) t
+#else
   let restore t = String_map.iter (fun name v -> Topeval.setvalue name v) t
+#endif
 end
 
 module Environment = struct
