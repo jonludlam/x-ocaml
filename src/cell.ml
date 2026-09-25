@@ -27,6 +27,11 @@ type t = {
   test_indicator : El.t option;
   mutable run_stderr : bool;
   mutable run_exception : bool;
+  (* An exercise with a data-id keeps the reader's version (see Saved). *)
+  saved_as : string option;
+  mutable original : string;
+  mutable save_timer : G.timer_id option;
+  reset_btn : El.t option;
 }
 
 let id t = t.id
@@ -122,14 +127,50 @@ let set_prev ~prev t =
       p.next <- Some t;
       refresh_lines_from ~editor:p
 
-let set_source_from_html editor this =
+let show_reset t =
+  Option.iter
+    (fun btn ->
+      let kept = Option.bind t.saved_as Saved.find <> None in
+      El.set_inline_style El.Style.display
+        (Jstr.of_string (if kept then "block" else "none"))
+        btn)
+    t.reset_btn
+
+(* Kept 300ms after the last change; a version back to the original is
+   forgotten instead. *)
+let save_later t =
+  Option.iter
+    (fun id ->
+      Option.iter G.stop_timer t.save_timer;
+      t.save_timer <-
+        Some
+          (G.set_timeout ~ms:300 (fun () ->
+               t.save_timer <- None;
+               let src = source t in
+               if src = t.original then Saved.forget id else Saved.keep id src;
+               show_reset t)))
+    t.saved_as
+
+(* When the page later replaces the element's text, that is the page
+   speaking, so it wins over a version the reader kept, which it forgets. *)
+let set_source_from_html ~initial editor this =
   let doc = Webcomponent.text_content this in
   let doc = String.trim doc in
+  editor.original <- doc;
+  if not initial then Option.iter Saved.forget editor.saved_as;
   match editor.cm with
-  | Some cm ->
-      Editor.set_source cm doc;
-      invalidate_from ~editor;
-      editor.fmt_fn ~id:editor.id doc
+  | Some cm -> (
+      match Option.bind editor.saved_as Saved.find with
+      | Some kept ->
+          (* The reader's own version, as they left it: not reformatted. *)
+          Editor.set_source cm kept;
+          invalidate_from ~editor;
+          show_reset editor
+      | None ->
+          Editor.set_source cm doc;
+          invalidate_from ~editor;
+          show_reset editor;
+          editor.fmt_fn ~id:editor.id doc)
   | None ->
       editor.hidden_source <- doc;
       invalidate_from ~editor
@@ -177,8 +218,26 @@ let test_details shadow =
   El.append_children shadow [ details ];
   (details, indicator)
 
-let init ~id ~mode ~run_on ?(merlin = true) ?extra_style ?inline_style ~eval_fn
-    ~fmt_fn ~post_fn this =
+(* Beside the run button: an arrow back to the start. *)
+let reset_button shadow =
+  let btn =
+    El.button
+      ~at:
+        [
+          At.class' (Jstr.of_string "reset_exercise_btn");
+          At.v (Jstr.of_string "aria-label") (Jstr.of_string "Reset");
+          At.title (Jstr.of_string "Back to the original code");
+        ]
+      [ El.txt' "\u{21BA}" ]
+  in
+  El.set_inline_style El.Style.display (Jstr.of_string "none") btn;
+  El.append_children shadow
+    [ El.div ~at:[ At.class' (Jstr.of_string "reset_btn_wrap") ] [ btn ] ];
+  btn
+
+let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
+    ~eval_fn ~fmt_fn ~post_fn this =
+  let saved_as = if mode = Exercise then cell_id else None in
   let shadow = Webcomponent.attach_shadow this in
   let visible =
     if mode = Hidden then None
@@ -200,7 +259,8 @@ let init ~id ~mode ~run_on ?(merlin = true) ?extra_style ?inline_style ~eval_fn
           Some (m, Merlin_ext.Client.make_worker m)
         else None
       in
-      Some (cm, run_btn, indicator, merlin)
+      let reset_btn = Option.map (fun _ -> reset_button shadow) saved_as in
+      Some (cm, run_btn, indicator, merlin, reset_btn)
     end
   in
   let editor =
@@ -208,23 +268,43 @@ let init ~id ~mode ~run_on ?(merlin = true) ?extra_style ?inline_style ~eval_fn
       id;
       mode;
       status = Not_run;
-      cm = Option.map (fun (cm, _, _, _) -> cm) visible;
+      cm = Option.map (fun (cm, _, _, _, _) -> cm) visible;
       hidden_source = "";
       prev = None;
       next = None;
       eval_fn;
       fmt_fn;
-      merlin_worker = Option.bind visible (fun (_, _, _, m) -> Option.map snd m);
+      merlin_worker =
+        Option.bind visible (fun (_, _, _, m, _) -> Option.map snd m);
       run_on;
       on_completed = ignore;
-      test_indicator = Option.bind visible (fun (_, _, i, _) -> i);
+      test_indicator = Option.bind visible (fun (_, _, i, _, _) -> i);
       run_stderr = false;
       run_exception = false;
+      saved_as;
+      original = "";
+      save_timer = None;
+      reset_btn = Option.bind visible (fun (_, _, _, _, r) -> r);
     }
   in
   Option.iter
-    (fun (cm, run_btn, _, merlin) ->
-      Editor.on_change cm (fun () -> invalidate_after ~editor);
+    (fun (cm, run_btn, _, merlin, reset_btn) ->
+      Editor.on_change cm (fun () ->
+          invalidate_after ~editor;
+          save_later editor);
+      Option.iter
+        (fun btn ->
+          let _ : Ev.listener =
+            Ev.listen Ev.click
+              (fun _ev ->
+                Option.iter Saved.forget saved_as;
+                Editor.set_source cm editor.original;
+                invalidate_after ~editor;
+                show_reset editor)
+              (El.as_target btn)
+          in
+          ())
+        reset_btn;
       Option.iter
         (fun (m, w) ->
           Merlin_ext.set_context m (fun () -> pre_source editor);
@@ -235,10 +315,11 @@ let init ~id ~mode ~run_on ?(merlin = true) ?extra_style ?inline_style ~eval_fn
       in
       ())
     visible;
-  set_source_from_html editor this;
+  set_source_from_html ~initial:true editor this;
   let () =
     Mutation_observer.observe ~target:(Webcomponent.as_target this)
-    @@ Mutation_observer.create (fun _ _ -> set_source_from_html editor this)
+    @@ Mutation_observer.create (fun _ _ ->
+        set_source_from_html ~initial:false editor this)
   in
   editor
 
