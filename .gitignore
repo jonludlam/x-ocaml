@@ -13,3 +13,4 @@
 *.sw[lmnop]
 
 _build/
+x-ocaml*.js

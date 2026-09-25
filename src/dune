@@ -7,7 +7,18 @@
   merlin-js.code-mirror
   x_protocol)
  (modes js)
+ (js_of_ocaml
+  (sourcemap no))
  (preprocess
   (pps ppx_blob))
  (preprocessor_deps
   (file style.css)))
+
+; Installed so that tools building pages, such as an odoc plugin, can
+; find the script through the package's share directory.
+
+(install
+ (package x-ocaml)
+ (section share)
+ (files
+  (x_ocaml.bc.js as x-ocaml.js)))
