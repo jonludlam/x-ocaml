@@ -102,6 +102,32 @@ let prefix_length a b =
   in
   go 0
 
+(* Syntax colours as classes rather than CodeMirror's default style, whose
+   generated class names a stylesheet cannot name, so that style.css can
+   take them from --xo-syntax-* variables. *)
+let highlighting =
+  let open Language in
+  let cls c tags = TagStyle.make ~class_:("xo-" ^ c) tags in
+  syntax_highlighting
+    (HighlightStyle.define
+       Tags.
+         [
+           cls "keyword" [ keyword ];
+           cls "atom" [ atom; bool; label_name ];
+           cls "literal" [ literal ];
+           cls "string" [ string ];
+           cls "escape" [ escape; special string ];
+           cls "definition" [ definition variable_name ];
+           cls "local" [ local variable_name ];
+           cls "type" [ type_name; namespace ];
+           cls "class" [ class_name ];
+           cls "special" [ special variable_name; macro_name ];
+           cls "property" [ definition property_name ];
+           cls "comment" [ comment ];
+           cls "meta" [ meta ];
+           cls "invalid" [ invalid ];
+         ])
+
 let make ?(read_only = false) parent =
   let changes = Compartment.make () in
   let lines = Compartment.make () in
@@ -117,6 +143,7 @@ let make ?(read_only = false) parent =
         Compartment.of_ changes empty;
         Compartment.of_ merlin empty;
         Facet.of_ EditorState.read_only_facet read_only;
+        highlighting;
       ]
   in
   let config = EditorStateConfig.create ~doc:"" ~extensions () in
