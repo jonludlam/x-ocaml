@@ -15,6 +15,7 @@ exports.TESTS = [
   ['/test_no_worker.html', 'A script without src-worker'],
   ['/sub/test_base.html', 'A base URL elsewhere'],
   ['/test_jtw.html', 'The js_top_worker backend'],
+  ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
 ];
 
 exports.EXAMPLES = [

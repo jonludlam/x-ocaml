@@ -6,6 +6,13 @@ type t = {
   mutable client : Jtw.t;
   mutable config : Msg.init_config option;
   mutable handler : X_protocol.response -> unit;
+  widgets : Widget_render.t;
+  mutable running : (int * Brr.El.t option) list;
+      (* the cells sent to the worker and not finished, oldest first: the
+         worker runs them in turn, so the first is the one running *)
+  mutable last_owner : Brr.El.t option;
+      (* where a widget made outside any cell's run goes: a widget event's
+         handler runs after the cells *)
 }
 
 (* A worker on another origin cannot be started by URL; a same-origin blob
@@ -26,8 +33,30 @@ let worker_url url =
     in
     Jv.to_string (Jv.call (Jv.get Jv.global "URL") "createObjectURL" [| blob |])
 
+let owner t = match t.running with (_, o) :: _ -> o | [] -> t.last_owner
+
+let wire t =
+  let c = t.client in
+  Jtw.set_on_widget_update c (fun id view ->
+      Widget_render.update t.widgets ~owner:(owner t) id (Jv.repr view));
+  Jtw.set_on_widget_clear c (Widget_render.clear t.widgets);
+  Jtw.set_on_widget_config c (Widget_render.config t.widgets);
+  Jtw.set_on_widget_command c (Widget_render.command t.widgets);
+  Jtw.set_on_widget_register_adapter c (Widget_render.register_adapter t.widgets)
+
 let make url =
-  { url; client = Jtw.create (worker_url url); config = None; handler = ignore }
+  let t =
+    { url; client = Jtw.create (worker_url url); config = None; handler = ignore;
+      widgets = Widget_render.create (); running = []; last_owner = None }
+  in
+  Widget_render.set_send t.widgets (fun ~widget_id ~handler_id ~event_type ~value ->
+      (* Widgets the handler makes go with the one the reader used. *)
+      (match Widget_render.owner t.widgets widget_id with
+       | Some _ as o -> t.last_owner <- o
+       | None -> ());
+      Jtw.send_widget_event t.client ~widget_id ~handler_id ~event_type ~value);
+  wire t;
+  t
 
 let start t =
   Option.iter (fun config -> Lwt.async (fun () -> Jtw.init t.client config)) t.config
@@ -43,9 +72,13 @@ let init ?(findlib_requires = []) ?findlib_index t =
   t.config <- Some { Msg.findlib_requires; stdlib_dcs; findlib_index };
   start t
 
+(* The widgets' handlers were in the old worker: nothing would answer them. *)
 let restart t =
   Jtw.terminate t.client;
+  Widget_render.clear_all t.widgets;
+  t.running <- [];
   t.client <- Jtw.create (worker_url t.url);
+  wire t;
   start t
 
 let on_message t f = t.handler <- f
@@ -138,13 +171,19 @@ let answer t f fallback =
 
 let meta s = if s = "" then [] else [ X_protocol.Meta s ]
 
+let finished t id =
+  match List.partition (fun (i, _) -> i = id) t.running with
+  | (_, o) :: _, rest -> t.running <- rest; if o <> None then t.last_owner <- o
+  | [], _ -> ()
+
 let post t : X_protocol.request -> unit = function
   | Eval (id, _line_number, code) ->
       (* Each phrase's output goes under it; stdout and stderr come once
          the cell is done. *)
       let stream = Jtw.eval_stream t.client code in
+      let client = t.client in
       Lwt.async (fun () ->
-          Lwt.catch
+          Lwt.finalize (fun () -> Lwt.catch
             (fun () ->
               Lwt_stream.iter
                 (function
@@ -164,6 +203,7 @@ let post t : X_protocol.request -> unit = function
               respond t
                 (Top_response (id, [ Stderr ("x-ocaml: " ^ Printexc.to_string exn) ]));
               Lwt.return_unit))
+            (fun () -> if t.client == client then finished t id; Lwt.return_unit))
   | Merlin (id, Protocol.Complete_prefix (src, pos, filename)) ->
       answer t
         (fun () ->
@@ -190,5 +230,9 @@ let post t : X_protocol.request -> unit = function
      code as it is. *)
   | Format _ | Format_config _ | Setup -> ()
 
-let eval ~id ~line_number t code = post t (Eval (id, line_number, code))
+let eval ?owner ~id ~line_number t code =
+  (* A cell run again makes its widgets again. *)
+  Option.iter (Widget_render.clear_owned t.widgets) owner;
+  t.running <- t.running @ [ (id, owner) ];
+  post t (Eval (id, line_number, code))
 let fmt ~id t code = post t (Format (id, code))

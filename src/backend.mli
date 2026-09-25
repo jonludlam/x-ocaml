@@ -11,7 +11,8 @@ val jtw : ?findlib_requires:string list -> ?findlib_index:string -> string -> t
 
 val on_message : t -> (X_protocol.response -> unit) -> unit
 val post : t -> X_protocol.request -> unit
-val eval : id:int -> line_number:int -> t -> string -> unit
+val eval : ?owner:Brr.El.t -> id:int -> line_number:int -> t -> string -> unit
+(** [owner] is the cell's element, which widgets the code makes follow. *)
 val fmt : id:int -> t -> string -> unit
 
 val restart : t -> unit

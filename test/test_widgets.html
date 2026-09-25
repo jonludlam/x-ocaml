@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: widgets</title>
+  <meta name="x-ocaml-universe" content="universe/universe/">
+  <meta name="x-ocaml-packages" content="js_top_worker-widget">
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+  <style>
+    .x-ocaml-widget { margin: 0.4rem 0; padding: 0.4rem 0.6rem; border: 1px dashed var(--rule); border-radius: 4px; }
+    .x-ocaml-widget-error { color: var(--fail); font-family: var(--mono); font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <p class="lede">Cells draw widgets with js_top_worker's <code>Widget</code>
+    library, and the reader's clicks and typing go back to the handlers in
+    the worker. Every update patches the widget where it is.</p>
+
+  <section class="case" data-case="W1">
+    <h2>A counter: clicks go to the worker and the view is patched in place</h2>
+    <x-ocaml id="counter">open Widget.View
+
+let count = ref 0
+
+let view () =
+  Element { tag = "div"; attrs = []; children = [
+    Element { tag = "button"; attrs = [ Property ("data-t", "inc"); Handler ("click", "inc") ];
+              children = [ Text "+1" ] };
+    Element { tag = "span"; attrs = [ Property ("data-t", "count") ];
+              children = [ Text (string_of_int !count) ] } ] }
+
+let () =
+  Widget.display ~id:"counter"
+    ~handlers:[ ("inc", fun _ -> incr count; Widget.update ~id:"counter" (view ())) ]
+    (view ())</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W2">
+    <h2>An input that echoes: typing keeps its focus and its keystrokes</h2>
+    <p>The program writes what it was sent back into the input's value, a
+      keystroke behind the reader. Clearing it from the program still works.</p>
+    <x-ocaml id="echo">open Widget.View
+
+let typed = ref ""
+
+let echo () =
+  Element { tag = "div"; attrs = []; children = [
+    Element { tag = "input";
+              attrs = [ Property ("data-t", "field"); Property ("value", !typed);
+                        Handler ("input", "typed") ];
+              children = [] };
+    Element { tag = "button"; attrs = [ Property ("data-t", "wipe"); Handler ("click", "wipe") ];
+              children = [ Text "clear" ] };
+    Element { tag = "p"; attrs = [ Property ("data-t", "said") ];
+              children = [ Text ("you typed: " ^ !typed) ] } ] }
+
+let () =
+  Widget.display ~id:"echo"
+    ~handlers:[
+      ("typed", fun v -> typed := Option.value v ~default:""; Widget.update ~id:"echo" (echo ()));
+      ("wipe", fun _ -> typed := ""; Widget.update ~id:"echo" (echo ())) ]
+    (echo ())
+
+(* The same, answering slowly, so that echoes arrive while the reader types. *)
+let slow = ref ""
+
+let slow_echo () =
+  Element { tag = "div"; attrs = []; children = [
+    Element { tag = "input"; attrs = [ Property ("data-t", "slow"); Property ("value", !slow);
+                                       Handler ("input", "typed") ]; children = [] };
+    Element { tag = "p"; attrs = [ Property ("data-t", "slow-said") ]; children = [ Text !slow ] } ] }
+
+let () =
+  Widget.display ~id:"slow-echo"
+    ~handlers:[ ("typed", fun v ->
+      let t = Sys.time () in
+      while Sys.time () -. t < 0.06 do () done;
+      slow := Option.value v ~default:"";
+      Widget.update ~id:"slow-echo" (slow_echo ())) ]
+    (slow_echo ())</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W10">
+    <h2>The view decides what an input shows</h2>
+    <p>An input whose view always says <code>""</code> is emptied after each
+      entry; a program that rewrites what is typed has the last word; a
+      checked box follows the program even when clicked faster than it
+      answers.</p>
+    <x-ocaml id="controlled">open Widget.View
+
+let entries = ref [] and shout = ref "" and on = ref false
+
+let view () =
+  Element { tag = "div"; attrs = []; children = [
+    Element { tag = "input"; attrs = [ Property ("data-t", "entry"); Property ("value", "");
+                                       Handler ("change", "add") ]; children = [] };
+    Element { tag = "span"; attrs = [ Property ("data-t", "entries") ];
+              children = [ Text (String.concat "," (List.rev !entries)) ] };
+    Element { tag = "input"; attrs = [ Property ("data-t", "shout"); Property ("value", !shout);
+                                       Handler ("input", "shout") ]; children = [] };
+    Element { tag = "input";
+              attrs = [ Property ("type", "checkbox"); Property ("data-t", "flip");
+                        Handler ("click", "flip") ]
+                      @ (if !on then [ Property ("checked", "") ] else []);
+              children = [] };
+    Element { tag = "span"; attrs = [ Property ("data-t", "on") ];
+              children = [ Text (string_of_bool !on) ] } ] }
+
+let () =
+  let redraw () = Widget.update ~id:"controlled" (view ()) in
+  Widget.display ~id:"controlled"
+    ~handlers:[
+      ("add", fun v -> entries := Option.value v ~default:"?" :: !entries; redraw ());
+      ("shout", fun v -> shout := String.uppercase_ascii (Option.value v ~default:""); redraw ());
+      ("flip", fun v -> on := v = Some "true"; redraw ()) ]
+    (view ())</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W3">
+    <h2>Widgets go after the cell that made them, in order</h2>
+    <p>All the page's cells are sent at once; each widget still finds its own cell.</p>
+    <x-ocaml id="pair">let () =
+  Widget.display ~id:"first" ~handlers:[] (Widget.View.Text "first");
+  Widget.display ~id:"second" ~handlers:[] (Widget.View.Text "second")</x-ocaml>
+    <x-ocaml id="later">let () = Widget.display ~id:"third" ~handlers:[] (Widget.View.Text "third")</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W4">
+    <h2>Clearing, from the cell and from a handler</h2>
+    <x-ocaml id="clearing">open Widget.View
+
+let () =
+  Widget.display ~id:"brief" ~handlers:[] (Text "brief");
+  Widget.clear ~id:"brief";
+  Widget.display ~id:"self"
+    ~handlers:[ ("go", fun _ -> Widget.clear ~id:"self") ]
+    (Element { tag = "button"; attrs = [ Property ("data-t", "self"); Handler ("click", "go") ];
+               children = [ Text "remove me" ] })</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W5">
+    <h2>Silly views</h2>
+    <x-ocaml id="silly">open Widget.View
+
+let () =
+  Widget.display ~id:"badtag" ~handlers:[]
+    (Element { tag = "not a tag"; attrs = []; children = [] });
+  Widget.display ~id:"badattrs" ~handlers:[]
+    (Element { tag = "div";
+               attrs = [ Property ("1bad", "x"); Class "two words"; Style ("colour", "red");
+                         Handler ("click", "nobody") ];
+               children = [ Text "survived" ] });
+  Widget.display ~id:"markup" ~handlers:[] (Text "&lt;b&gt;not bold&lt;/b&gt;");
+  Widget.display ~id:"nested" ~handlers:[]
+    (Element { tag = "div"; attrs = []; children = [ Managed { kind = "box"; config = "{}" } ] })</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W6">
+    <h2>Managed widgets and their adapters</h2>
+    <p>The widget is shown before its adapter arrives, then configured, sent a
+      command, and clicked; the adapter's event updates another widget. An
+      adapter that throws, and one that is not JavaScript, harm nothing else.</p>
+    <x-ocaml id="managed">let () =
+  Widget.display_managed ~id:"early" ~kind:"box" ~config:{|{"n":1}|}
+    ~handlers:[ ("poke", fun v ->
+      Widget.update ~id:"poked" (Widget.View.Text ("poked " ^ Option.value v ~default:"-"))) ];
+  Widget.display ~id:"poked" ~handlers:[] (Widget.View.Text "not yet");
+  Widget.register_adapter ~kind:"box" ~js:{|(function () { return {
+    create: function (el, config, send) {
+      var b = document.createElement('button');
+      b.dataset.t = 'box';
+      b.textContent = JSON.parse(config).n;
+      b.onclick = function () { send('poke', 42); };
+      el.appendChild(b);
+      return { b: b };
+    },
+    update: function (s, config) { s.b.textContent = JSON.parse(config).n; },
+    command: function (s, cmd, data) { s.b.dataset.cmd = cmd + ':' + data; },
+    destroy: function (s) { window.boxDestroyed = (window.boxDestroyed || 0) + 1; }
+  }; })()|};
+  Widget.update_config ~id:"early" {|{"n":2}|};
+  Widget.command ~id:"early" "flash" {|"now"|};
+  Widget.register_adapter ~kind:"boom"
+    ~js:{|({ create: function () { throw new Error('no room for a boom'); } })|};
+  Widget.display_managed ~id:"boom" ~kind:"boom" ~config:"{}" ~handlers:[];
+  Widget.register_adapter ~kind:"syntax" ~js:"(function (";
+  Widget.display_managed ~id:"syntax" ~kind:"syntax" ~config:"{}" ~handlers:[]</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W7">
+    <h2>Checkboxes, and handlers that fail or make widgets</h2>
+    <x-ocaml id="handlers">open Widget.View
+
+let () =
+  Widget.display ~id:"tick" ~handlers:[ ("c", fun v ->
+      Widget.update ~id:"ticked" (Text (Option.value v ~default:"none"))) ]
+    (Element { tag = "input";
+               attrs = [ Property ("type", "checkbox"); Property ("data-t", "tick"); Handler ("change", "c") ];
+               children = [] });
+  Widget.display ~id:"ticked" ~handlers:[] (Text "unticked");
+  Widget.display ~id:"fails" ~handlers:[ ("f", fun _ -> failwith "a handler's bug") ]
+    (Element { tag = "button"; attrs = [ Property ("data-t", "fails"); Handler ("click", "f") ];
+               children = [ Text "fail" ] });
+  Widget.display ~id:"spawner"
+    ~handlers:[ ("s", fun _ -> Widget.display ~id:"spawned" ~handlers:[] (Text "spawned")) ]
+    (Element { tag = "button"; attrs = [ Property ("data-t", "spawn"); Handler ("click", "s") ];
+               children = [ Text "spawn" ] })</x-ocaml>
+    <x-ocaml id="after">let after_the_spawner = ()</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W9">
+    <h2>SVG</h2>
+    <x-ocaml id="svg">open Widget.View
+
+let r = ref 10
+
+let dot () =
+  Element { tag = "svg"; attrs = [ Property ("width", "100"); Property ("height", "60") ];
+    children = [
+      Element { tag = "circle";
+                attrs = [ Property ("data-t", "dot"); Property ("cx", "50"); Property ("cy", "30");
+                          Property ("r", string_of_int !r); Handler ("click", "grow") ];
+                children = [] } ] }
+
+let () =
+  Widget.display ~id:"dot"
+    ~handlers:[ ("grow", fun _ -> r := !r + 10; Widget.update ~id:"dot" (dot ())) ]
+    (dot ())</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W8">
+    <h2>Running a cell again, and stopping the toplevel</h2>
+    <x-ocaml id="forever" run-on="click">let rec forever () = forever () in forever ()</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js"></script>
+  <script>
+    const w = (id) => document.querySelector(`.x-ocaml-widget[data-widget-id="${id}"]`);
+    const t = (name) => document.querySelector(`[data-t="${name}"]`);
+    const text = (id) => (w(id) ? w(id).textContent : null);
+    const label = (id) => button(id).getAttribute('aria-label');
+    const after = (id) => {
+      const out = [];
+      for (let n = document.getElementById(id).nextElementSibling; n && n.classList.contains('x-ocaml-widget'); n = n.nextElementSibling)
+        out.push(n.dataset.widgetId);
+      return out;
+    };
+
+    async function run() {
+      check('W1: the counter is drawn', await waitFor(() => t('count'), 60000));
+      const inc = t('inc');
+      inc.click(); inc.click(); inc.click();
+      check('W1: three clicks count three', await waitFor(() => t('count') && t('count').textContent === '3', 10000));
+      check('W1: the button is the same element after the updates', t('inc') === inc && inc.isConnected);
+
+      await waitFor(() => t('field'), 20000);
+      const field = t('field');
+      field.focus();
+      for (const c of 'camel') {
+        field.value += c;
+        field.dispatchEvent(new InputEvent('input', { bubbles: true, data: c }));
+      }
+      check('W2: the program saw every keystroke',
+        await waitFor(() => t('said').textContent === 'you typed: camel', 10000));
+      check('W2: the input kept its value', field.value === 'camel');
+      check('W2: the input is the same element, still focused',
+        t('field') === field && document.activeElement === field);
+      for (const c of 'lion') {
+        field.value += c;
+        field.dispatchEvent(new InputEvent('input', { bubbles: true, data: c }));
+        await sleep(15);
+      }
+      await waitFor(() => t('said').textContent === 'you typed: camellion', 10000);
+      check('W2: typing interleaved with the echoes loses nothing', field.value === 'camellion');
+      const slowField = t('slow');
+      slowField.focus();
+      for (const c of 'dromedary') {
+        slowField.value += c;
+        slowField.dispatchEvent(new InputEvent('input', { bubbles: true, data: c }));
+        await sleep(25);
+      }
+      await waitFor(() => t('slow-said').textContent === 'dromedary', 10000);
+      check('W2: echoes that arrive mid-typing undo no keystrokes', slowField.value === 'dromedary');
+      t('wipe').click();
+      check('W2: the program can clear the input',
+        await waitFor(() => field.value === '' && t('said').textContent === 'you typed: ', 10000));
+
+      await waitFor(() => t('entry'), 20000);
+      const entry = t('entry');
+      for (const word of ['milk', 'eggs']) {
+        entry.value = word;
+        entry.dispatchEvent(new Event('change', { bubbles: true }));
+        await waitFor(() => t('entries').textContent.endsWith(word), 10000);
+      }
+      check('W10: an input whose view says "" is emptied after each entry',
+        t('entries').textContent === 'milk,eggs' && entry.value === '');
+      const shout = t('shout');
+      shout.focus();
+      for (const c of 'camel') {
+        shout.value += c;
+        shout.dispatchEvent(new InputEvent('input', { bubbles: true, data: c }));
+      }
+      check('W10: a program that rewrites the input has the last word',
+        await waitFor(() => shout.value === 'CAMEL', 10000));
+      const flip = t('flip');
+      flip.click(); flip.click(); flip.click();
+      await waitFor(() => t('on').textContent === 'true', 10000);
+      await sleep(500);
+      check('W10: a checkbox clicked three times fast ends as the program says', flip.checked === true);
+
+      await waitFor(() => w('third'), 20000);
+      check('W3: a cell\'s widgets follow it, in order', after('pair').join() === 'first,second');
+      check('W3: the next cell\'s widget follows that cell', after('later').join() === 'third');
+
+      await waitFor(() => w('self'), 20000);
+      check('W4: a widget cleared as soon as it was shown is gone', !w('brief'));
+      t('self').click();
+      check('W4: a handler can clear its own widget', await waitFor(() => !w('self'), 10000));
+
+      await waitFor(() => w('nested'), 20000);
+      check('W5: an impossible tag shows an error in its place',
+        w('badtag').querySelector('.x-ocaml-widget-error') !== null);
+      check('W5: bad attributes are skipped and the rest drawn', text('badattrs') === 'survived');
+      check('W5: text is text, not markup', text('markup') === '<b>not bold</b>' && !w('markup').querySelector('b'));
+      check('W5: a managed widget inside a view shows an error',
+        w('nested').querySelector('.x-ocaml-widget-error') !== null);
+
+      check('W6: the adapter starts the widget shown before it came, configured',
+        await waitFor(() => t('box') && t('box').textContent === '2', 20000));
+      check('W6: a command reaches the adapter', t('box').dataset.cmd === 'flash:"now"');
+      t('box').click();
+      check('W6: the adapter\'s event reaches the handler', await waitFor(() => text('poked') === 'poked 42', 10000));
+      check('W6: an adapter that throws shows an error in its place',
+        await waitFor(() => /no room for a boom/.test(text('boom') || ''), 10000));
+      check('W6: an adapter that is not JavaScript leaves its widget empty', w('syntax') && text('syntax') === '');
+
+      await waitFor(() => t('spawn'), 20000);
+      t('tick').click();
+      check('W7: a checkbox sends whether it is checked', await waitFor(() => text('ticked') === 'true', 10000));
+      t('tick').click();
+      check('W7: and again when unchecked', await waitFor(() => text('ticked') === 'false', 10000));
+      t('fails').click();
+      await sleep(500);
+      t('inc').click();
+      check('W7: a failing handler leaves the worker answering',
+        await waitFor(() => t('count').textContent === '4', 10000));
+      t('spawn').click();
+      await waitFor(() => w('spawned'), 10000);
+      check('W7: a widget made by a handler follows the cell of the widget clicked',
+        after('handlers').join() === 'tick,ticked,fails,spawner,spawned');
+
+      await waitFor(() => t('dot'), 20000);
+      const dot = t('dot');
+      check('W9: SVG elements are made as SVG, and drawn',
+        dot instanceof SVGCircleElement && dot.getBBox().width === 20);
+      dot.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      check('W9: and patched in place', await waitFor(() => dot.getAttribute('r') === '20', 10000) && t('dot') === dot);
+
+      button('counter').click();
+      await waitFor(() => t('count') && t('count').textContent === '0', 20000);
+      check('W8: a cell run again draws its widget afresh, once',
+        document.querySelectorAll('[data-widget-id="counter"]').length === 1 && t('count').textContent === '0');
+      button('forever').click();
+      await waitFor(() => label('forever') === 'Stop', 20000);
+      button('forever').click();
+      check('W8: stopping the toplevel removes the widgets, whose handlers went with it',
+        await waitFor(() => document.querySelectorAll('.x-ocaml-widget').length === 0, 5000));
+      check('W8: adapters are told when their widget goes', window.boxDestroyed === 1);
+      button('counter').click();
+      check('W8: the fresh toplevel draws widgets again', await waitFor(() => t('count'), 60000));
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

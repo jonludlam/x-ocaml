@@ -15,8 +15,11 @@ val init : ?findlib_requires:string list -> ?findlib_index:string -> t -> unit
 
 val on_message : t -> (X_protocol.response -> unit) -> unit
 val post : t -> X_protocol.request -> unit
-val eval : id:int -> line_number:int -> t -> string -> unit
+val eval : ?owner:Brr.El.t -> id:int -> line_number:int -> t -> string -> unit
+(** [eval ~owner] places the widgets the code makes after [owner], and first
+    removes those it made when last run. *)
 val fmt : id:int -> t -> string -> unit
 
 val restart : t -> unit
-(** A fresh worker, configured as the old one was. *)
+(** A fresh worker, configured as the old one was. The old worker's widgets
+    go. *)

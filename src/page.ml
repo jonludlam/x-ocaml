@@ -102,7 +102,9 @@ let register t this =
       ?cell_id:(attr "data-id") ?extra_style:t.extra_style
       ?inline_style:t.inline_style
       ~eval_fn:(fun ~id ~line_number code ->
-        Backend.eval ~id ~line_number t.worker code)
+        Backend.eval
+          ~owner:(Webcomponent.as_target this)
+          ~id ~line_number t.worker code)
       ~fmt_fn:(fun ~id code -> Backend.fmt ~id t.worker code)
       ~post_fn:(Backend.post t.worker) this
   in

@@ -13,9 +13,9 @@ let on_message = function
 
 let post = function Builtin c -> Client.post c | Jtw c -> Jtw_client.post c
 
-let eval ~id ~line_number = function
+let eval ?owner ~id ~line_number = function
   | Builtin c -> Client.eval ~id ~line_number c
-  | Jtw c -> Jtw_client.eval ~id ~line_number c
+  | Jtw c -> Jtw_client.eval ?owner ~id ~line_number c
 
 let fmt ~id = function
   | Builtin c -> Client.fmt ~id c
