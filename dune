@@ -1,4 +1,4 @@
-(vendored_dirs merlin-js)
+(vendored_dirs merlin-js js_top_worker mime_printer)
 
 (rule
  (mode promote)
