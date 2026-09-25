@@ -1,3 +1,9 @@
 [submodule "merlin-js"]
 	path = merlin-js
 	url = https://github.com/jonludlam/merlin-js
+[submodule "js_top_worker"]
+	path = js_top_worker
+	url = https://tangled.org/jon.recoil.org/js_top_worker
+[submodule "mime_printer"]
+	path = mime_printer
+	url = https://tangled.org/jon.recoil.org/mime_printer
