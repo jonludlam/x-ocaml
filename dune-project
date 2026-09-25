@@ -31,12 +31,14 @@
    (>= 6.0.1))
   (merlin-lib
    (>= 5.2.1-502))
-  (ocamlformat-lib
-   (>= 0.27.0))
   (ocamlfind
    (>= 1.9.8))
   (ppx_blob
-   (>= 0.9.0))))
+   (>= 0.9.0))
+  (cppo :build))
+ (depopts
+  (ocamlformat-lib
+   (>= 0.27.0))))
 
 (package
  (name ppxlib_register)
