@@ -7,8 +7,8 @@ val output_html : string -> unit
 (** {1 Displays}
 
     A display is an element on the page, shown in the display area after the
-    cell whose code made it (or whose callback did), until it runs again. Its
-    tag names a custom element, which receives [data]
+    cell whose code made it (or whose callback did), until it runs again or
+    the toplevel restarts. Its tag names a custom element, which receives [data]
     through its [data] property, now and at each {!update}: data for an
     element not yet defined waits until it is, so a library can load its
     element's script after it first shows one. {{!page-displays}How displays

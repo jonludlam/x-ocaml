@@ -187,6 +187,12 @@ let remove t display =
           else Some a)
         t.areas
 
+(* The worker is replaced, and forgets them without saying so. *)
+let clear_all t =
+  Hashtbl.iter (fun _ a -> El.remove a) t.areas;
+  Hashtbl.reset t.areas;
+  Hashtbl.reset t.shown
+
 let require t ~tag ~src =
   let url = try url ~base:t.base src with Jv.Error _ -> src in
   if (not (defined tag)) && not (Hashtbl.mem t.loaded url) then begin
