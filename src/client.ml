@@ -1,8 +1,6 @@
 module Worker = Brr_webworkers.Worker
 open Brr
 
-type t = Worker.t
-
 (* The worker is started from a data: URL, where relative URLs mean
    nothing, so resolve them against the page as the browser would. *)
 let absolute_url url =
@@ -26,23 +24,33 @@ let wrap_url ?extra_load url =
   in
   "data:text/javascript;base64," ^ url
 
-let make ?extra_load url =
-  Worker.create @@ Jstr.of_string @@ wrap_url ?extra_load url
+type t = {
+  script : Jstr.t; (* the data: URL the worker starts from *)
+  mutable worker : Worker.t;
+  mutable handler : X_protocol.response -> unit;
+}
 
-let on_message t fn =
+let listen t =
   let fn m =
     let m = Ev.as_type m in
     let msg = Bytes.to_string @@ Brr_io.Message.Ev.data m in
-    fn (X_protocol.resp_of_string msg)
+    t.handler (X_protocol.resp_of_string msg)
   in
-  let _listener =
-    Ev.listen Brr_io.Message.Ev.message fn @@ Worker.as_target t
-  in
-  ()
+  ignore (Ev.listen Brr_io.Message.Ev.message fn @@ Worker.as_target t.worker)
 
-let post worker msg = Worker.post worker (X_protocol.req_to_bytes msg)
+let make ?extra_load url =
+  let script = Jstr.of_string @@ wrap_url ?extra_load url in
+  let t = { script; worker = Worker.create script; handler = ignore } in
+  listen t;
+  t
 
-let eval ~id ~line_number worker code =
-  post worker (Eval (id, line_number, code))
+let on_message t fn = t.handler <- fn
+let post t msg = Worker.post t.worker (X_protocol.req_to_bytes msg)
 
-let fmt ~id worker code = post worker (Format (id, code))
+let restart t =
+  Worker.terminate t.worker;
+  t.worker <- Worker.create t.script;
+  listen t
+
+let eval ~id ~line_number t code = post t (Eval (id, line_number, code))
+let fmt ~id t code = post t (Format (id, code))

@@ -6,6 +6,7 @@ type t = {
   mutable cells : Cell.t list; (* most recent first *)
   mutable named : (string * Cell.t) list; (* by data-id *)
   mutable tests : (Cell.t * Cell.t list) list; (* exercise, its tests *)
+  setup : X_protocol.request list; (* what every new worker is sent first *)
 }
 
 let find_by_id t id = List.find (fun c -> Cell.id c = id) t.cells
@@ -28,14 +29,22 @@ let create ~worker ?extra_style ?inline_style ?(default_run_on = "load")
       cells = [];
       named = [];
       tests = [];
+      setup =
+        Setup
+        :: Option.to_list
+             (Option.map (fun c -> X_protocol.Format_config c) format_config);
     }
   in
   Client.on_message worker (route t);
-  Client.post worker Setup;
-  Option.iter
-    (fun conf -> Client.post worker (Format_config conf))
-    format_config;
+  List.iter (Client.post worker) t.setup;
   t
+
+(* Stopping a cell is the only way to interrupt the toplevel: the worker is
+   replaced, so every cell's definitions are gone and all must run again. *)
+let stop_all t =
+  Client.restart t.worker;
+  List.iter (Client.post t.worker) t.setup;
+  List.iter Cell.reset_status t.cells
 
 let run_on_of_string = function "click" -> `Click | "load" | _ -> `Load
 
@@ -91,6 +100,7 @@ let register t this =
       ~fmt_fn:(fun ~id code -> Client.fmt ~id t.worker code)
       ~post_fn:(Client.post t.worker) this
   in
+  Cell.set_stop cell (fun () -> stop_all t);
   if mode = Cell.Test then link_test t cell ~cell_for:(attr "data-for");
   Option.iter
     (fun name ->

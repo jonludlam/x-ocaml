@@ -32,12 +32,27 @@ type t = {
   mutable original : string;
   mutable save_timer : G.timer_id option;
   reset_btn : El.t option;
+  run_btn : El.t option;
+  mutable stop : unit -> unit;
 }
 
 let id t = t.id
 let mode t = t.mode
 let has_completed t = t.status = Run_ok
 let set_on_completed t f = t.on_completed <- f
+let set_stop t f = t.stop <- f
+
+(* While its cell runs, the button stops it instead. *)
+let set_btn btn ~running =
+  El.set_at
+    (Jstr.of_string "aria-label")
+    (Some (Jstr.of_string (if running then "Stop" else "Run")))
+    btn;
+  El.set_class (Jstr.of_string "running") running btn
+
+let show_running t running =
+  Option.iter (fun btn -> set_btn btn ~running) t.run_btn
+
 let with_cm t f = Option.iter f t.cm
 let verdicts = [ "test-pass"; "test-fail"; "test-error" ]
 
@@ -78,6 +93,7 @@ let pre_source t =
 
 let rec invalidate_from ~editor =
   editor.status <- Not_run;
+  show_running editor false;
   with_cm editor Editor.clear;
   set_verdict editor None;
   match editor.next with
@@ -88,6 +104,7 @@ let rec invalidate_from ~editor =
 
 let invalidate_after ~editor =
   editor.status <- Not_run;
+  show_running editor false;
   match editor.next with
   | None -> ()
   | Some next ->
@@ -105,6 +122,9 @@ let rec run editor =
   if editor.status = Running then ()
   else (
     editor.status <- Request_run;
+    (* Waiting for the cells before it counts as running: the reader can see
+       something is happening, and stop it from here. *)
+    show_running editor true;
     editor.run_stderr <- false;
     editor.run_exception <- false;
     with_cm editor Editor.clear_messages;
@@ -112,6 +132,7 @@ let rec run editor =
     | Some e when e.status <> Run_ok -> run e
     | _ ->
         editor.status <- Running;
+        show_running editor true;
         let line_number = 1 + previous_lines editor in
         editor.eval_fn ~id:editor.id ~line_number (source editor))
 
@@ -235,32 +256,42 @@ let reset_button shadow =
     [ El.div ~at:[ At.class' (Jstr.of_string "reset_btn_wrap") ] [ btn ] ];
   btn
 
+(* What a visible cell shows. *)
+type ui = {
+  ui_cm : Editor.t;
+  ui_run_btn : El.t;
+  ui_indicator : El.t option;
+  ui_merlin : (Merlin_ext.t * Merlin_ext.Client.worker) option;
+  ui_reset_btn : El.t option;
+}
+
 let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
     ~eval_fn ~fmt_fn ~post_fn this =
   let saved_as = if mode = Exercise then cell_id else None in
   let shadow = Webcomponent.attach_shadow this in
-  let visible =
+  let ui =
     if mode = Hidden then None
     else begin
       init_css shadow ~extra_style ~inline_style;
-      let parent, indicator =
+      let parent, ui_indicator =
         if mode = Test then
           let details, indicator = test_details shadow in
           (details, Some indicator)
         else (shadow, None)
       in
-      let run_btn = El.button [ El.txt (Jstr.of_string "Run") ] in
+      let ui_run_btn = El.button [] in
+      set_btn ui_run_btn ~running:false;
       El.append_children parent
-        [ El.div ~at:[ At.class' (Jstr.of_string "run_btn") ] [ run_btn ] ];
-      let cm = Editor.make ~read_only:(mode = Test) parent in
-      let merlin =
+        [ El.div ~at:[ At.class' (Jstr.of_string "run_btn") ] [ ui_run_btn ] ];
+      let ui_cm = Editor.make ~read_only:(mode = Test) parent in
+      let ui_merlin =
         if merlin then
           let m = Merlin_ext.make ~id post_fn in
           Some (m, Merlin_ext.Client.make_worker m)
         else None
       in
-      let reset_btn = Option.map (fun _ -> reset_button shadow) saved_as in
-      Some (cm, run_btn, indicator, merlin, reset_btn)
+      let ui_reset_btn = Option.map (fun _ -> reset_button shadow) saved_as in
+      Some { ui_cm; ui_run_btn; ui_indicator; ui_merlin; ui_reset_btn }
     end
   in
   let editor =
@@ -268,27 +299,29 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
       id;
       mode;
       status = Not_run;
-      cm = Option.map (fun (cm, _, _, _, _) -> cm) visible;
+      cm = Option.map (fun ui -> ui.ui_cm) ui;
       hidden_source = "";
       prev = None;
       next = None;
       eval_fn;
       fmt_fn;
-      merlin_worker =
-        Option.bind visible (fun (_, _, _, m, _) -> Option.map snd m);
+      merlin_worker = Option.bind ui (fun ui -> Option.map snd ui.ui_merlin);
       run_on;
       on_completed = ignore;
-      test_indicator = Option.bind visible (fun (_, _, i, _, _) -> i);
+      test_indicator = Option.bind ui (fun ui -> ui.ui_indicator);
       run_stderr = false;
       run_exception = false;
       saved_as;
       original = "";
       save_timer = None;
-      reset_btn = Option.bind visible (fun (_, _, _, _, r) -> r);
+      reset_btn = Option.bind ui (fun ui -> ui.ui_reset_btn);
+      run_btn = Option.map (fun ui -> ui.ui_run_btn) ui;
+      stop = ignore;
     }
   in
   Option.iter
-    (fun (cm, run_btn, _, merlin, reset_btn) ->
+    (fun ui ->
+      let cm = ui.ui_cm in
       Editor.on_change cm (fun () ->
           invalidate_after ~editor;
           save_later editor);
@@ -304,17 +337,22 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
               (El.as_target btn)
           in
           ())
-        reset_btn;
+        ui.ui_reset_btn;
       Option.iter
         (fun (m, w) ->
           Merlin_ext.set_context m (fun () -> pre_source editor);
           Editor.configure_merlin cm (fun () -> Merlin_ext.extensions w))
-        merlin;
+        ui.ui_merlin;
       let _ : Ev.listener =
-        Ev.listen Ev.click (fun _ev -> run editor) (El.as_target run_btn)
+        Ev.listen Ev.click
+          (fun _ev ->
+            match editor.status with
+            | Running | Request_run -> editor.stop ()
+            | Not_run | Run_ok -> run editor)
+          (El.as_target ui.ui_run_btn)
       in
       ())
-    visible;
+    ui;
   set_source_from_html ~initial:true editor this;
   let () =
     Mutation_observer.observe ~target:(Webcomponent.as_target this)
@@ -385,6 +423,7 @@ let completed_run ed msg =
      let loc = String.length (source ed) in
      add_message ed loc msg);
   ed.status <- Run_ok;
+  show_running ed false;
   show_verdict ed;
   (match ed.next with Some e when e.status = Request_run -> run e | _ -> ());
   ed.on_completed ed
@@ -397,3 +436,11 @@ let receive_merlin t msg =
     t.merlin_worker
 
 let loadable t = t.run_on = `Load
+
+let reset_status t =
+  t.status <- Not_run;
+  t.run_stderr <- false;
+  t.run_exception <- false;
+  with_cm t Editor.clear_messages;
+  show_running t false;
+  set_verdict t None

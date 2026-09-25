@@ -14,7 +14,7 @@ const path = require('path');
 
 const PORT = 8766;
 const TIMEOUT = 60000;
-const PAGES = ['/test_modes.html', '/test_exercises.html'];
+const PAGES = ['/test_modes.html', '/test_exercises.html', '/test_stop.html'];
 
 const testDir = __dirname;
 const rootDir = path.resolve(testDir, '..');
