@@ -1,10 +1,14 @@
+open Code_mirror
+open State
+open View
+
 type t = {
-  view : Code_mirror.Editor.View.t;
-  messages_comp : Code_mirror.Compartment.t;
-  lines_comp : Code_mirror.Compartment.t;
-  merlin_comp : Code_mirror.Compartment.t;
-  mutable merlin_extension : unit -> Code_mirror.Extension.t list;
-  changes : Code_mirror.Compartment.t;
+  view : EditorView.t;
+  messages_comp : Compartment.t;
+  lines_comp : Compartment.t;
+  merlin_comp : Compartment.t;
+  mutable merlin_extension : unit -> Extension.t list;
+  changes : Compartment.t;
   mutable previous_lines : int;
   mutable current_doc : string;
   mutable messages : (int * Brr.El.t list) list;
@@ -17,16 +21,12 @@ let find_line_ends at doc =
   go at
 
 let render_messages cm =
-  let open Code_mirror.Editor in
-  let open Code_mirror.Decoration in
-  let (State.Facet ((module F), it)) = View.decorations () in
   let doc = cm.current_doc in
   let ranges =
-    Array.of_list
-    @@ List.map (fun (at, msg) ->
-        range ~from:at ~to_:at
-        @@ widget ~block:true ~side:99
-        @@ Widget.make (fun () -> msg))
+    List.map (fun (at, msg) ->
+        Decoration.range ~to_:at ~from:at
+        @@ Decoration.widget ~block:true ~side:99
+        @@ WidgetType.make ~to_dom:(fun _ -> msg) ())
     @@ List.filter (fun (at, _) -> at <= String.length doc)
     @@ List.map (fun (at, msg) ->
         let at = find_line_ends at doc in
@@ -35,24 +35,23 @@ let render_messages cm =
     @@ List.map (fun (loc, lst) -> List.map (fun m -> (loc, m)) lst)
     @@ List.sort (fun (a, _) (b, _) -> Int.compare a b) cm.messages
   in
-  F.of_ it (Range_set.of' ranges)
+  Facet.of_ EditorView.decorations (RangeSet.of_ Decoration.conv ranges)
 
-let refresh_messages ed =
-  Code_mirror.Editor.View.dispatch ed.view
-    (Code_mirror.Compartment.reconfigure ed.messages_comp
-       [ render_messages ed ])
+let reconfigure ed comp ext =
+  EditorView.dispatch ed.view
+    (TransactionSpec.create ~effects:[ Compartment.reconfigure comp ext ] ())
+
+let refresh_messages ed = reconfigure ed ed.messages_comp (render_messages ed)
 
 let custom_ln editor =
-  Code_mirror.Editor.View.line_numbers (fun x ->
-      string_of_int (editor.previous_lines + x))
+  line_numbers
+    ~format_number:(fun x _ -> string_of_int (editor.previous_lines + x))
+    ()
 
-let refresh_lines ed =
-  Code_mirror.Editor.View.dispatch ed.view
-  @@ Code_mirror.Compartment.reconfigure ed.lines_comp [ custom_ln ed ]
+let refresh_lines ed = reconfigure ed ed.lines_comp (custom_ln ed)
 
 let refresh_merlin ed =
-  Code_mirror.Editor.View.dispatch ed.view
-  @@ Code_mirror.Compartment.reconfigure ed.merlin_comp (ed.merlin_extension ())
+  reconfigure ed ed.merlin_comp (Extension.of_list (ed.merlin_extension ()))
 
 let configure_merlin ed extension =
   ed.merlin_extension <- extension;
@@ -64,12 +63,8 @@ let clear x =
   refresh_messages x;
   refresh_merlin x
 
-let source_of_state s =
-  String.concat "\n" @@ Array.to_list @@ Array.map Jstr.to_string
-  @@ Code_mirror.Text.to_jstr_array
-  @@ Code_mirror.Editor.State.doc s
-
-let source t = source_of_state @@ Code_mirror.Editor.View.state t.view
+let source_of_state s = Text.to_string (EditorState.doc s)
+let source t = source_of_state @@ EditorView.state t.view
 
 let prefix_length a b =
   let rec go i =
@@ -78,29 +73,28 @@ let prefix_length a b =
   in
   go 0
 
-let basic_setup =
-  Jv.get Jv.global "__CM__basic_setup" |> Code_mirror.Extension.of_jv
-
 let make parent =
-  let open Code_mirror.Editor in
-  let changes = Code_mirror.Compartment.make () in
-  let messages = Code_mirror.Compartment.make () in
-  let lines = Code_mirror.Compartment.make () in
-  let merlin = Code_mirror.Compartment.make () in
+  let changes = Compartment.make () in
+  let messages = Compartment.make () in
+  let lines = Compartment.make () in
+  let merlin = Compartment.make () in
+  let empty = Extension.of_list [] in
   let extensions =
-    [|
-      basic_setup;
-      Code_mirror.Editor.View.line_wrapping ();
-      Code_mirror.Compartment.of' lines [];
-      Code_mirror.Compartment.of' messages [];
-      Code_mirror.Compartment.of' changes [];
-      Code_mirror.Compartment.of' merlin [];
-    |]
+    Extension.of_list
+      [
+        basic_setup;
+        EditorView.line_wrapping_extension;
+        Compartment.of_ lines empty;
+        Compartment.of_ messages empty;
+        Compartment.of_ changes empty;
+        Compartment.of_ merlin empty;
+      ]
   in
-  let config = State.Config.create ~doc:Jstr.empty ~extensions () in
-  let state = State.create ~config () in
-  let opts = View.opts ~state ~parent () in
-  let view = View.create ~opts () in
+  let config = EditorStateConfig.create ~doc:"" ~extensions () in
+  let state = EditorState.create ~config () in
+  let view =
+    EditorView.create ~config:(EditorViewConfig.create ~state ~parent ()) ()
+  in
   {
     previous_lines = 0;
     current_doc = "";
@@ -121,17 +115,14 @@ let set_current_doc t new_doc =
 
 let on_change cm fn =
   let has_changed =
-    let open Code_mirror.Editor in
-    let (State.Facet ((module F), it)) = View.update_listener () in
-    F.of_ it (fun ev ->
-        if View.Update.doc_changed ev then
-          let new_doc = source_of_state (View.Update.state ev) in
+    Facet.of_ EditorView.update_listener (fun ev ->
+        if ViewUpdate.doc_changed ev then
+          let new_doc = source_of_state (ViewUpdate.state ev) in
           if not (String.equal cm.current_doc new_doc) then (
             set_current_doc cm new_doc;
             fn ()))
   in
-  Code_mirror.Editor.View.dispatch cm.view
-  @@ Code_mirror.Compartment.reconfigure cm.changes [ has_changed ]
+  reconfigure cm cm.changes has_changed
 
 let count_lines str =
   if str = "" then 0
@@ -158,4 +149,4 @@ let add_message t loc msg = set_messages t ((loc, msg) :: t.messages)
 
 let set_source t doc =
   set_current_doc t doc;
-  Code_mirror.Editor.View.set_doc t.view (Jstr.of_string doc)
+  EditorView.set_doc t.view doc
