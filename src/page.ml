@@ -84,7 +84,8 @@ let register t this =
   let cell =
     Cell.init ~id:(List.length t.cells) ~mode ~run_on
       ~merlin:(attr "data-merlin" <> Some "false")
-      ?extra_style:t.extra_style ?inline_style:t.inline_style
+      ?cell_id:(attr "data-id") ?extra_style:t.extra_style
+      ?inline_style:t.inline_style
       ~eval_fn:(fun ~id ~line_number code ->
         Client.eval ~id ~line_number t.worker code)
       ~fmt_fn:(fun ~id code -> Client.fmt ~id t.worker code)

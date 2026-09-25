@@ -17,6 +17,7 @@ val init :
   mode:mode ->
   run_on:[ `Click | `Load ] ->
   ?merlin:bool ->
+  ?cell_id:string ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
   eval_fn:(id:int -> line_number:int -> string -> unit) ->
