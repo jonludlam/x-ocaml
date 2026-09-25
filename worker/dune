@@ -1,5 +1,28 @@
+; eval.ml is eval.cppo.ml with -D OXCAML on OxCaml, where the toplevel's
+; value accessors live in Toploop rather than Topeval.
+
+(rule
+ (targets eval.ml)
+ (deps
+  (:x eval.cppo.ml))
+ (enabled_if
+  (not %{ocaml-config:ox}))
+ (action
+  (run %{bin:cppo} -V OCAML:%{ocaml_version} %{x} -o %{targets})))
+
+(rule
+ (targets eval.ml)
+ (deps
+  (:x eval.cppo.ml))
+ (enabled_if %{ocaml-config:ox})
+ (action
+  (run %{bin:cppo} -V OCAML:%{ocaml_version} -D OXCAML %{x} -o %{targets})))
+
 (library
  (name x_worker)
+ ; OxCaml's toplevel libraries ship without cmx files.
+ (ocamlopt_flags
+  (:standard -w -58))
  (libraries
   brr
   js_of_ocaml
@@ -8,9 +31,15 @@
   x-ocaml.lib
   x-ocaml.lib.cells
   merlin-js.worker
-  ocamlformat-lib
-  ocamlformat-lib.parser_extended
-  ocamlformat-lib.format_))
+  (select
+   ocamlfmt.ml
+   from
+   (ocamlformat-lib
+    ocamlformat-lib.parser_extended
+    ocamlformat-lib.format_
+    ->
+    ocamlfmt.real.ml)
+   (-> ocamlfmt.stub.ml))))
 
 (rule
  (targets export.txt)
