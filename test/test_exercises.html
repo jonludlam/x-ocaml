@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml saved exercises</title>
+</head>
+<body>
+  <h1>x-ocaml saved exercises</h1>
+
+  <!-- A reader's earlier version of "kept" is in storage; "fresh" has none. -->
+  <script>
+    const key = (id) => 'xo:' + location.pathname + ':' + id;
+    localStorage.setItem(key('kept'), 'let edited = 2');
+    localStorage.removeItem(key('fresh'));
+  </script>
+
+  <x-ocaml id="kept" mode="exercise" data-id="kept">let original = 1</x-ocaml>
+  <x-ocaml id="fresh" mode="exercise" data-id="fresh">let fresh = 1</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+
+  <script>
+    window.testResults = { total: 0, passed: 0, failed: 0, done: false, details: [] };
+
+    function check(name, ok) {
+      const r = window.testResults;
+      r.total++; ok ? r.passed++ : r.failed++;
+      r.details.push({ name, ok: !!ok });
+    }
+
+    const shadow = (id) => document.getElementById(id).shadowRoot;
+    // The text of the editor's lines, without the output drawn among them.
+    const code = (id) =>
+      [...shadow(id).querySelectorAll('.cm-line')].map((l) => l.textContent).join('\n');
+    const output = (id) =>
+      [...shadow(id).querySelectorAll('.caml_meta')].map((e) => e.textContent).join('\n');
+    const resetShown = (id) => {
+      const b = shadow(id).querySelector('.reset_exercise_btn');
+      return b !== null && b.style.display !== 'none';
+    };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    function waitFor(pred, ms) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        (function poll() {
+          let ok = false;
+          try { ok = pred(); } catch (e) {}
+          if (ok || Date.now() - start > ms) resolve(ok);
+          else setTimeout(poll, 200);
+        })();
+      });
+    }
+
+    async function run() {
+      await waitFor(() => output('fresh').includes('val fresh'), 30000);
+
+      check('the kept version replaces the original', code('kept') === 'let edited = 2');
+      check('and it is the one that runs', output('kept').includes('val edited : int = 2'));
+      check('Reset shows when a version is kept', resetShown('kept'));
+      check('but not when none is', !resetShown('fresh'));
+
+      // Typed at the start of the (focused, so selected) editor.
+      shadow('fresh').querySelector('.cm-content').focus();
+      document.execCommand('insertText', false, '(* typed *) ');
+      await sleep(800);
+      check('an edit is kept', localStorage.getItem(key('fresh')) === '(* typed *) let fresh = 1');
+      check('and Reset then shows', resetShown('fresh'));
+
+      shadow('kept').querySelector('.reset_exercise_btn').click();
+      await sleep(300);
+      check('Reset brings back the original', code('kept') === 'let original = 1');
+      check('and forgets the kept version', localStorage.getItem(key('kept')) === null);
+      check('and hides itself', !resetShown('kept'));
+
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

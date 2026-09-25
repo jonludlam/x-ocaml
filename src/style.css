@@ -104,3 +104,22 @@ table, tr, td, th {
 .test-indicator.test-pass { color: #4CAF50; }
 .test-indicator.test-fail { color: #E53935; }
 .test-indicator.test-error { color: #FF9800; }
+
+.reset_btn_wrap {
+  position: absolute; right: 32px; top: 2px; z-index: 999;
+  pointer-events: none;
+}
+.reset_exercise_btn {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 28px; height: 28px;
+  padding: 0; margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #888;
+  font-size: 18px; line-height: 28px;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+.reset_exercise_btn:hover { opacity: 1; background: rgba(0,0,0,0.08); color: #333; }
