@@ -102,7 +102,7 @@ let prefix_length a b =
   in
   go 0
 
-let make parent =
+let make ?(read_only = false) parent =
   let changes = Compartment.make () in
   let lines = Compartment.make () in
   let merlin = Compartment.make () in
@@ -116,6 +116,7 @@ let make parent =
         StateField.extension messages_field;
         Compartment.of_ changes empty;
         Compartment.of_ merlin empty;
+        Facet.of_ EditorState.read_only_facet read_only;
       ]
   in
   let config = EditorStateConfig.create ~doc:"" ~extensions () in
