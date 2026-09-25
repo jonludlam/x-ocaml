@@ -3,24 +3,34 @@
 <head>
   <meta charset="utf-8">
   <title>x-ocaml: output without end</title>
+  <link rel="stylesheet" href="test.css">
   <script src="lib.js"></script>
 </head>
 <body>
-  <x-ocaml id="first">let first = 1</x-ocaml>
-  <x-ocaml id="flood" run-on="click">let () = while true do print_string "flood " done</x-ocaml>
+<main>
+  <p class="lede">A cell that prints for ever, stopped.</p>
+
+  <section class="case" data-case="O1">
+    <h2>Printing for ever</h2>
+    <x-ocaml id="first">let first = 1</x-ocaml>
+    <x-ocaml id="flood" run-on="click">let () = while true do print_string "flood " done</x-ocaml>
+  </section>
+
+</main>
+
   <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
   <script>
     const label = (id) => button(id).getAttribute('aria-label');
     async function run() {
       await waitFor(() => output('first').includes('val first'), 30000);
       button('flood').click();
-      check('a cell printing forever shows Stop', await waitFor(() => label('flood') === 'Stop', 10000));
+      check('O1: a cell printing forever shows Stop', await waitFor(() => label('flood') === 'Stop', 10000));
       await sleep(2000);
       button('flood').click();
       await sleep(300);
-      check('and can be stopped', label('flood') === 'Run');
+      check('O1: and can be stopped', label('flood') === 'Run');
       button('first').click();
-      check('the page works afterwards', await waitFor(() => output('first').includes('val first'), 20000));
+      check('O1: the page works afterwards', await waitFor(() => output('first').includes('val first'), 20000));
       noPageErrors();
       window.testResults.done = true;
     }

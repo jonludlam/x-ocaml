@@ -3,25 +3,39 @@
 <head>
   <meta charset="utf-8">
   <title>x-ocaml: script attributes</title>
+  <link rel="stylesheet" href="test.css">
   <script src="lib.js"></script>
 </head>
 <body>
-  <ml-cell id="top" run-on="load">let top = 0</ml-cell>
-  <ml-cell id="a">let a = 1</ml-cell>
-  <ml-cell id="b" run-on="load">let b = a + 1</ml-cell>
-  <x-ocaml id="plain">not upgraded</x-ocaml>
+<main>
+  <p class="lede">This page's script tag says <code>elt-name="ml-cell"</code>
+    and <code>run-on="click"</code>, and gives its scripts' URLs query strings.</p>
+
+  <section class="case" data-case="A1">
+    <h2>elt-name names the element, and x-ocaml is then not defined</h2>
+    <x-ocaml id="plain">not upgraded</x-ocaml>
+  </section>
+
+  <section class="case" data-case="A2">
+    <h2>run-on="click" on the script: which cells run by themselves</h2>
+    <ml-cell id="top" run-on="load">let top = 0</ml-cell>
+    <ml-cell id="a">let a = 1</ml-cell>
+    <ml-cell id="b" run-on="load">let b = a + 1</ml-cell>
+  </section>
+</main>
+
   <script src="x-ocaml.js?v=1" src-worker="x-ocaml.worker.js?v=2" elt-name="ml-cell" run-on="click"></script>
   <script>
     async function run() {
       await waitFor(() => shadow('a') && shadow('a').querySelector('.cm-editor'), 20000);
-      check('elt-name names the element', shadow('a') !== null);
-      check('and x-ocaml is then not defined', cell('plain').shadowRoot === null);
+      check('A1: elt-name names the element', shadow('a') !== null);
+      check('A1: and x-ocaml is then not defined', cell('plain').shadowRoot === null);
       await sleep(3000);
-      check('run-on="click" on the script: cells wait', output('a') === '');
-      check('a cell asking to run on load, before any that wait, runs', output('top').includes('val top'));
-      check('one asking after a cell that waits does not', output('b') === '');
+      check('A2: cells wait', output('a') === '');
+      check('A2: a cell asking to run on load, before any that wait, runs', output('top').includes('val top'));
+      check('A2: one asking after a cell that waits does not', output('b') === '');
       button('b').click();
-      check('a worker URL with a query string works, and running b runs a first',
+      check('A2: with query strings in the URLs, running b runs a first',
         await waitFor(() => output('b').includes('val b : int = 2') && output('a').includes('val a'), 20000));
       noPageErrors();
       window.testResults.done = true;
