@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <title>x-ocaml cell modes</title>
+  <!-- T7: a page can restyle cells through the --xo-* variables -->
+  <style>#t2 { --xo-meta-bg: rgb(1, 2, 3); --xo-syntax-keyword: rgb(4, 5, 6); }</style>
 </head>
 <body>
   <h1>x-ocaml cell modes</h1>
@@ -87,6 +89,12 @@
 
       check('T5: a failing test shows a cross', verdict('t5-test') === '✗');
       check('T6: a test that does not typecheck shows !', verdict('t6-test') === '!');
+
+      const meta = shadow('t2').querySelector('.caml_meta');
+      check('T7: a page\'s --xo-* variable restyles a cell',
+        getComputedStyle(meta).backgroundColor === 'rgb(1, 2, 3)');
+      const kw = shadow('t2').querySelector('.xo-keyword');
+      check('T7: and so do syntax colours', kw && getComputedStyle(kw).color === 'rgb(4, 5, 6)');
 
       window.testResults.done = true;
     }
