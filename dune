@@ -1,4 +1,4 @@
-(vendored_dirs jsoo-code-mirror merlin-js)
+(vendored_dirs merlin-js)
 
 (rule
  (mode promote)
