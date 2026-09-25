@@ -1,5 +1,5 @@
 ; A universe for the browser tests of the js_top_worker backend: a
-; js_top_worker toplevel with the widget library, the cmis and compiled
+; js_top_worker toplevel with the widget library and x-ocaml-ui, the cmis and compiled
 ; libraries of the packages below, and a findlib_index.json naming the
 ; worker. Built only when the browser tests ask for it.
 
@@ -25,12 +25,13 @@
  (deps
   worker.bc.js
   %{bin:jtw}
-  (package js_top_worker-widget))
+  (package js_top_worker-widget)
+  (package x-ocaml-ui))
  (action
   (system
    "set -e; prefix=\"${OPAM_SWITCH_PREFIX:?run dune under opam}\"; \
     case \"$prefix\" in */_opam) switch=\"${prefix%/_opam}\" ;; *) switch=\"${prefix##*/}\" ;; esac; \
     OCAMLPATH=\"$(cd ../../../install/default/lib && pwd):${OCAMLPATH:-$prefix/lib}\" \
-    %{bin:jtw} opam --no-worker --switch \"$switch\" -o universe js_top_worker-widget >/dev/null; \
+    %{bin:jtw} opam --no-worker --switch \"$switch\" -o universe js_top_worker-widget x-ocaml-ui >/dev/null; \
     cp worker.bc.js universe/worker.js; \
     printf 'import json,sys\\nf=sys.argv[1]\\nd=json.load(open(f))\\nd[\"compiler\"]={\"worker_url\":\"worker.js\"}\\njson.dump(d,open(f,\"w\"))\\n' | python3 - universe/findlib_index.json")))

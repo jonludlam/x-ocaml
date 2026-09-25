@@ -16,6 +16,7 @@ exports.TESTS = [
   ['/sub/test_base.html', 'A base URL elsewhere'],
   ['/test_jtw.html', 'The js_top_worker backend'],
   ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
+  ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],
 ];
 
 exports.EXAMPLES = [

@@ -1,0 +1,10 @@
+; A widget toolkit for cells running on js_top_worker: controls, layouts,
+; interact, plots, images and timers, on js_top_worker's Widget library.
+
+(library
+ (name ui)
+ (public_name x-ocaml-ui)
+ (libraries js_top_worker-widget)
+ (preprocess
+  (pps ppx_blob))
+ (preprocessor_deps ui.css))

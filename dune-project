@@ -48,3 +48,11 @@
  (depends
   (ppxlib
    (>= 0.33.0))))
+
+(package
+ (name x-ocaml-ui)
+ (synopsis "A widget toolkit for x-ocaml cells running on js_top_worker")
+ (depends
+  js_top_worker-widget
+  (ppx_blob
+   (>= 0.9.0))))
