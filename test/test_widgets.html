@@ -141,7 +141,7 @@ let () =
   </section>
 
   <section class="case" data-case="W5">
-    <h2>Silly views</h2>
+    <h2>Silly views, and a managed widget inside a view</h2>
     <x-ocaml id="silly">open Widget.View
 
 let () =
@@ -153,8 +153,10 @@ let () =
                          Handler ("click", "nobody") ];
                children = [ Text "survived" ] });
   Widget.display ~id:"markup" ~handlers:[] (Text "&lt;b&gt;not bold&lt;/b&gt;");
-  Widget.display ~id:"nested" ~handlers:[]
-    (Element { tag = "div"; attrs = []; children = [ Managed { kind = "box"; config = "{}" } ] })</x-ocaml>
+  Widget.display ~id:"nested"
+    ~handlers:[ ("poke", fun v -> Widget.update ~id:"nested-heard" (Text ("heard " ^ Option.value v ~default:"-"))) ]
+    (Element { tag = "div"; attrs = []; children = [ Text "inside: "; Managed { kind = "box"; config = {|{"n":7}|} } ] });
+  Widget.display ~id:"nested-heard" ~handlers:[] (Text "nothing yet")</x-ocaml>
   </section>
 
   <section class="case" data-case="W6">
@@ -228,6 +230,39 @@ let () =
   Widget.display ~id:"dot"
     ~handlers:[ ("grow", fun _ -> r := !r + 10; Widget.update ~id:"dot" (dot ())) ]
     (dot ())</x-ocaml>
+  </section>
+
+  <section class="case" data-case="W11">
+    <h2>What events say</h2>
+    <p>Keys say which key; the pointer says where, relative to the element or
+      in an SVG's own units; moves come at most once a frame; an element can
+      prevent an event's default; the worker hears when a widget goes.</p>
+    <x-ocaml id="events">open Widget.View
+
+let said = ref []
+let say s = said := s :: !said; Widget.update ~id:"said" (Text (String.concat "\n" (List.rev !said)))
+let moves = ref 0
+
+let () =
+  Widget.display ~id:"said" ~handlers:[] (Text "");
+  Widget.display ~id:"pad"
+    ~handlers:[ ("k", fun v -> say ("key " ^ Option.value v ~default:"-"));
+                ("c", fun v -> say ("click " ^ Option.value v ~default:"-"));
+                ("m", fun _ -> incr moves; Widget.update ~id:"moves" (Text (string_of_int !moves))) ]
+    (Element { tag = "div";
+               attrs = [ Property ("data-t", "pad"); Property ("tabindex", "0"); Property ("data-x-ocaml-prevent", "keydown");
+                         Style ("width", "200px"); Style ("height", "100px"); Style ("background", "#eee");
+                         Handler ("keydown", "k"); Handler ("click", "c"); Handler ("pointermove", "m") ];
+               children = [] });
+  Widget.display ~id:"svgpad" ~handlers:[ ("c", fun v -> say ("svg " ^ Option.value v ~default:"-")) ]
+    (Element { tag = "svg"; attrs = [ Property ("data-t", "svgpad"); Property ("viewBox", "0 0 10 10");
+                                      Style ("width", "200px"); Style ("height", "200px"); Handler ("click", "c") ];
+               children = [] });
+  Widget.display ~id:"moves" ~handlers:[] (Text "0")</x-ocaml>
+    <x-ocaml id="leaver">let () =
+  Widget.display ~id:"leaving"
+    ~handlers:[ ("x-ocaml:removed", fun _ -> Widget.update ~id:"said" (Widget.View.Text "removed")) ]
+    (Widget.View.Text "leaving")</x-ocaml>
   </section>
 
   <section class="case" data-case="W8">
@@ -325,13 +360,17 @@ let () =
         w('badtag').querySelector('.x-ocaml-widget-error') !== null);
       check('W5: bad attributes are skipped and the rest drawn', text('badattrs') === 'survived');
       check('W5: text is text, not markup', text('markup') === '<b>not bold</b>' && !w('markup').querySelector('b'));
-      check('W5: a managed widget inside a view shows an error',
-        w('nested').querySelector('.x-ocaml-widget-error') !== null);
 
       check('W6: the adapter starts the widget shown before it came, configured',
-        await waitFor(() => t('box') && t('box').textContent === '2', 20000));
-      check('W6: a command reaches the adapter', t('box').dataset.cmd === 'flash:"now"');
-      t('box').click();
+        await waitFor(() => w('early').querySelector('[data-t="box"]') && w('early').querySelector('[data-t="box"]').textContent === '2', 20000));
+      const box = w('early').querySelector('[data-t="box"]');
+      check('W6: a command reaches the adapter', box.dataset.cmd === 'flash:"now"');
+      const inner = w('nested').querySelector('[data-t="box"]');
+      check('W5: a managed widget inside a view, shown before its adapter came, starts when it comes', inner && inner.textContent === '7' && w('nested').textContent.startsWith('inside: '));
+      inner.click();
+      check('W5: and its events go to the handlers of the widget it is in',
+        await waitFor(() => text('nested-heard') === 'heard 42', 10000));
+      box.click();
       check('W6: the adapter\'s event reaches the handler', await waitFor(() => text('poked') === 'poked 42', 10000));
       check('W6: an adapter that throws shows an error in its place',
         await waitFor(() => /no room for a boom/.test(text('boom') || ''), 10000));
@@ -352,6 +391,33 @@ let () =
       check('W7: a widget made by a handler follows the cell of the widget clicked',
         after('handlers').join() === 'tick,ticked,fails,spawner,spawned');
 
+      await waitFor(() => t('pad') && w('leaving'), 20000);
+      const pad = t('pad');
+      const lines = () => text('said').split('\n');
+      const json = (prefix) => { const l = lines().find((x) => x.startsWith(prefix)); return l ? JSON.parse(l.slice(prefix.length)) : null; };
+      pad.focus();
+      const kept = pad.dispatchEvent(new KeyboardEvent('keydown', { key: 'q', code: 'KeyQ', shiftKey: true, bubbles: true, cancelable: true }));
+      await waitFor(() => json('key '), 10000);
+      const k = json('key ');
+      check('W11: a key says which, and its modifiers', k && k.key === 'q' && k.code === 'KeyQ' && k.shift === true && k.alt === false);
+      check('W11: data-x-ocaml-prevent prevents its default', kept === false);
+      const r = pad.getBoundingClientRect(); // synthetic events give whole pixels
+      pad.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.left + 30, clientY: r.top + 40 }));
+      await waitFor(() => json('click '), 10000);
+      const c = json('click ');
+      check('W11: a click says where, relative to the element', c && Math.abs(c.x - 30) < 1.5 && Math.abs(c.y - 40) < 1.5 && Math.round(c.width) === 200);
+      const sp = t('svgpad');
+      const sr = sp.getBoundingClientRect();
+      sp.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: sr.left + 50, clientY: sr.top + 150 }));
+      await waitFor(() => json('svg '), 10000);
+      const s = json('svg ');
+      check('W11: on SVG, in its own units', s && Math.abs(s.x - 2.5) < 0.08 && Math.abs(s.y - 7.5) < 0.08 && s.width === 10);
+      for (let i = 0; i < 40; i++) pad.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: r.left + i, clientY: r.top + 5 }));
+      await sleep(800);
+      check(`W11: forty moves in a frame are sent as one (${text('moves')})`, +text('moves') >= 1 && +text('moves') <= 2);
+      button('leaver').click();
+      check('W11: the worker hears when a widget leaves the page', await waitFor(() => text('said') === 'removed', 10000));
+
       await waitFor(() => t('dot'), 20000);
       const dot = t('dot');
       check('W9: SVG elements are made as SVG, and drawn',
@@ -368,7 +434,7 @@ let () =
       button('forever').click();
       check('W8: stopping the toplevel removes the widgets, whose handlers went with it',
         await waitFor(() => document.querySelectorAll('.x-ocaml-widget').length === 0, 5000));
-      check('W8: adapters are told when their widget goes', window.boxDestroyed === 1);
+      check('W8: adapters are told when their widget goes, inside a view too', window.boxDestroyed === 2);
       button('counter').click();
       check('W8: the fresh toplevel draws widgets again', await waitFor(() => t('count'), 60000));
 

@@ -6,7 +6,8 @@
     adapter: JavaScript the worker sends once per kind. A widget goes after the
     cell whose code made it, after that cell's earlier widgets. Each update of a
     view patches the elements already on the page, so an input keeps its focus
-    and whatever the reader is typing.
+    and whatever the reader is typing. A managed widget can also be part of a
+    view, and its adapter's events go to the handlers of the widget it is in.
 
     Adapters and attributes run in the page itself: code in a cell can run
     JavaScript in the page with them, as it can put anything on the page. *)
@@ -23,8 +24,20 @@ type send =
 val create : unit -> t
 
 val set_send : t -> send -> unit
-(** Where the reader's actions go. An input's handlers send its value, or
-    ["true"] or ["false"] for a checkbox or radio button. *)
+(** Where the reader's actions go.
+
+    An input's handlers send its value, or ["true"] or ["false"] for a checkbox
+    or radio button. Keyboard events send JSON with [key], [code], [repeat], the
+    modifiers [shift], [alt], [ctrl] and [meta], and an input's [value]. Mouse,
+    pointer, touch and wheel events send JSON with [x] and [y] relative to the
+    element (in the user units of its [<svg>] for SVG), the element's [width]
+    and [height] (its [viewBox]'s for SVG), [button], [buttons], the modifiers,
+    and [dx] and [dy] for the wheel. Moves, wheel and scroll events are sent at
+    most once a frame. An element's [data-x-ocaml-prevent] attribute lists
+    events whose default action its handlers prevent.
+
+    When a widget leaves the page, its handler ["x-ocaml:removed"] is called, if
+    it has one. *)
 
 val update : t -> owner:Brr.El.t option -> string -> Jv.t -> unit
 (** [update t ~owner id view] shows [view], the worker's JSON, as widget [id],
