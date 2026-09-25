@@ -87,3 +87,20 @@ table, tr, td, th {
   border-collapse: collapse;
   padding: 0.2em;
 }
+
+:host([mode="exercise"]) .cm-editor { border-left: 3px solid #4CAF50; }
+:host([mode="exercise"]) .cm-gutters { border-left: none !important; }
+
+.test-details { position: relative }
+.test-details summary {
+  cursor: pointer;
+  font-size: 0.85em;
+  color: #666;
+  padding: 0.3em 0.5em;
+  user-select: none;
+}
+.test-details summary:hover { color: #333; }
+.test-indicator { font-weight: bold; margin-left: 0.2em; }
+.test-indicator.test-pass { color: #4CAF50; }
+.test-indicator.test-fail { color: #E53935; }
+.test-indicator.test-error { color: #FF9800; }
