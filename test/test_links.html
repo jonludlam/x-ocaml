@@ -3,56 +3,85 @@
 <head>
   <meta charset="utf-8">
   <title>x-ocaml: test linking, the awkward cases</title>
+  <link rel="stylesheet" href="test.css">
   <script src="lib.js"></script>
 </head>
 <body>
-  <h1>Test linking, the awkward cases</h1>
+<main>
+  <p class="lede">How tests find their exercises, and what happens when an
+    author gets it wrong. A test runs where it is on the page, and again each
+    time the exercise it is linked to completes.</p>
 
-  <!-- L1: a test before any exercise runs where it is, like any cell -->
-  <x-ocaml id="l1-test" mode="test">let l1 = ()</x-ocaml>
+  <section class="case" data-case="L1">
+    <h2>A test before any exercise runs where it is, like any cell</h2>
+    <x-ocaml id="l1-test" mode="test">let l1 = ()</x-ocaml>
+  </section>
 
-  <!-- L2: data-for names an exercise further down the page: the test runs
-       first, where it is, and cannot see it -->
-  <x-ocaml id="l2-test" mode="test" data-for="later">if later () <> 2 then failwith "later"</x-ocaml>
+  <section class="case" data-case="L2">
+    <h2>data-for names an exercise further down: the test runs first, and cannot see it</h2>
+    <x-ocaml id="l2-test" mode="test" data-for="later">if later () <> 2 then failwith "later"</x-ocaml>
+  </section>
 
-  <!-- L3: data-for names nothing at all -->
-  <x-ocaml id="l3-test" mode="test" data-for="nowhere">let l3 = ()</x-ocaml>
+  <section class="case" data-case="L3">
+    <h2>data-for names nothing at all</h2>
+    <x-ocaml id="l3-test" mode="test" data-for="nowhere">let l3 = ()</x-ocaml>
+  </section>
 
-  <!-- L4: two tests for one exercise, one passing and one failing -->
-  <x-ocaml id="l4-ex" mode="exercise" data-id="sq">let sq x = x * x</x-ocaml>
-  <x-ocaml id="l4-pass" mode="test" data-for="sq">if sq 3 <> 9 then failwith "sq 3"</x-ocaml>
-  <x-ocaml id="l4-fail" mode="test" data-for="sq">if sq 3 <> 10 then failwith "sq 3 is not 10"</x-ocaml>
+  <section class="case" data-case="L4">
+    <h2>Two tests for one exercise, one passing and one failing</h2>
+    <x-ocaml id="l4-ex" mode="exercise" data-id="sq">let sq x = x * x</x-ocaml>
+    <x-ocaml id="l4-pass" mode="test" data-for="sq">if sq 3 <> 9 then failwith "sq 3"</x-ocaml>
+    <x-ocaml id="l4-fail" mode="test" data-for="sq">if sq 3 <> 10 then failwith "sq 3 is not 10"</x-ocaml>
+  </section>
 
-  <x-ocaml id="l2-ex" mode="exercise" data-id="later">let later () = 2</x-ocaml>
+  <section class="case" data-case="L2">
+    <h2>The exercise L2's test names, after it</h2>
+    <x-ocaml id="l2-ex" mode="exercise" data-id="later">let later () = 2</x-ocaml>
+  </section>
 
-  <!-- L5: editing an exercise makes its tests' verdicts stale -->
-  <x-ocaml id="l5-ex" mode="exercise" data-id="five">let five = 5</x-ocaml>
-  <x-ocaml id="l5-test" mode="test" data-for="five">if five <> 5 then failwith "five"</x-ocaml>
+  <section class="case" data-case="L5">
+    <h2>Editing an exercise makes its tests' verdicts stale</h2>
+    <p>Checked last: editing clears every cell after this one.</p>
+    <x-ocaml id="l5-ex" mode="exercise" data-id="five">let five = 5</x-ocaml>
+    <x-ocaml id="l5-test" mode="test" data-for="five">if five <> 5 then failwith "five"</x-ocaml>
+  </section>
 
-  <!-- L6: data-for names a cell that is not an exercise -->
-  <x-ocaml id="l6-plain" data-id="plain">let plain = 1</x-ocaml>
-  <x-ocaml id="l6-test" mode="test" data-for="plain">if plain <> 1 then failwith "plain"</x-ocaml>
+  <section class="case" data-case="L6">
+    <h2>data-for names a cell that is not an exercise</h2>
+    <x-ocaml id="l6-plain" data-id="plain">let plain = 1</x-ocaml>
+    <x-ocaml id="l6-test" mode="test" data-for="plain">if plain <> 1 then failwith "plain"</x-ocaml>
+  </section>
 
-  <!-- L7: two exercises with the same data-id -->
-  <x-ocaml id="l7-a" mode="exercise" data-id="dup">let dup = "a"</x-ocaml>
-  <x-ocaml id="l7-b" mode="exercise" data-id="dup">let dup = "b"</x-ocaml>
-  <x-ocaml id="l7-test" mode="test" data-for="dup">print_endline dup</x-ocaml>
+  <section class="case" data-case="L7">
+    <h2>Two exercises with the same data-id</h2>
+    <x-ocaml id="l7-a" mode="exercise" data-id="dup">let dup = "a"</x-ocaml>
+    <x-ocaml id="l7-b" mode="exercise" data-id="dup">let dup = "b"</x-ocaml>
+    <x-ocaml id="l7-test" mode="test" data-for="dup">print_endline dup</x-ocaml>
+  </section>
 
-  <!-- L8: a hidden cell that fails, and one that prints -->
-  <x-ocaml id="l8-bad" mode="hidden">let broken : int = "no"</x-ocaml>
-  <x-ocaml id="l8-print" mode="hidden">print_endline "from hidden"</x-ocaml>
-  <x-ocaml id="l8-after">let l8 = 8</x-ocaml>
+  <section class="case" data-case="L8">
+    <h2>Hidden cells that fail, or print, before a visible one</h2>
+    <p>Two hidden cells sit between the heading and the cell below.</p>
+    <x-ocaml id="l8-bad" mode="hidden">let broken : int = "no"</x-ocaml>
+    <x-ocaml id="l8-print" mode="hidden">print_endline "from hidden"</x-ocaml>
+    <x-ocaml id="l8-after">let l8 = 8</x-ocaml>
+  </section>
 
-  <!-- L9: an unknown mode, and one in capitals -->
-  <x-ocaml id="l9-odd" mode="wibble">let l9 = 9</x-ocaml>
-  <x-ocaml id="l9-caps" mode="HIDDEN">let l9_caps = 9</x-ocaml>
+  <section class="case" data-case="L9">
+    <h2>An unknown mode, and one in capitals</h2>
+    <x-ocaml id="l9-odd" mode="wibble">let l9 = 9</x-ocaml>
+    <x-ocaml id="l9-caps" mode="HIDDEN">let l9_caps = 9</x-ocaml>
+  </section>
 
-  <!-- L10: an empty cell, and one of only whitespace, then a cell after them -->
-  <x-ocaml id="l10-empty"></x-ocaml>
-  <x-ocaml id="l10-blank">
+  <section class="case" data-case="L10">
+    <h2>An empty cell, one of only whitespace, and a cell after them</h2>
+    <x-ocaml id="l10-empty"></x-ocaml>
+    <x-ocaml id="l10-blank">
 
-  </x-ocaml>
-  <x-ocaml id="l10-after">let l10 = 10</x-ocaml>
+    </x-ocaml>
+    <x-ocaml id="l10-after">let l10 = 10</x-ocaml>
+  </section>
+</main>
 
   <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
   <script>

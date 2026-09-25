@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>x-ocaml: no storage</title>
+  <link rel="stylesheet" href="test.css">
   <script src="lib.js"></script>
   <script>
     // As in a browser that refuses this page its storage.
@@ -12,15 +13,24 @@
   </script>
 </head>
 <body>
-  <x-ocaml id="ex" mode="exercise" data-id="ex">let ex = 1</x-ocaml>
-  <x-ocaml id="after">let after = ex + 1</x-ocaml>
+<main>
+  <p class="lede">This page is refused local storage altogether, as in a private window or with site data blocked.</p>
+
+  <section class="case" data-case="D1">
+    <h2>An exercise, and a cell that uses it</h2>
+    <x-ocaml id="ex" mode="exercise" data-id="ex">let ex = 1</x-ocaml>
+    <x-ocaml id="after">let after = ex + 1</x-ocaml>
+  </section>
+
+</main>
+
   <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
   <script>
     async function run() {
-      check('exercises still run without storage', await waitFor(() => output('after').includes('val after : int = 2'), 30000));
+      check('D1: exercises still run without storage', await waitFor(() => output('after').includes('val after : int = 2'), 30000));
       type('ex', '(* x *) ');
       await sleep(600);
-      check('and can be edited', code('ex') === '(* x *) let ex = 1');
+      check('D1: and can be edited', code('ex') === '(* x *) let ex = 1');
       noPageErrors();
       window.testResults.done = true;
     }
