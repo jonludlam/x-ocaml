@@ -4,7 +4,6 @@ open View
 
 type t = {
   view : EditorView.t;
-  messages_comp : Compartment.t;
   lines_comp : Compartment.t;
   merlin_comp : Compartment.t;
   mutable merlin_extension : unit -> Extension.t list;
@@ -20,28 +19,58 @@ let find_line_ends at doc =
   in
   go at
 
+(* Message positions come from the toplevel as byte offsets into the UTF-8
+   source; CodeMirror counts UTF-16 code units. *)
+let utf16_offset doc at =
+  let rec go i n =
+    if i >= at then n
+    else
+      let d = String.get_utf_8_uchar doc i in
+      go
+        (i + Uchar.utf_decode_length d)
+        (n + (Uchar.utf_16_byte_length (Uchar.utf_decode_uchar d) / 2))
+  in
+  go 0 0
+
+(* The messages are block widgets in a state field. The field maps them
+   through every change, so they never point past the document, and it is
+   replaced wholesale by this effect when the messages change. *)
+let decorations = RangeSet.conv_of Decoration.conv
+let set_messages_effect = StateEffectType.define decorations
+
+let messages_field =
+  StateField.define decorations
+    ~create:(fun _ -> Decoration.none)
+    ~update:(fun decos tr ->
+      List.fold_left
+        (fun decos e ->
+          Option.value ~default:decos (StateEffect.value e set_messages_effect))
+        (RangeSet.map decos (ChangeSet.desc (Transaction.changes tr)))
+        (Transaction.effects tr))
+    ~provide:(fun field -> Facet.from EditorView.decorations field)
+
 let render_messages cm =
   let doc = cm.current_doc in
-  let ranges =
-    List.map (fun (at, msg) ->
-        Decoration.range ~to_:at ~from:at
-        @@ Decoration.widget ~block:true ~side:99
-        @@ WidgetType.make ~to_dom:(fun _ -> msg) ())
-    @@ List.filter (fun (at, _) -> at <= String.length doc)
-    @@ List.map (fun (at, msg) ->
-        let at = find_line_ends at doc in
-        (at, msg))
-    @@ List.concat
-    @@ List.map (fun (loc, lst) -> List.map (fun m -> (loc, m)) lst)
-    @@ List.sort (fun (a, _) (b, _) -> Int.compare a b) cm.messages
-  in
-  Facet.of_ EditorView.decorations (RangeSet.of_ Decoration.conv ranges)
+  List.map (fun (at, msg) ->
+      Decoration.range ~to_:at ~from:at
+      @@ Decoration.widget ~block:true ~side:99
+      @@ WidgetType.make ~to_dom:(fun _ -> msg) ())
+  @@ List.map (fun (at, msg) ->
+      (utf16_offset doc (find_line_ends (min at (String.length doc)) doc), msg))
+  @@ List.concat
+  @@ List.map (fun (loc, lst) -> List.map (fun m -> (loc, m)) lst)
+  @@ List.sort (fun (a, _) (b, _) -> Int.compare a b) cm.messages
+  |> RangeSet.of_ Decoration.conv
+
+let dispatch_effects ed effects =
+  EditorView.dispatch ed.view (TransactionSpec.create ~effects ())
 
 let reconfigure ed comp ext =
-  EditorView.dispatch ed.view
-    (TransactionSpec.create ~effects:[ Compartment.reconfigure comp ext ] ())
+  dispatch_effects ed [ Compartment.reconfigure comp ext ]
 
-let refresh_messages ed = reconfigure ed ed.messages_comp (render_messages ed)
+let refresh_messages ed =
+  dispatch_effects ed
+    [ StateEffectType.of_ set_messages_effect (render_messages ed) ]
 
 let custom_ln editor =
   line_numbers
@@ -75,7 +104,6 @@ let prefix_length a b =
 
 let make parent =
   let changes = Compartment.make () in
-  let messages = Compartment.make () in
   let lines = Compartment.make () in
   let merlin = Compartment.make () in
   let empty = Extension.of_list [] in
@@ -85,7 +113,7 @@ let make parent =
         basic_setup;
         EditorView.line_wrapping_extension;
         Compartment.of_ lines empty;
-        Compartment.of_ messages empty;
+        StateField.extension messages_field;
         Compartment.of_ changes empty;
         Compartment.of_ merlin empty;
       ]
@@ -100,7 +128,6 @@ let make parent =
     current_doc = "";
     messages = [];
     view;
-    messages_comp = messages;
     lines_comp = lines;
     merlin_comp = merlin;
     merlin_extension = (fun () -> []);
@@ -147,6 +174,25 @@ let set_messages t msg =
 let clear_messages t = set_messages t []
 let add_message t loc msg = set_messages t ((loc, msg) :: t.messages)
 
+(* CodeMirror stores lines joined by "\n" whatever the source used. *)
+let normalise_newlines doc =
+  String.concat "\n"
+  @@ List.map (fun l ->
+      let n = String.length l in
+      if n > 0 && l.[n - 1] = '\r' then String.sub l 0 (n - 1) else l)
+  @@ String.split_on_char '\n' doc
+
+(* Replace the document and drop the messages in one transaction, so no
+   message is ever mapped through a change that removes the text it follows.
+   [current_doc] is updated first, as CodeMirror will store it, so the change
+   listener does not take this for an edit. *)
 let set_source t doc =
-  set_current_doc t doc;
-  EditorView.set_doc t.view doc
+  let doc = normalise_newlines doc in
+  t.messages <- [];
+  t.current_doc <- doc;
+  let len = Text.length (EditorState.doc (EditorView.state t.view)) in
+  EditorView.dispatch t.view
+    (TransactionSpec.create
+       ~changes:(ChangeSpec.replace ~from:0 ~to_:len ~insert:doc ())
+       ~effects:[ StateEffectType.of_ set_messages_effect Decoration.none ]
+       ())
