@@ -24,4 +24,5 @@ exports.EXAMPLES = [
   ['/examples/on_click.html', 'Nothing runs until asked, and another element name'],
   ['/examples/theming.html', 'A dark theme through the --xo-* variables'],
   ['/examples/text.html', 'Text of all sorts'],
+  ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
 ];

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Widgets</title>
+  <meta name="x-ocaml-universe" content="../universe/universe/">
+  <meta name="x-ocaml-packages" content="js_top_worker-widget">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .x-ocaml-widget { margin: 0.5rem 0 1rem; padding: 0.7rem 0.9rem; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; }
+    .x-ocaml-widget input[type=number] { width: 6rem; }
+    .x-ocaml-widget label { margin-right: 1rem; }
+    .x-ocaml-widget ul { padding-left: 1.2rem; margin: 0.5rem 0 0; }
+    .x-ocaml-widget li.done span { text-decoration: line-through; color: #888; }
+    .x-ocaml-widget button { margin-left: 0.4rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Widgets</h1>
+
+  <p>This page runs on js_top_worker, with a universe of packages named in
+    its <code>&lt;meta&gt;</code> tags, and loads the <code>Widget</code>
+    library for its cells. A widget is a view, a tree of
+    <code>Element</code>s and <code>Text</code>, with event handlers that are
+    names. When the reader clicks or types, the handler of that name runs in
+    the worker, and usually sends a new view with <code>Widget.update</code>.
+    Each widget appears under the cell that made it.</p>
+
+  <x-ocaml>open Widget.View
+
+let count = ref 0
+
+let counter () =
+  Element { tag = "div"; attrs = []; children = [
+    Element { tag = "button"; attrs = [ Handler ("click", "down") ]; children = [ Text "−" ] };
+    Element { tag = "b"; attrs = [ Style ("margin", "0 0.8rem") ];
+              children = [ Text (string_of_int !count) ] };
+    Element { tag = "button"; attrs = [ Handler ("click", "up") ]; children = [ Text "+" ] } ] }
+
+let () =
+  let redraw () = Widget.update ~id:"counter" (counter ()) in
+  Widget.display ~id:"counter"
+    ~handlers:[ ("up", fun _ -> incr count; redraw ());
+                ("down", fun _ -> decr count; redraw ()) ]
+    (counter ())</x-ocaml>
+
+  <h2>Inputs</h2>
+
+  <p>An input's handler receives what is in the input. Where a view gives an
+    input's value, the input shows it, at every update; each update patches
+    the page rather than drawing it again, so you can type into an input
+    whose value the program keeps setting. Here each field sets the other.</p>
+
+  <x-ocaml>(* The field last typed in, and what is in it. It shows exactly what was
+   typed: shown as a number, "20." would lose its point before the 5. *)
+let typed = ref ("C", "20")
+
+let celsius () =
+  match !typed with
+  | "C", s -> float_of_string_opt s
+  | _, s -> Option.map (fun f -> (f -. 32.) *. 5. /. 9.) (float_of_string_opt s)
+
+let field name convert =
+  let value =
+    match (!typed, celsius ()) with
+    | (n, s), _ when n = name -> s
+    | _, Some c -> Printf.sprintf "%g" (convert c)
+    | _, None -> ""
+  in
+  Element { tag = "label"; attrs = []; children = [
+    Element { tag = "input";
+              attrs = [ Property ("type", "number"); Property ("step", "any");
+                        Property ("value", value); Handler ("input", name) ];
+              children = [] };
+    Text (" °" ^ name) ] }
+
+let converter () =
+  Element { tag = "div"; attrs = []; children = [
+    field "C" Fun.id;
+    field "F" (fun c -> c *. 9. /. 5. +. 32.) ] }
+
+let () =
+  let set name v =
+    typed := (name, Option.value v ~default:"");
+    Widget.update ~id:"temperature" (converter ())
+  in
+  Widget.display ~id:"temperature"
+    ~handlers:[ ("C", set "C"); ("F", set "F") ]
+    (converter ())</x-ocaml>
+
+  <h2>Drawing</h2>
+
+  <p>Views can be SVG. The sliders send their values as you drag them, and
+    the curve follows.</p>
+
+  <x-ocaml>let frequency = ref 3 and damping = ref 0
+
+let curve () =
+  let points =
+    List.init 201 (fun i ->
+        let x = float i /. 200. in
+        let y = exp (-. float !damping *. x) *. sin (2. *. Float.pi *. float !frequency *. x) in
+        Printf.sprintf "%.1f,%.1f" (x *. 400.) (60. -. 50. *. y))
+  in
+  Element { tag = "svg";
+            attrs = [ Property ("viewBox", "0 0 400 120"); Style ("width", "100%") ];
+            children = [
+              Element { tag = "line";
+                        attrs = [ Property ("x1", "0"); Property ("y1", "60");
+                                  Property ("x2", "400"); Property ("y2", "60");
+                                  Property ("stroke", "#ccc") ];
+                        children = [] };
+              Element { tag = "polyline";
+                        attrs = [ Property ("points", String.concat " " points);
+                                  Property ("fill", "none"); Property ("stroke", "#c0392b");
+                                  Property ("stroke-width", "2") ];
+                        children = [] } ] }
+
+let slider name value max =
+  Element { tag = "label"; attrs = []; children = [
+    Text (name ^ " ");
+    Element { tag = "input";
+              attrs = [ Property ("type", "range"); Property ("min", "0");
+                        Property ("max", string_of_int max); Property ("value", string_of_int value);
+                        Handler ("input", name) ];
+              children = [] } ] }
+
+let plot () =
+  Element { tag = "div"; attrs = []; children = [
+    curve ();
+    slider "frequency" !frequency 12;
+    slider "damping" !damping 10 ] }
+
+let () =
+  let set r v =
+    Option.iter (fun n -> r := n) (Option.bind v int_of_string_opt);
+    Widget.update ~id:"plot" (plot ())
+  in
+  Widget.display ~id:"plot"
+    ~handlers:[ ("frequency", set frequency); ("damping", set damping) ]
+    (plot ())</x-ocaml>
+
+  <h2>A list</h2>
+
+  <p>A <code>change</code> handler hears an input when you press Enter or
+    leave it. The program adds the item and empties the input. Checkboxes
+    send <code>"true"</code> or <code>"false"</code>. Handler names can be
+    made up as the view is built: each item gets its own.</p>
+
+  <x-ocaml>type item = { id : int; text : string; mutable done_ : bool }
+
+let items = ref [] and next = ref 0
+
+let entry item =
+  let key = string_of_int item.id in
+  Element { tag = "li"; attrs = (if item.done_ then [ Class "done" ] else []); children = [
+    Element { tag = "input";
+              attrs = [ Property ("type", "checkbox"); Handler ("change", "tick " ^ key) ]
+                      @ (if item.done_ then [ Property ("checked", "") ] else []);
+              children = [] };
+    Element { tag = "span"; attrs = []; children = [ Text (" " ^ item.text) ] };
+    Element { tag = "button"; attrs = [ Handler ("click", "drop " ^ key) ]; children = [ Text "×" ] } ] }
+
+let todo () =
+  Element { tag = "div"; attrs = []; children = [
+    Element { tag = "input";
+              attrs = [ Property ("placeholder", "Something to do, then Enter");
+                        Property ("value", ""); Handler ("change", "add") ];
+              children = [] };
+    Element { tag = "ul"; attrs = []; children = List.rev_map entry !items } ] }
+
+let redraw () = Widget.update ~id:"todo" (todo ())
+
+(* The item handlers are there from the start, one per possible item. *)
+let rec handlers n =
+  if n < 0 then []
+  else
+    let key = string_of_int n in
+    ( "tick " ^ key, fun v ->
+        List.iter (fun i -> if i.id = n then i.done_ <- v = Some "true") !items; redraw () )
+    :: ( "drop " ^ key, fun _ ->
+        items := List.filter (fun i -> i.id <> n) !items; redraw () )
+    :: handlers (n - 1)
+
+let add = function
+  | Some text when String.trim text <> "" ->
+      items := { id = !next; text = String.trim text; done_ = false } :: !items;
+      incr next;
+      redraw ()
+  | _ -> ()
+
+let () = Widget.display ~id:"todo" ~handlers:(("add", add) :: handlers 99) (todo ())</x-ocaml>
+
+  <p class="note">Handlers are fixed when a widget is displayed;
+    <code>Widget.update</code> changes only the view. That is why the list
+    registers a handler for each of the first hundred items up front.</p>
+
+  <h2>Managed widgets</h2>
+
+  <p>Some things are better drawn by JavaScript: a map, a chart library, a
+    canvas. A managed widget hands its configuration, a JSON string, to an
+    adapter, JavaScript the cell sends once for each kind of widget. The
+    adapter draws, reconciles new configurations, takes one-off commands,
+    and can send events back.</p>
+
+  <x-ocaml>let adapter = {|(function () {
+  function draw(s) {
+    var c = s.canvas, g = c.getContext('2d'), k = s.config;
+    g.clearRect(0, 0, c.width, c.height);
+    g.strokeStyle = k.colour; g.beginPath();
+    for (var t = 0; t <= 2 * Math.PI * k.turns; t += 0.02) {
+      var x = (k.R - k.r) * Math.cos(t) + k.d * Math.cos((k.R - k.r) / k.r * t);
+      var y = (k.R - k.r) * Math.sin(t) - k.d * Math.sin((k.R - k.r) / k.r * t);
+      g.lineTo(c.width / 2 + x, c.height / 2 + y);
+    }
+    g.stroke();
+  }
+  return {
+    create: function (el, config, send) {
+      var canvas = document.createElement('canvas');
+      canvas.width = 260; canvas.height = 260;
+      canvas.onclick = function () { send('clicked', null); };
+      el.appendChild(canvas);
+      var s = { canvas: canvas, config: JSON.parse(config) };
+      draw(s);
+      return s;
+    },
+    update: function (s, config) { s.config = JSON.parse(config); draw(s); },
+    command: function (s, cmd) {
+      if (cmd === 'spin') s.canvas.animate(
+        [{ transform: 'rotate(0)' }, { transform: 'rotate(1turn)' }], 800);
+    },
+    destroy: function () {}
+  };
+})()|}
+
+let () = Widget.register_adapter ~kind:"spirograph" ~js:adapter
+
+let shape r d colour =
+  Printf.sprintf {|{"R": 100, "r": %d, "d": %d, "turns": 20, "colour": "%s"}|} r d colour
+
+let () =
+  Widget.display_managed ~id:"spiro" ~kind:"spirograph" ~config:(shape 37 60 "#2c3e50")
+    ~handlers:[ ("clicked", fun _ -> Widget.command ~id:"spiro" "spin" "null") ]</x-ocaml>
+
+  <p>Click the drawing to spin it. The cell below reconfigures it; run it
+    again with other numbers.</p>
+
+  <x-ocaml run-on="click">let () = Widget.update_config ~id:"spiro" (shape 23 45 "#8e44ad")</x-ocaml>
+
+  <p class="note">An adapter runs in the page itself, not in the worker, as
+    do the attributes of a view. Code in a cell can run JavaScript in the
+    page this way, just as it could write anything onto the page.</p>
+
+  <script src="../x-ocaml.js"></script>
+</body>
+</html>
