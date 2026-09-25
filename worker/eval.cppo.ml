@@ -123,6 +123,16 @@ let preprocess_phrase phrase =
   | Ptop_def str -> Ptop_def (preprocess_structure str)
   | Ptop_dir _ as x -> x
 
+(* The compiler's printer re-raises what it does not know, which escaped
+   the worker and stopped it: #use of a missing file (Compenv's
+   Exit_with_status) did, and so did a failed assert. *)
+let report_error ppf exn =
+  match exn with
+  | Compenv.Exit_with_status _ -> () (* the toplevel has said why *)
+  | _ -> (
+      try Errors.report_error ppf exn
+      with _ -> Format.fprintf ppf "Exception: %s@." (Printexc.to_string exn))
+
 let execute ~id ~line_number ~output code_text =
   Environment.reset id;
   let outputs = ref [] in
@@ -152,7 +162,7 @@ let execute ~id ~line_number ~output code_text =
   in
   List.iter
     (function
-      | Error err -> Errors.report_error caml_ppf err
+      | Error err -> report_error caml_ppf err
       | Ok phrase ->
           let sub_phrases =
             match phrase with
@@ -175,7 +185,7 @@ let execute ~id ~line_number ~output code_text =
                 let _r = Toploop.execute_phrase true caml_ppf phrase in
                 respond ~at_loc
               with _exn ->
-                Errors.report_error caml_ppf _exn;
+                report_error caml_ppf _exn;
                 respond ~at_loc)
             sub_phrases)
     phrases;
