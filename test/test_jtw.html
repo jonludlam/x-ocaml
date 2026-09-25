@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <title>x-ocaml: the js_top_worker backend</title>
   <meta name="x-ocaml-universe" content="universe/universe/">
+  <meta name="x-ocaml-packages" content="js_top_worker-widget">
   <link rel="stylesheet" href="test.css">
   <script src="lib.js"></script>
 </head>
@@ -28,6 +29,11 @@ let b = a + 1</x-ocaml>
     <h2>Merlin, answered by js_top_worker</h2>
     <x-ocaml id="merlin">let typed = String.length "four"
 let oops : string = typed</x-ocaml>
+  </section>
+
+  <section class="case" data-case="J5">
+    <h2>A package the page names in x-ocaml-packages is loaded</h2>
+    <x-ocaml id="package">let node : Widget.View.node = Widget.View.Text "hello"</x-ocaml>
   </section>
 
   <section class="case" data-case="J4">
@@ -62,6 +68,9 @@ let result = spin 300_000_000</x-ocaml>
 
       check('J3: merlin marks the error', await waitFor(() =>
         [...shadow('merlin').querySelectorAll('.cm-lintRange')].some((e) => e.textContent.includes('typed')), 20000));
+
+      check('J5: the widget library is there to use',
+        await waitFor(() => output('package').includes('val node : Widget.View.node'), 20000));
 
       button('slow').click();
       await waitFor(() => label('slow') === 'Stop', 10000);

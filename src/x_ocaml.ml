@@ -44,6 +44,24 @@ let start backend =
 
 let error msg = Console.error [ Jstr.v ("x-ocaml: " ^ msg) ]
 
+let packages () =
+  match meta "x-ocaml-packages" with
+  | None -> []
+  | Some s ->
+      List.filter (( <> ) "")
+        (List.map String.trim (String.split_on_char ',' s))
+
+(* The page's meta tags, where given, and then the script's attributes. *)
+let setting name =
+  match meta ("x-ocaml-" ^ name) with
+  | Some v -> Some v
+  | None -> current_string name
+
+let worker_setting () =
+  match meta "x-ocaml-worker" with
+  | Some w -> Some w
+  | None -> current_string "src-worker"
+
 (* A universe's findlib_index.json names the worker that goes with it. *)
 let start_universe base =
   let base = if String.ends_with ~suffix:"/" base then base else base ^ "/" in
@@ -60,21 +78,28 @@ let start_universe base =
   | Error e ->
       error ("cannot read " ^ index ^ ": " ^ Jstr.to_string (Jv.Error.message e))
   | Ok json -> (
-      let worker = Jv.find_path json [ "compiler"; "worker_url" ] in
-      match (Option.map Jv.to_string worker, current_string "src-worker") with
-      | None, None ->
-          error (index ^ " names no worker, and the script gives none")
-      | Some w, _ | None, Some w ->
-          start (Backend.jtw ~findlib_index:index (resolve ~base:index w)))
+      let named = Jv.find_path json [ "compiler"; "worker_url" ] in
+      let worker =
+        match (worker_setting (), Option.map Jv.to_string named) with
+        | Some w, _ -> Some (resolve w)
+        | None, Some w -> Some (resolve ~base:index w)
+        | None, None -> None
+      in
+      match worker with
+      | None -> error (index ^ " names no worker, and the page gives none")
+      | Some w ->
+          start
+            (Backend.jtw ~findlib_requires:(packages ()) ~findlib_index:index w)
+      )
 
 (* Without a worker nothing can run: say so, and leave the cells as the
    text they are. *)
 let () =
-  match (meta "x-ocaml-universe", current_string "src-worker") with
+  match (meta "x-ocaml-universe", worker_setting ()) with
   | Some universe, _ -> start_universe universe
   | None, Some url -> (
-      match current_string "backend" with
-      | Some "jtw" -> start (Backend.jtw url)
+      match setting "backend" with
+      | Some "jtw" -> start (Backend.jtw ~findlib_requires:(packages ()) url)
       | _ -> start (Backend.builtin ?extra_load:(current_string "src-load") url)
       )
   | None, None -> error "the script needs a src-worker attribute"
