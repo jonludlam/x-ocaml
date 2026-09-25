@@ -7,7 +7,7 @@
 type t
 
 val create :
-  worker:Client.t ->
+  worker:Backend.t ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
   ?default_run_on:string ->

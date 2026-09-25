@@ -14,6 +14,7 @@ exports.TESTS = [
   ['/test_script_attrs.html', 'Script attributes: elt-name, run-on, query strings'],
   ['/test_no_worker.html', 'A script without src-worker'],
   ['/sub/test_base.html', 'A base URL elsewhere'],
+  ['/test_jtw.html', 'The js_top_worker backend'],
 ];
 
 exports.EXAMPLES = [

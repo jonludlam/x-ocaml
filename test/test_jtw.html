@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the js_top_worker backend</title>
+  <meta name="x-ocaml-universe" content="universe/universe/">
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">The page names a universe, so its cells run on a
+    js_top_worker toplevel, which also answers merlin's questions.</p>
+
+  <section class="case" data-case="J1">
+    <h2>Each phrase's output under the phrase</h2>
+    <x-ocaml id="phrases">let a = 1;;
+let b = a + 1</x-ocaml>
+  </section>
+
+  <section class="case" data-case="J2">
+    <h2>stdout, stderr and a type error</h2>
+    <x-ocaml id="print">print_string "out"; prerr_string "err"</x-ocaml>
+    <x-ocaml id="typo">let broken : int = "no"</x-ocaml>
+  </section>
+
+  <section class="case" data-case="J3">
+    <h2>Merlin, answered by js_top_worker</h2>
+    <x-ocaml id="merlin">let typed = String.length "four"
+let oops : string = typed</x-ocaml>
+  </section>
+
+  <section class="case" data-case="J4">
+    <h2>Edited while it runs, then stopped</h2>
+    <x-ocaml id="slow" run-on="click">let rec spin n = if n = 0 then "done" else spin (n - 1)
+let result = spin 300_000_000</x-ocaml>
+    <x-ocaml id="forever" run-on="click">let rec forever () = forever () in forever ()</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js"></script>
+  <script>
+    const layout = (id) => [...shadow(id).querySelector('.cm-content').children].map((ch) =>
+      (ch.classList.contains('cm-line') ? 'L ' : 'W ') + ch.textContent.replace(/\s+/g, ' ').trim());
+    const underEach = (id, pairs) => {
+      const l = layout(id);
+      return pairs.every(([line, out]) => {
+        const i = l.findIndex((x) => x.startsWith('L ' + line));
+        return i >= 0 && l[i + 1] && l[i + 1].startsWith('W ') && l[i + 1].includes(out);
+      });
+    };
+    const label = (id) => button(id).getAttribute('aria-label');
+
+    async function run() {
+      check('J1: the cells run on js_top_worker', await waitFor(() => output('phrases').includes('val b'), 60000));
+      check('J1: each output under its own phrase',
+        underEach('phrases', [['let a', 'val a : int = 1'], ['let b', 'val b : int = 2']]));
+
+      await waitFor(() => output('typo') !== '', 20000);
+      check('J2: stdout and stderr are shown', output('print').includes('out') && output('print').includes('err'));
+      check('J2: a type error is reported', output('typo').includes('Error'));
+
+      check('J3: merlin marks the error', await waitFor(() =>
+        [...shadow('merlin').querySelectorAll('.cm-lintRange')].some((e) => e.textContent.includes('typed')), 20000));
+
+      button('slow').click();
+      await waitFor(() => label('slow') === 'Stop', 10000);
+      type('slow', '(* edited *) ');
+      await sleep(4000);
+      check('J4: the result of edited code is dropped', !output('slow').includes('done'));
+      button('forever').click();
+      check('J4: a cell that never ends shows Stop', await waitFor(() => label('forever') === 'Stop', 20000));
+      button('forever').click();
+      await sleep(300);
+      button('phrases').click();
+      check('J4: after Stop, a fresh toplevel runs cells', await waitFor(() => output('phrases').includes('val b'), 30000));
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

@@ -1,10 +1,33 @@
+; jtw_client.ml is jtw_client.cppo.ml with -D OXCAML on OxCaml, whose
+; merlin has one more field in a completion.
+
+(rule
+ (targets jtw_client.ml)
+ (deps
+  (:x jtw_client.cppo.ml))
+ (enabled_if
+  (not %{ocaml-config:ox}))
+ (action
+  (run %{bin:cppo} -V OCAML:%{ocaml_version} %{x} -o %{targets})))
+
+(rule
+ (targets jtw_client.ml)
+ (deps
+  (:x jtw_client.cppo.ml))
+ (enabled_if %{ocaml-config:ox})
+ (action
+  (run %{bin:cppo} -V OCAML:%{ocaml_version} -D OXCAML %{x} -o %{targets})))
+
 (executable
  (name x_ocaml)
  (libraries
   brr
   code-mirror
+  js_top_worker-client.msg
+  lwt
   merlin-js.client
   merlin-js.code-mirror
+  merlin-js.protocol
   x_protocol)
  (modes js)
  (js_of_ocaml

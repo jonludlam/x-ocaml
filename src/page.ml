@@ -1,5 +1,5 @@
 type t = {
-  worker : Client.t;
+  worker : Backend.t;
   extra_style : Jstr.t option;
   inline_style : Jstr.t option;
   default_run_on : string;
@@ -9,14 +9,20 @@ type t = {
   setup : X_protocol.request list; (* what every new worker is sent first *)
 }
 
-let find_by_id t id = List.find (fun c -> Cell.id c = id) t.cells
-
-let route t : X_protocol.response -> unit = function
-  | Formatted_source (id, code_fmt) ->
-      Cell.set_source (find_by_id t id) code_fmt
-  | Top_response_at (id, loc, msg) -> Cell.add_message (find_by_id t id) loc msg
-  | Top_response (id, msg) -> Cell.completed_run (find_by_id t id) msg
-  | Merlin_response (id, msg) -> Cell.receive_merlin (find_by_id t id) msg
+(* An answer for a cell the page does not know is dropped, whichever backend
+   sent it and whenever. *)
+let route t (r : X_protocol.response) =
+  let to_cell id f =
+    match List.find_opt (fun c -> Cell.id c = id) t.cells with
+    | Some c -> f c
+    | None -> ()
+  in
+  match r with
+  | Formatted_source (id, code) -> to_cell id (fun c -> Cell.set_source c code)
+  | Top_response_at (id, loc, msg) ->
+      to_cell id (fun c -> Cell.add_message c loc msg)
+  | Top_response (id, msg) -> to_cell id (fun c -> Cell.completed_run c msg)
+  | Merlin_response (id, msg) -> to_cell id (fun c -> Cell.receive_merlin c msg)
 
 let create ~worker ?extra_style ?inline_style ?(default_run_on = "load")
     ?format_config () =
@@ -35,15 +41,15 @@ let create ~worker ?extra_style ?inline_style ?(default_run_on = "load")
              (Option.map (fun c -> X_protocol.Format_config c) format_config);
     }
   in
-  Client.on_message worker (route t);
-  List.iter (Client.post worker) t.setup;
+  Backend.on_message worker (route t);
+  List.iter (Backend.post worker) t.setup;
   t
 
 (* Stopping a cell is the only way to interrupt the toplevel: the worker is
    replaced, so every cell's definitions are gone and all must run again. *)
 let stop_all t =
-  Client.restart t.worker;
-  List.iter (Client.post t.worker) t.setup;
+  Backend.restart t.worker;
+  List.iter (Backend.post t.worker) t.setup;
   List.iter Cell.reset_status t.cells
 
 let run_on_of_string = function "click" -> `Click | "load" | _ -> `Load
@@ -96,9 +102,9 @@ let register t this =
       ?cell_id:(attr "data-id") ?extra_style:t.extra_style
       ?inline_style:t.inline_style
       ~eval_fn:(fun ~id ~line_number code ->
-        Client.eval ~id ~line_number t.worker code)
-      ~fmt_fn:(fun ~id code -> Client.fmt ~id t.worker code)
-      ~post_fn:(Client.post t.worker) this
+        Backend.eval ~id ~line_number t.worker code)
+      ~fmt_fn:(fun ~id code -> Backend.fmt ~id t.worker code)
+      ~post_fn:(Backend.post t.worker) this
   in
   Cell.set_stop cell (fun () -> stop_all t);
   if mode = Cell.Test then link_test t cell ~cell_for:(attr "data-for");

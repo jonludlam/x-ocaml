@@ -28,7 +28,7 @@ const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': '
 function serve() {
   const server = http.createServer((req, res) => {
     const url = req.url.split('?')[0];
-    const file = [path.join(testDir, url), path.join(rootDir, url)].find(fs.existsSync);
+    const file = [path.join(testDir, url), path.join(rootDir, url), path.join(rootDir, '_build/default/test', url)].find(fs.existsSync);
     if (!file) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);

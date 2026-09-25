@@ -69,8 +69,9 @@ http.createServer((req, res) => {
     res.end(index());
     return;
   }
-  const file = [path.join(testDir, url), path.join(rootDir, url)]
+  const file = [path.join(testDir, url), path.join(rootDir, url), path.join(rootDir, '_build/default/test', url)]
     .find((f) => f.startsWith(rootDir) && fs.existsSync(f) && fs.statSync(f).isFile());
+  // (The universe for the js_top_worker pages is built under _build: dune build @runbrowser, or ./test/universe/universe.)
   if (!file) { res.writeHead(404); res.end('not found: ' + url); return; }
   const type = types[path.extname(file)] || 'application/octet-stream';
   res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });

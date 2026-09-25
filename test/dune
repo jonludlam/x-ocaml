@@ -6,6 +6,7 @@
  (deps
   %{project_root}/x-ocaml.js
   %{project_root}/x-ocaml.worker.js
+  universe/universe
   (source_tree .))
  (action
   (run node run_tests.js)))
