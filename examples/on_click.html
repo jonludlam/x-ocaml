@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Nothing runs until asked</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Nothing runs until asked</h1>
+
+  <p>This page's script says <code>run-on="click"</code>, so its cells wait
+    to be run. Its element is called <code>&lt;ocaml-cell&gt;</code>
+    rather than <code>&lt;x-ocaml&gt;</code>, chosen with
+    <code>elt-name</code>.</p>
+
+  <p>A cell can ask to run on load for itself, but only if every cell
+    before it runs on load too: running a cell runs the cells above it
+    first, and those are waiting to be asked. So this one, at the top of
+    the page's cells, has run already:</p>
+  <ocaml-cell run-on="load">let opened = "ran when the page opened"</ocaml-cell>
+
+  <ocaml-cell>let greeting = "hello"</ocaml-cell>
+  <p>Running this one runs the one above first.</p>
+  <ocaml-cell>let loud = String.uppercase_ascii greeting</ocaml-cell>
+
+  <p>Asking to run on load here, after cells that wait, has no effect:</p>
+  <ocaml-cell run-on="load">let late = "runs only when clicked, or when a cell below it is"</ocaml-cell>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"
+          run-on="click" elt-name="ocaml-cell"></script>
+</body>
+</html>
