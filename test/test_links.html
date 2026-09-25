@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: test linking, the awkward cases</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <h1>Test linking, the awkward cases</h1>
+
+  <!-- L1: a test before any exercise runs where it is, like any cell -->
+  <x-ocaml id="l1-test" mode="test">let l1 = ()</x-ocaml>
+
+  <!-- L2: data-for names an exercise further down the page: the test runs
+       first, where it is, and cannot see it -->
+  <x-ocaml id="l2-test" mode="test" data-for="later">if later () <> 2 then failwith "later"</x-ocaml>
+
+  <!-- L3: data-for names nothing at all -->
+  <x-ocaml id="l3-test" mode="test" data-for="nowhere">let l3 = ()</x-ocaml>
+
+  <!-- L4: two tests for one exercise, one passing and one failing -->
+  <x-ocaml id="l4-ex" mode="exercise" data-id="sq">let sq x = x * x</x-ocaml>
+  <x-ocaml id="l4-pass" mode="test" data-for="sq">if sq 3 <> 9 then failwith "sq 3"</x-ocaml>
+  <x-ocaml id="l4-fail" mode="test" data-for="sq">if sq 3 <> 10 then failwith "sq 3 is not 10"</x-ocaml>
+
+  <x-ocaml id="l2-ex" mode="exercise" data-id="later">let later () = 2</x-ocaml>
+
+  <!-- L5: editing an exercise makes its tests' verdicts stale -->
+  <x-ocaml id="l5-ex" mode="exercise" data-id="five">let five = 5</x-ocaml>
+  <x-ocaml id="l5-test" mode="test" data-for="five">if five <> 5 then failwith "five"</x-ocaml>
+
+  <!-- L6: data-for names a cell that is not an exercise -->
+  <x-ocaml id="l6-plain" data-id="plain">let plain = 1</x-ocaml>
+  <x-ocaml id="l6-test" mode="test" data-for="plain">if plain <> 1 then failwith "plain"</x-ocaml>
+
+  <!-- L7: two exercises with the same data-id -->
+  <x-ocaml id="l7-a" mode="exercise" data-id="dup">let dup = "a"</x-ocaml>
+  <x-ocaml id="l7-b" mode="exercise" data-id="dup">let dup = "b"</x-ocaml>
+  <x-ocaml id="l7-test" mode="test" data-for="dup">print_endline dup</x-ocaml>
+
+  <!-- L8: a hidden cell that fails, and one that prints -->
+  <x-ocaml id="l8-bad" mode="hidden">let broken : int = "no"</x-ocaml>
+  <x-ocaml id="l8-print" mode="hidden">print_endline "from hidden"</x-ocaml>
+  <x-ocaml id="l8-after">let l8 = 8</x-ocaml>
+
+  <!-- L9: an unknown mode, and one in capitals -->
+  <x-ocaml id="l9-odd" mode="wibble">let l9 = 9</x-ocaml>
+  <x-ocaml id="l9-caps" mode="HIDDEN">let l9_caps = 9</x-ocaml>
+
+  <!-- L10: an empty cell, and one of only whitespace, then a cell after them -->
+  <x-ocaml id="l10-empty"></x-ocaml>
+  <x-ocaml id="l10-blank">
+
+  </x-ocaml>
+  <x-ocaml id="l10-after">let l10 = 10</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      await waitFor(() => output('l10-after').includes('val l10'), 40000);
+      await sleep(500);
+
+      check('L1: a test with no exercise runs in its place', verdict('l1-test') === '\u2713');
+      check('L2: a test naming a later exercise cannot see it', verdict('l2-test') === '!');
+      check('L2: and x-ocaml says why', warned('data-for="later"'));
+      check('L3: a test naming nothing runs in its place', verdict('l3-test') === '\u2713');
+      check('L3: with a warning', warned('data-for="nowhere"'));
+      check('L4: two tests for one exercise both run', verdict('l4-pass') === '\u2713' && verdict('l4-fail') === '\u2717');
+      check('L6: a test for a cell that is not an exercise runs after it', verdict('l6-test') === '\u2713');
+      check('L7: with duplicate ids, the test sees the last definition', output('l7-test').includes('b'));
+      check('L8: a failing hidden cell does not stop the cells after it', output('l8-after').includes('val l8 : int = 8'));
+      check('L8: nor does a hidden cell that prints', output('l8-after') !== '');
+      // CodeMirror's first gutter element is a hidden one, for sizing.
+      const numbers = (id) => [...shadow(id).querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
+        .filter((e) => e.style.visibility !== 'hidden')
+        .map((e) => parseInt(e.textContent, 10)).filter((n) => !isNaN(n));
+      const before = numbers('l7-test'), after = numbers('l8-after');
+      check('L8: line numbers carry on past hidden cells',
+        after[0] === before[before.length - 1] + 1);
+      check('L9: an unknown mode is interactive', editorOf('l9-odd') && !readOnly('l9-odd'));
+      check('L9: modes are lowercase: HIDDEN is interactive', editorOf('l9-caps') !== null);
+      check('L10: empty cells do not stop the cells after them', output('l10-after').includes('val l10'));
+
+      // Last, since editing a cell invalidates every cell after it.
+      type('l5-ex', '(* edited *) ');
+      await sleep(300);
+      check('L5: editing an exercise clears its test\'s verdict', !verdict('l5-test'));
+      check('L5: and the verdicts of tests further down', !verdict('l7-test'));
+      button('l5-ex').click();
+      check('L5: running it again gives a new verdict', await waitFor(() => verdict('l5-test') === '\u2713', 10000));
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

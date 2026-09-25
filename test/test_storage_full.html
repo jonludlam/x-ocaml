@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: storage full</title>
+  <script src="lib.js"></script>
+  <script>
+    Storage.prototype.setItem = function () {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    };
+  </script>
+</head>
+<body>
+  <x-ocaml id="ex" mode="exercise" data-id="full">let ex = 1</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      await waitFor(() => output('ex').includes('val ex'), 30000);
+      type('ex', '(* x *) ');
+      await sleep(600);
+      check('a full storage does not break editing', code('ex') === '(* x *) let ex = 1');
+      check('and Reset stays hidden, since nothing was kept',
+        shadow('ex').querySelector('.reset_exercise_btn').style.display === 'none');
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>
