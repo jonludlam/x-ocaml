@@ -14,34 +14,12 @@ const path = require('path');
 
 const PORT = 8766;
 const TIMEOUT = 120000;
-const PAGES = [
-  // One page per feature
-  '/test_modes.html',
-  '/test_exercises.html',
-  '/test_stop.html',
-  // Trying to break them
-  '/test_links.html',
-  '/test_saved_edge.html',
-  '/test_storage_denied.html',
-  '/test_storage_full.html',
-  '/test_running_edge.html',
-  '/test_flood.html',
-  '/test_many_lines.html',
-  '/test_text.html',
-  '/test_script_attrs.html',
-  '/test_no_worker.html',
-  '/sub/test_base.html',
-];
+const { TESTS, EXAMPLES: EXAMPLE_PAGES } = require('./pages.js');
+const PAGES = TESTS.map(([p]) => p);
 
 // Example pages are checked only for running without errors: every cell
 // that runs on load has run, and nothing threw.
-const EXAMPLES = [
-  '/examples/tutorial.html',
-  '/examples/running.html',
-  '/examples/on_click.html',
-  '/examples/theming.html',
-  '/examples/text.html',
-];
+const EXAMPLES = EXAMPLE_PAGES.map(([p]) => p);
 
 const testDir = __dirname;
 const rootDir = path.resolve(testDir, '..');
