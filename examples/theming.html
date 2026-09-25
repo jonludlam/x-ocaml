@@ -53,7 +53,7 @@
 
   <x-ocaml>let colours = ["red"; "green"; "blue"]
 let () = List.iter print_endline colours</x-ocaml>
-  <x-ocaml>let oops : int = "a string"</x-ocaml>
+  <x-ocaml data-expect="error">let oops : int = "a string"</x-ocaml>
   <x-ocaml mode="exercise">(* a comment *)
 let theme = "dark" and answer = 42 and yes = true</x-ocaml>
 
