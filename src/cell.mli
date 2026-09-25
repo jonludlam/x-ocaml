@@ -36,6 +36,13 @@ val set_on_completed : t -> (t -> unit) -> unit
 (** [set_on_completed cell f]: [f] runs each time [cell] finishes running, in
     place of any function set before. *)
 
+val set_stop : t -> (unit -> unit) -> unit
+(** [set_stop cell f]: [f] runs when the reader stops [cell] while it runs; it
+    replaces any function set before. *)
+
+val reset_status : t -> unit
+(** Forget that the cell ran: its output goes and it is as if never run. *)
+
 val set_source : t -> string -> unit
 val add_message : t -> int -> X_protocol.output list -> unit
 val completed_run : t -> X_protocol.output list -> unit

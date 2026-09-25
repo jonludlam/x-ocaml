@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml run and stop</title>
+</head>
+<body>
+  <h1>x-ocaml run and stop</h1>
+
+  <x-ocaml id="first">let x = 1</x-ocaml>
+  <x-ocaml id="loop" run-on="click">let rec forever () = forever () in forever ()</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+
+  <script>
+    window.testResults = { total: 0, passed: 0, failed: 0, done: false, details: [] };
+
+    function check(name, ok) {
+      const r = window.testResults;
+      r.total++; ok ? r.passed++ : r.failed++;
+      r.details.push({ name, ok: !!ok });
+    }
+
+    const shadow = (id) => document.getElementById(id).shadowRoot;
+    const button = (id) => shadow(id).querySelector('.run_btn button');
+    const output = (id) =>
+      [...shadow(id).querySelectorAll('.caml_meta')].map((e) => e.textContent).join('\n');
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    function waitFor(pred, ms) {
+      return new Promise((resolve) => {
+        const start = Date.now();
+        (function poll() {
+          let ok = false;
+          try { ok = pred(); } catch (e) {}
+          if (ok || Date.now() - start > ms) resolve(ok);
+          else setTimeout(poll, 200);
+        })();
+      });
+    }
+
+    async function run() {
+      await waitFor(() => output('first').includes('val x'), 30000);
+      check('the button starts as Run', button('loop').getAttribute('aria-label') === 'Run');
+
+      button('loop').click();
+      await sleep(1000);
+      check('a running cell shows Stop', button('loop').getAttribute('aria-label') === 'Stop'
+        && button('loop').classList.contains('running'));
+
+      button('loop').click();
+      await sleep(300);
+      check('stopping shows Run again', button('loop').getAttribute('aria-label') === 'Run'
+        && !button('loop').classList.contains('running'));
+      check('and clears every cell', output('first') === '');
+
+      button('first').click();
+      check('a fresh worker runs cells again',
+        await waitFor(() => output('first').includes('val x : int = 1'), 20000));
+
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

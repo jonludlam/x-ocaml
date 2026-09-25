@@ -25,3 +25,6 @@ val show : t -> cell:int -> display:int -> tag:string -> string -> unit
 val update : t -> int -> string -> unit
 val remove : t -> int -> unit
 val require : t -> tag:string -> src:string -> unit
+
+val clear_all : t -> unit
+(** The toplevel restarts: every display goes. *)

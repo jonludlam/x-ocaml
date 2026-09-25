@@ -5,3 +5,7 @@ val on_message : t -> (X_protocol.response -> unit) -> unit
 val post : t -> X_protocol.request -> unit
 val eval : id:int -> line_number:int -> t -> string -> unit
 val fmt : id:int -> t -> string -> unit
+
+val restart : t -> unit
+(** Stop the worker, whatever it is doing, and start a fresh one, which has none
+    of the old one's state. *)
