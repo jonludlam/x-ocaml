@@ -22,13 +22,14 @@ let fix_request t msg =
   let pre = t.context () in
   let pre_len = String.length pre in
   match msg with
-  | Protocol.Complete_prefix (src, position) ->
+  | Protocol.Complete_prefix (src, position, filename) ->
       let position = fix_position pre_len position in
-      Protocol.Complete_prefix (pre ^ src, position)
-  | Protocol.Type_enclosing (src, position) ->
+      Protocol.Complete_prefix (pre ^ src, position, filename)
+  | Protocol.Type_enclosing (src, position, filename) ->
       let position = fix_position pre_len position in
-      Protocol.Type_enclosing (pre ^ src, position)
-  | Protocol.All_errors src -> Protocol.All_errors (pre ^ src)
+      Protocol.Type_enclosing (pre ^ src, position, filename)
+  | Protocol.All_errors (src, filename) ->
+      Protocol.All_errors (pre ^ src, filename)
   | Protocol.Add_cmis _ as other -> other
 
 let fix_answer ~pre ~doc msg =
@@ -56,7 +57,7 @@ let fix_answer ~pre ~doc msg =
         (List.map
            (fun (loc, a, b) -> (fix_loc pre_len loc, a, b))
            typed_enclosings)
-  | Protocol.Added_cmis -> msg
+  | Protocol.Added_cmis | Protocol.Ready -> msg
 
 module Merlin_send = struct
   type nonrec t = t
@@ -69,5 +70,6 @@ end
 module Client = Merlin_client.Make (Merlin_send)
 module Ed = Merlin_codemirror.Extensions (Merlin_send)
 
-let extensions t =
-  Merlin_codemirror.ocaml :: Array.to_list (Ed.all_extensions t)
+(* The worker is x-ocaml's own, already running: there is no Ready to wait
+   for. *)
+let extensions t = Merlin_codemirror.ocaml :: Ed.all_extensions (Fut.return t)
