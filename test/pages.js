@@ -26,4 +26,6 @@ exports.EXAMPLES = [
   ['/examples/theming.html', 'A dark theme through the --xo-* variables'],
   ['/examples/text.html', 'Text of all sorts'],
   ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
+  ['/examples/ui.html', 'A widget toolkit: controls, linking, interact, plots, tables'],
+  ['/examples/ui-demos.html', 'Things made with widgets: Life, Mandelbrot, curve fitting, Snake, a kaleidoscope'],
 ];

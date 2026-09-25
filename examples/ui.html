@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>A widget toolkit</title>
+  <meta name="x-ocaml-universe" content="../universe/universe/">
+  <meta name="x-ocaml-packages" content="x-ocaml-ui">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body class="wide">
+  <nav><a href="index.html">examples</a> · <a href="ui-demos.html">things made with it</a></nav>
+  <h1>A widget toolkit</h1>
+
+  <p class="lede"><code>Ui</code> is ipywidgets for OCaml cells: sliders,
+    pickers, buttons, tabs, plots, tables and timers, all running in the
+    worker. State lives in variables; a widget on the page redraws itself
+    whenever a variable it read changes.</p>
+
+  <x-ocaml>open Ui
+
+let n = Var.create 42
+
+let () =
+  show
+    (vbox
+       [ int_slider ~label:"a number" ~max:100 n;
+         dyn (fun () ->
+             let k = Var.get n in
+             text
+               (Printf.sprintf "%d squared is %d, and %d is %s." k (k * k) k
+                  (if k mod 2 = 0 then "even" else "odd"))) ])</x-ocaml>
+
+  <p><code>dyn</code> makes a widget from whatever it reads, here
+    <code>n</code>; nothing tells it when to redraw. The slider sets
+    <code>n</code>, and the sentence follows.</p>
+
+  <h2>Controls <small>the ipywidgets set, and the variables they hold</small></h2>
+
+  <p>Every control takes a variable. The panel on the right reads all of
+    them, so it changes as you use any control on any tab.</p>
+
+  <x-ocaml>type fruit = Apple | Pear | Quince
+
+let () =
+  let count = Var.create 7 in
+  let ratio = Var.create 0.35 in
+  let rate = Var.create 0.01 in
+  let band = Var.create (20, 70) in
+  let budget = Var.create 1200 in
+  let weight = Var.create 72.5 in
+  let loaded = Var.create 0.6 in
+  let numbers =
+    vbox ~gap:"0.3rem"
+      [ int_slider ~label:"int_slider" ~max:20 count;
+        float_slider ~label:"float_slider" ratio;
+        log_slider ~label:"log_slider" ~min:(-4.) ~max:0. rate;
+        range_slider ~label:"range_slider" band;
+        int_input ~label:"int_input" ~min:0 ~step:100 budget;
+        float_input ~label:"float_input" ~step:0.5 weight;
+        progress ~label:"progress" ~kind:"accent" loaded;
+        float_slider ~label:"(fills the bar)" loaded ] in
+  let fruits = [ ("apple", Apple); ("pear", Pear); ("quince", Quince) ] in
+  let fruit = Var.create Pear in
+  let size = Var.create "M" in
+  let toppings = Var.create [ "cream" ] in
+  let months = [ "Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun"; "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec" ] in
+  let month = Var.create 8 in
+  let choices =
+    vbox ~gap:"0.3rem"
+      [ dropdown ~label:"dropdown" fruits fruit;
+        radio ~label:"radio" fruits fruit;
+        toggle_buttons ~label:"toggle_buttons" (List.map (fun s -> (s, s)) [ "S"; "M"; "L"; "XL" ]) size;
+        select_multiple ~label:"select_multiple"
+          (List.map (fun t -> (t, t)) [ "cream"; "custard"; "honey"; "nuts"; "cinnamon" ])
+          toppings;
+        selection_slider ~label:"selection_slider" (List.mapi (fun i m -> (m, i)) months) month ] in
+  let agree = Var.create false in
+  let lights = Var.create true in
+  let bold = Var.create false in
+  let yes_no =
+    vbox ~gap:"0.5rem"
+      [ checkbox ~label:"checkbox" agree;
+        switch ~label:"switch" lights;
+        hbox [ toggle_button ~icon:"B" "toggle_button" bold; valid ~yes:"agreed" ~no:"not agreed yet" agree ] ] in
+  let name = Var.create "Ada" in
+  let secret = Var.create "" in
+  let bio = Var.create "Wrote the first program." in
+  let lang = Var.create "OCaml" in
+  let tagged = Var.create [ "functional"; "typed" ] in
+  let texts =
+    vbox ~gap:"0.3rem"
+      [ text_input ~label:"text_input" ~placeholder:"your name" name;
+        password ~label:"password" ~placeholder:"not shown" secret;
+        textarea ~label:"textarea" ~rows:3 bio;
+        combobox ~label:"combobox" ~options:[ "OCaml"; "Haskell"; "Rust"; "Scheme"; "Standard ML"; "F#" ] lang;
+        tags ~label:"tags" tagged ] in
+  let colour = Var.create "#e8661d" in
+  let day = Var.create "2026-09-25" in
+  let alarm = Var.create "07:30" in
+  let pickers =
+    vbox ~gap:"0.3rem"
+      [ color_picker ~label:"color_picker" colour;
+        date_picker ~label:"date_picker" day;
+        time_picker ~label:"time_picker" alarm;
+        dyn (fun () ->
+            styled [ ("height", "2.2rem"); ("border-radius", "6px"); ("background", Var.get colour) ] (text "")) ] in
+  let clicks = Var.create 0 in
+  let click kind = button ~kind kind (fun () -> Var.update clicks succ) in
+  let actions =
+    vbox
+      [ hbox ~gap:"0.4rem"
+          [ click "plain"; click "primary"; click "success"; click "warning"; click "danger";
+            button ~disabled:true "disabled" ignore ];
+        text_of (Printf.sprintf "%d clicks") clicks;
+        hbox ~gap:"0.4rem" [ badge "info"; badge ~kind:"good" "good"; badge ~kind:"warn" "warn"; badge ~kind:"bad" "bad" ] ] in
+  let variables () =
+    let name_of options x = fst (List.find (fun (_, y) -> y = x) options) in
+    let lo, hi = Var.get band in
+    pre
+      (String.concat "\n"
+         [ Printf.sprintf "count    = %d" (Var.get count);
+           Printf.sprintf "ratio    = %.2f" (Var.get ratio);
+           Printf.sprintf "rate     = %.2g" (Var.get rate);
+           Printf.sprintf "band     = (%d, %d)" lo hi;
+           Printf.sprintf "budget   = %d" (Var.get budget);
+           Printf.sprintf "weight   = %g" (Var.get weight);
+           Printf.sprintf "fruit    = %s" (String.capitalize_ascii (name_of fruits (Var.get fruit)));
+           Printf.sprintf "size     = %s" (Var.get size);
+           Printf.sprintf "toppings = [%s]" (String.concat "; " (Var.get toppings));
+           Printf.sprintf "month    = %s" (List.nth months (Var.get month));
+           Printf.sprintf "agree    = %b" (Var.get agree);
+           Printf.sprintf "lights   = %b" (Var.get lights);
+           Printf.sprintf "name     = %S" (Var.get name);
+           Printf.sprintf "secret   = %s" (String.make (String.length (Var.get secret)) '*');
+           Printf.sprintf "lang     = %S" (Var.get lang);
+           Printf.sprintf "tags     = [%s]" (String.concat "; " (Var.get tagged));
+           Printf.sprintf "colour   = %s" (Var.get colour);
+           Printf.sprintf "day      = %s %s" (Var.get day) (Var.get alarm) ]) in
+  show
+    (hbox ~align:"flex-start"
+       [ styled [ ("flex", "1 1 28rem"); ("min-width", "0") ]
+           (tabs
+              [ ("Numbers", numbers); ("Choices", choices); ("Yes or no", yes_no); ("Text", texts);
+                ("Pickers", pickers); ("Buttons", actions) ]);
+         styled [ ("flex", "0 1 17rem") ] (card ~title:"The variables" [ dyn variables ]) ])</x-ocaml>
+
+  <h2>Linking <small>variables that follow each other</small></h2>
+
+  <p><code>link</code> keeps two variables equal; <code>dlink</code> makes
+    one follow another through a function. The last two sliders are one
+    widget shown twice.</p>
+
+  <x-ocaml>let a = Var.create 30
+let b = Var.create 70
+let () = link a b
+
+let celsius = Var.create 21.
+let fahrenheit = Var.create 0.
+let () = dlink ~f:(fun c -> (c *. 9. /. 5.) +. 32.) celsius fahrenheit
+
+let twice = int_slider ~label:"shown twice" (Var.create 5)
+
+let () =
+  show
+    (grid ~columns:2
+       [ card ~title:"link" [ int_slider ~label:"a" a; int_slider ~label:"b" b ];
+         card ~title:"dlink"
+           [ float_slider ~label:"°C" ~min:(-40.) ~max:100. ~step:0.5 celsius;
+             text_of (Printf.sprintf "which is %.1f °F") fahrenheit ];
+         card ~title:"one widget, twice" [ twice; twice ] ])</x-ocaml>
+
+  <h2>Interact <small>controls from a description</small></h2>
+
+  <p><code>interact</code> builds controls from a description written with
+    <code>let+</code> and <code>and+</code> (the controls are in
+    <code>Interact</code>), and redraws the widget made from
+    their values. Here, an epidemic: the SIR model, integrated afresh as you
+    drag.</p>
+
+  <x-ocaml>let sir ~beta ~gamma ~days ~i0 =
+  let dt = 0.25 in
+  let rec go t s i r acc =
+    if t > float days then List.rev acc
+    else
+      let infections = beta *. s *. i and recoveries = gamma *. i in
+      go (t +. dt) (s -. (dt *. infections)) (i +. (dt *. (infections -. recoveries)))
+        (r +. (dt *. recoveries)) ((t, s, i, r) :: acc)
+  in
+  go 0. (1. -. i0) i0 0. []
+
+let () =
+  show
+    (interact ~side:true
+       (let+ beta = Interact.float "infection rate β" ~min:0.05 ~max:1. 0.35
+        and+ gamma = Interact.float "recovery rate γ" ~min:0.02 ~max:0.5 0.1
+        and+ days = Interact.int "days" ~min:30 ~max:365 160
+        and+ i0 = Interact.log "first infected" ~min:(-6.) ~max:(-1.) 0.001 in
+         let run = sir ~beta ~gamma ~days ~i0 in
+         let series f = List.map (fun (t, s, i, r) -> (t, f s i r)) run in
+         let peak_t, peak = List.fold_left (fun (bt, bi) (t, _, i, _) -> if i > bi then (t, i) else (bt, bi)) (0., 0.) run in
+         let _, s_end, _, _ = List.nth run (List.length run - 1) in
+         vbox
+           [ Plot.(
+               chart ~title:"Share of the population" ~x_label:"days" ~y_range:(0., 1.) ~height:320
+                 [ area ~label:"susceptible" ~color:palette.(1) (series (fun s _ _ -> s));
+                   area ~label:"recovered" ~color:palette.(2) (series (fun _ _ r -> r));
+                   area ~label:"infected" ~color:palette.(4) (series (fun _ i _ -> i));
+                   vline ~color:palette.(4) peak_t ]);
+             hbox
+               [ badge ~kind:(if beta /. gamma > 1. then "bad" else "good") (Printf.sprintf "R₀ = %.2f" (beta /. gamma));
+                 badge ~kind:"warn" (Printf.sprintf "peak %.0f%% on day %.0f" (100. *. peak) peak_t);
+                 badge (Printf.sprintf "%.0f%% never infected" (100. *. s_end)) ] ]))</x-ocaml>
+
+  <p>With <code>~manual:true</code>, nothing is computed until Run is
+    pressed: for work too slow to redo at every movement of a slider.</p>
+
+  <x-ocaml>let sieve n =
+  let composite = Bytes.make (n + 1) '\000' in
+  let primes = ref [] in
+  for i = 2 to n do
+    if Bytes.get composite i = '\000' then begin
+      primes := i :: !primes;
+      (* Ints are 32 bits in the browser: i * i would overflow. *)
+      if i <= n / i then begin
+        let j = ref (i * i) in
+        while !j <= n do Bytes.set composite !j '\001'; j := !j + i done
+      end
+    end
+  done;
+  List.rev !primes
+
+let () =
+  show
+    (interact ~manual:true
+       (let+ n = Interact.int "primes up to" ~min:1000 ~max:2_000_000 ~step:1000 200_000 in
+         let ps = sieve n in
+         let rec gaps acc = function a :: (b :: _ as rest) -> gaps (float (b - a) :: acc) rest | _ -> acc in
+         vbox
+           [ text (Printf.sprintf "%d primes below %d; the largest is %d." (List.length ps) n (List.nth ps (List.length ps - 1)));
+             Plot.(chart ~title:"Gaps between consecutive primes" ~height:240 ~legend:false [ histogram ~bins:30 (gaps [] ps) ]) ]))</x-ocaml>
+
+  <h2>Time, output and progress</h2>
+
+  <p>A <code>clock</code> ticks while a variable says so. Each tick waits
+    for the worker to finish the one before, so a slow tick slows the clock
+    down rather than queueing up behind it. Handlers print to an
+    <code>output</code>.</p>
+
+  <x-ocaml>let journal = Output.create ()
+let job = Var.create 0.
+let running = Var.create false
+
+let step () =
+  let p = Var.peek job +. 0.01 in
+  if p >= 1. then begin
+    Var.set job 1.;
+    Var.set running false;
+    Output.print journal "done: 100 of 100"
+  end
+  else begin
+    Var.set job p;
+    if Random.int 8 = 0 then Output.printf journal "step %.0f: checked %d widgets" (100. *. p) (Random.int 1000)
+  end
+
+let () =
+  show
+    (card ~title:"A long job"
+       [ hbox
+           [ button ~kind:"primary" "Start" (fun () ->
+                 Var.set job 0.;
+                 Output.clear journal;
+                 Output.print journal "starting";
+                 Var.set running true);
+             dyn (fun () ->
+                 if Var.get running then button "Pause" (fun () -> Var.set running false; Output.print journal "paused")
+                 else button ~disabled:(Var.get job = 0. || Var.get job >= 1.) "Resume" (fun () -> Var.set running true)) ];
+         progress ~kind:"good" job;
+         output ~height:"8rem" journal;
+         clock ~interval:50 ~running step ])</x-ocaml>
+
+  <h2>Plots <small>SVG, drawn in OCaml</small></h2>
+
+  <p>Lines, areas, scatter plots with tooltips (hover over a point),
+    histograms, bars and pies. Bars and slices can be clicked.</p>
+
+  <x-ocaml>let gaussian () =
+  let u = Random.float 1. and v = Random.float 1. in
+  sqrt (-2. *. log (Float.max 1e-12 u)) *. cos (2. *. Float.pi *. v)
+
+let samples = Var.create 500
+let bins = Var.create 24
+let picked = Var.create "click a bar or a slice"
+
+let languages = [ ("OCaml", 38.); ("Rust", 27.); ("Haskell", 16.); ("Scheme", 9.); ("Elm", 6.); ("F#", 4.) ]
+
+let () =
+  show
+    (grid ~columns:2
+       [ card ~title:"line, area, annotations"
+           [ Plot.(
+               chart ~height:260 ~x_range:(0., 10.)
+                 [ area ~label:"envelope" (List.init 101 (fun i -> let x = float i /. 10. in (x, exp (-. x /. 4.))));
+                   fn ~label:"damped" (fun x -> exp (-. x /. 4.) *. cos (3. *. x));
+                   hline 0.;
+                   text (4.2, 0.72) "e^(-x/4)" ]) ];
+         card ~title:"scatter, with tooltips"
+           [ Plot.(
+               let pts = List.init 60 (fun i -> let x = float i /. 6. in (x, (0.8 *. x) +. (1.5 *. gaussian ()))) in
+               chart ~height:260
+                 [ scatter ~label:"measured" ~tips:(List.mapi (fun i (x, y) -> Printf.sprintf "sample %d: (%.1f, %.2f)" i x y) pts) pts;
+                   line ~label:"y = 0.8x" ~dash:true [ (0., 0.); (10., 8.) ] ]) ];
+         card ~title:"histogram"
+           [ int_slider ~label:"samples" ~min:10 ~max:5000 ~step:10 samples;
+             int_slider ~label:"bins" ~min:3 ~max:60 bins;
+             dyn (fun () ->
+                 let data = List.init (Var.get samples) (fun _ -> gaussian ()) in
+                 Plot.(chart ~height:220 ~legend:false [ histogram ~bins:(Var.get bins) data ])) ];
+         card ~title:"bars and a pie"
+           [ Plot.bar_chart ~horizontal:true ~format:(Printf.sprintf "%.0f%%")
+               ~on_click:(fun i -> Var.set picked (Printf.sprintf "bar: %s" (fst (List.nth languages i))))
+               languages;
+             hbox ~align:"center"
+               [ styled [ ("width", "11rem") ]
+                   (Plot.pie ~size:220 ~on_click:(fun i -> Var.set picked (Printf.sprintf "slice: %s" (fst (List.nth languages i)))) languages);
+                 text_of Fun.id picked ] ] ])</x-ocaml>
+
+  <h2>Tables <small>sort, filter, page, and link to a chart</small></h2>
+
+  <p>Click a heading to sort by it (again to reverse, again to stop). The
+    chart shows the column picked in the dropdown; click a bar to see that
+    planet.</p>
+
+  <x-ocaml>type planet = { name : string; kind : string; mass : float; radius : float; moons : int; year : float; au : float }
+
+let planets =
+  [ { name = "Mercury"; kind = "rocky"; mass = 0.055; radius = 0.383; moons = 0; year = 88.; au = 0.39 };
+    { name = "Venus"; kind = "rocky"; mass = 0.815; radius = 0.949; moons = 0; year = 225.; au = 0.72 };
+    { name = "Earth"; kind = "rocky"; mass = 1.; radius = 1.; moons = 1; year = 365.; au = 1. };
+    { name = "Mars"; kind = "rocky"; mass = 0.107; radius = 0.532; moons = 2; year = 687.; au = 1.52 };
+    { name = "Jupiter"; kind = "gas giant"; mass = 317.8; radius = 11.21; moons = 95; year = 4333.; au = 5.2 };
+    { name = "Saturn"; kind = "gas giant"; mass = 95.2; radius = 9.45; moons = 146; year = 10759.; au = 9.58 };
+    { name = "Uranus"; kind = "ice giant"; mass = 14.5; radius = 4.01; moons = 28; year = 30687.; au = 19.2 };
+    { name = "Neptune"; kind = "ice giant"; mass = 17.1; radius = 3.88; moons = 16; year = 60190.; au = 30.05 };
+    { name = "Ceres"; kind = "dwarf"; mass = 0.00016; radius = 0.074; moons = 0; year = 1680.; au = 2.77 };
+    { name = "Pluto"; kind = "dwarf"; mass = 0.0022; radius = 0.187; moons = 5; year = 90560.; au = 39.5 };
+    { name = "Haumea"; kind = "dwarf"; mass = 0.00066; radius = 0.13; moons = 2; year = 103774.; au = 43.1 };
+    { name = "Eris"; kind = "dwarf"; mass = 0.0028; radius = 0.182; moons = 1; year = 203830.; au = 67.8 } ]
+
+let columns =
+  [ ("mass (Earths)", fun p -> p.mass); ("radius (Earths)", fun p -> p.radius);
+    ("moons", fun p -> float p.moons); ("year (days)", fun p -> p.year); ("distance (AU)", fun p -> p.au) ]
+
+let column = Var.create (snd (List.hd columns))
+let chosen = Var.create (List.nth planets 2)
+let only_big = Var.create false
+
+let rows () =
+  List.filter (fun p -> not (Var.get only_big) || p.kind <> "dwarf") planets
+  |> List.map (fun p ->
+         [ p.name; p.kind; Printf.sprintf "%g" p.mass; Printf.sprintf "%g" p.radius; string_of_int p.moons;
+           Printf.sprintf "%g" p.year; Printf.sprintf "%g" p.au ])
+
+let () =
+  show
+    (vbox
+       [ switch ~label:"leave out the dwarf planets" only_big;
+         table ~page_size:8 ~header:[ "planet"; "kind"; "mass"; "radius"; "moons"; "year"; "AU" ] rows;
+         hbox ~align:"flex-start"
+           [ styled [ ("flex", "1 1 26rem"); ("min-width", "0") ]
+               (vbox
+                  [ dropdown ~label:"chart" columns column;
+                    dyn (fun () ->
+                        let f = Var.get column in
+                        let shown = List.filter (fun p -> not (Var.get only_big) || p.kind <> "dwarf") planets in
+                        Plot.bar_chart ~height:300 ~format:(Printf.sprintf "%.3g")
+                          ~on_click:(fun i -> Var.set chosen (List.nth shown i))
+                          (List.map (fun p -> (p.name, f p)) shown)) ]);
+             styled [ ("flex", "0 1 15rem") ]
+               (dyn (fun () ->
+                    let p = Var.get chosen in
+                    card ~title:p.name
+                      [ badge ~kind:(if p.kind = "dwarf" then "warn" else "info") p.kind;
+                        pre
+                          (Printf.sprintf "mass    %g Earths\nradius  %g Earths\nmoons   %d\nyear    %g days\norbit   %g AU"
+                             p.mass p.radius p.moons p.year p.au) ])) ] ])</x-ocaml>
+
+  <p class="note">Widgets run in the worker and draw through x-ocaml's
+    renderer, which patches the page in place: an input keeps its focus while
+    the program redraws it. <a href="ui-demos.html">More things made with
+    it</a>: the Game of Life, the Mandelbrot set, a curve fitter, Snake.</p>
+
+  <script src="../x-ocaml.js"></script>
+</body>
+</html>
