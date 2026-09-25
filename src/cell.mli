@@ -5,7 +5,9 @@ val init :
   run_on:[ `Click | `Load ] ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
-  Client.t ->
+  eval_fn:(id:int -> line_number:int -> string -> unit) ->
+  fmt_fn:(id:int -> string -> unit) ->
+  post_fn:(X_protocol.request -> unit) ->
   Webcomponent.t ->
   t
 
