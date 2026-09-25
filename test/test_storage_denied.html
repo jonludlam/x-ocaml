@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: no storage</title>
+  <script src="lib.js"></script>
+  <script>
+    // As in a browser that refuses this page its storage.
+    Object.defineProperty(window, 'localStorage', {
+      get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
+    });
+  </script>
+</head>
+<body>
+  <x-ocaml id="ex" mode="exercise" data-id="ex">let ex = 1</x-ocaml>
+  <x-ocaml id="after">let after = ex + 1</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      check('exercises still run without storage', await waitFor(() => output('after').includes('val after : int = 2'), 30000));
+      type('ex', '(* x *) ');
+      await sleep(600);
+      check('and can be edited', code('ex') === '(* x *) let ex = 1');
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

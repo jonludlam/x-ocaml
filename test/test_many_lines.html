@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: a lot of output</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <x-ocaml id="first">let first = 1</x-ocaml>
+  <x-ocaml id="lines" run-on="click">let () = for i = 1 to 20_000 do Printf.printf "line %d\n" i done</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      await waitFor(() => output('first').includes('val first'), 30000);
+      const t0 = performance.now();
+      button('lines').click();
+      const arrived = await waitFor(() => shadow('lines').querySelector('.caml_stdout') !== null, 30000);
+      const ms = Math.round(performance.now() - t0);
+      console.log('20000 lines took ' + ms + 'ms');
+      check('twenty thousand lines of output arrive, within ten seconds', arrived && ms < 10000);
+      check('all of them', output('lines').includes('line 20000'));
+      const t1 = performance.now();
+      type('lines', ' ');
+      check('and typing in that cell stays quick', performance.now() - t1 < 500);
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

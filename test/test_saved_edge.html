@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: saved exercises, the awkward cases</title>
+  <script src="lib.js"></script>
+  <script>
+    const key = (id) => 'xo:' + location.pathname + ':' + id;
+    for (const id of ['plain', 'odd " id: with \u{1F42B}', 'emoji', 'same', 'dup', 'replaced'])
+      localStorage.removeItem(key(id));
+    // A kept version with non-ASCII text and Windows line endings.
+    localStorage.setItem(key('emoji'), 'let camel = "\u{1F42B}"\r\nlet n = String.length camel');
+    localStorage.setItem(key('replaced'), 'let replaced = "kept"');
+    localStorage.setItem(key('dup'), 'let dup = "kept"');
+  </script>
+</head>
+<body>
+  <h1>Saved exercises, the awkward cases</h1>
+
+  <x-ocaml id="plain" mode="exercise" data-id="plain">let plain = 1</x-ocaml>
+  <x-ocaml id="odd" mode="exercise" data-id='odd " id: with 🐫'>let odd = 1</x-ocaml>
+  <x-ocaml id="emoji" mode="exercise" data-id="emoji">let camel = "no"</x-ocaml>
+  <x-ocaml id="same" mode="exercise" data-id="same">let same = 1</x-ocaml>
+  <x-ocaml id="dup-a" mode="exercise" data-id="dup">let dup = "a"</x-ocaml>
+  <x-ocaml id="dup-b" mode="exercise" data-id="dup">let dup = "b"</x-ocaml>
+  <x-ocaml id="replaced" mode="exercise" data-id="replaced">let replaced = "original"</x-ocaml>
+  <x-ocaml id="no-id" mode="exercise">let no_id = 1</x-ocaml>
+  <x-ocaml id="not-ex" data-id="not-ex">let not_ex = 1</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      await waitFor(() => output('not-ex').includes('val not_ex'), 40000);
+      await sleep(300);
+
+      check('a kept version with emoji and CRLF comes back', code('emoji') === 'let camel = "\u{1F42B}"\nlet n = String.length camel');
+      check('and runs, output in place', output('emoji').includes('val n : int = 4'));
+
+      type('odd', '(* x *) ');
+      await sleep(600);
+      check('an id with quotes, a colon and an emoji keys its own version',
+        localStorage.getItem(key('odd " id: with \u{1F42B}')) === '(* x *) let odd = 1');
+
+      type('same', '(* x *) ');
+      await sleep(600);
+      check('an edit is kept', localStorage.getItem(key('same')) !== null);
+      // Back to the original, by hand: select the insertion and delete it.
+      shadow('same').querySelector('.cm-content').focus();
+      for (let i = 0; i < 8; i++) document.execCommand('delete');
+      await sleep(600);
+      check('editing back to the original forgets the kept version', code('same') === 'let same = 1'
+        && localStorage.getItem(key('same')) === null);
+      check('and hides Reset', shadow('same').querySelector('.reset_exercise_btn').style.display === 'none');
+
+      check('two exercises with one id both show its version (and x-ocaml warns)',
+        code('dup-a') === 'let dup = "kept"' && code('dup-b') === 'let dup = "kept"' && warned('data-id="dup"'));
+
+      cell('replaced').textContent = 'let replaced = "from the page"';
+      await sleep(500);
+      check('a page replacing an exercise\'s text wins over the kept version', code('replaced') === 'let replaced = "from the page"');
+      check('and the kept version is forgotten', localStorage.getItem(key('replaced')) === null);
+
+      type('no-id', '(* x *) ');
+      type('not-ex', '(* x *) ');
+      await sleep(600);
+      check('an exercise without data-id keeps nothing, nor a non-exercise with one',
+        Object.keys(localStorage).every((k) => !k.endsWith(':not-ex')));
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>
