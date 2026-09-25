@@ -34,6 +34,11 @@ type t = {
   reset_btn : El.t option;
   run_btn : El.t option;
   mutable stop : unit -> unit;
+  (* Runs abandoned while the worker was evaluating them: the worker still
+     answers each, in order, and those answers are for code no longer shown. *)
+  mutable abandoned : int;
+  (* The source last sent to the worker, to be formatted or run. *)
+  mutable sent : string;
 }
 
 let id t = t.id
@@ -91,7 +96,10 @@ let pre_source t =
   let s = go [] t in
   if s = "" then s else s ^ " ;;\n"
 
+let abandon t = if t.status = Running then t.abandoned <- t.abandoned + 1
+
 let rec invalidate_from ~editor =
+  abandon editor;
   editor.status <- Not_run;
   show_running editor false;
   with_cm editor Editor.clear;
@@ -103,6 +111,7 @@ let rec invalidate_from ~editor =
       invalidate_from ~editor:next
 
 let invalidate_after ~editor =
+  abandon editor;
   editor.status <- Not_run;
   show_running editor false;
   match editor.next with
@@ -134,7 +143,8 @@ let rec run editor =
         editor.status <- Running;
         show_running editor true;
         let line_number = 1 + previous_lines editor in
-        editor.eval_fn ~id:editor.id ~line_number (source editor))
+        editor.sent <- source editor;
+        editor.eval_fn ~id:editor.id ~line_number editor.sent)
 
 let set_prev ~prev t =
   let () = match t.prev with None -> () | Some prev -> prev.next <- None in
@@ -191,6 +201,7 @@ let set_source_from_html ~initial editor this =
           Editor.set_source cm doc;
           invalidate_from ~editor;
           show_reset editor;
+          editor.sent <- doc;
           editor.fmt_fn ~id:editor.id doc)
   | None ->
       editor.hidden_source <- doc;
@@ -317,6 +328,8 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
       reset_btn = Option.bind ui (fun ui -> ui.ui_reset_btn);
       run_btn = Option.map (fun ui -> ui.ui_run_btn) ui;
       stop = ignore;
+      abandoned = 0;
+      sent = "";
     }
   in
   Option.iter
@@ -361,11 +374,16 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
   in
   editor
 
+(* The formatter's version of what was sent, which is only wanted if the
+   reader has not changed the code since. *)
 let set_source editor doc =
-  (match editor.cm with
-  | Some cm -> Editor.set_source cm doc
-  | None -> editor.hidden_source <- doc);
-  refresh_lines_from ~editor
+  if source editor = editor.sent then begin
+    (match editor.cm with
+    | Some cm -> Editor.set_source cm doc
+    | None -> editor.hidden_source <- doc);
+    editor.sent <- doc;
+    refresh_lines_from ~editor
+  end
 
 let render_message msg =
   let raw_html s =
@@ -415,18 +433,24 @@ let show_verdict t =
         else ("test-error", "!")))
 
 let add_message t loc msg =
-  track_outputs t msg;
-  with_cm t (fun cm -> Editor.add_message cm loc (List.map render_message msg))
+  if t.abandoned = 0 then begin
+    track_outputs t msg;
+    with_cm t (fun cm ->
+        Editor.add_message cm loc (List.map render_message msg))
+  end
 
 let completed_run ed msg =
-  (if msg <> [] then
-     let loc = String.length (source ed) in
-     add_message ed loc msg);
-  ed.status <- Run_ok;
-  show_running ed false;
-  show_verdict ed;
-  (match ed.next with Some e when e.status = Request_run -> run e | _ -> ());
-  ed.on_completed ed
+  if ed.abandoned > 0 then ed.abandoned <- ed.abandoned - 1
+  else begin
+    (if msg <> [] then
+       let loc = String.length (source ed) in
+       add_message ed loc msg);
+    ed.status <- Run_ok;
+    show_running ed false;
+    show_verdict ed;
+    (match ed.next with Some e when e.status = Request_run -> run e | _ -> ());
+    ed.on_completed ed
+  end
 
 let receive_merlin t msg =
   Option.iter
@@ -438,6 +462,8 @@ let receive_merlin t msg =
 let loadable t = t.run_on = `Load
 
 let reset_status t =
+  (* A new worker: nothing is owed any more. *)
+  t.abandoned <- 0;
   t.status <- Not_run;
   t.run_stderr <- false;
   t.run_exception <- false;
