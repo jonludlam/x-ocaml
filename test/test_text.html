@@ -49,6 +49,13 @@ let s2 = s</x-ocaml>
     <x-ocaml id="noeol">print_string "no newline"; prerr_string "to stderr"</x-ocaml>
   </section>
 
+  <section class="case" data-case="X8">
+    <h2>A function whose frame is big</h2>
+    <p>OCaml 5 has such functions check their stack first, with a call the
+      toplevel must know.</p>
+    <x-ocaml id="wide">let wide a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 a32 a33 a34 a35 a36 a37 a38 a39 = a0 + a39</x-ocaml>
+  </section>
+
   <section class="case" data-case="X7">
     <h2>Code that tries to stop the toplevel</h2>
     <p>Each is followed by a cell that should still run.</p>
@@ -98,6 +105,7 @@ let s2 = s</x-ocaml>
       check('X7: and the next cell still runs', output('after-overflow').includes('val survived_overflow'));
       check('X7: #use of a missing file is reported', output('use').includes('Cannot find file no_such_file.ml'));
       check('X7: exit is reported, not obeyed', output('exit').includes('not implemented'));
+      check('X8: a function of forty parameters is defined', output('wide').includes('val wide'));
       check('X7: and the page carries on', output('after-exit').includes('val survived_exit'));
       check('X7: a failed assert is reported as an exception', output('assert').includes('Exception'));
       check('X7: and does not stop the page', output('after-assert').includes('val survived_assert'));
