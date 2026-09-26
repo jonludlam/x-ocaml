@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Things made with widgets</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    .board { display: block; width: 100%; height: auto; border-radius: 10px; cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .life .bg { fill: #141925; }
+    .life .cell { fill: #f47c34; }
+    .snake .bg { fill: #10231a; }
+    .snake .body { fill: #5fd08f; }
+    .snake .head { fill: #c6f7d8; }
+    .snake .food { fill: #f25f5c; }
+    .snake .banner { fill: #fff; font: 700 1.6px system-ui, sans-serif; text-anchor: middle; }
+    .snake .hint { fill: #bfe9cf; font: 0.8px system-ui, sans-serif; text-anchor: middle; }
+    .sketch .bg { fill: #fbfaf7; stroke: #e2e2e2; }
+    .harmony .bg { fill: #0f1320; }
+    .fit-note { font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  </style>
+</head>
+<body class="wide">
+  <nav><a href="index.html">examples</a> · <a href="ui.html">the widget toolkit</a></nav>
+  <h1>Things made with widgets</h1>
+
+  <p class="lede">Each of these is a cell of OCaml running in a worker,
+    drawing SVG or pixels through <a href="ui.html"><code>Ui</code></a>, and
+    hearing the mouse, the keyboard and a clock. None of it is JavaScript.</p>
+
+  <h2>The Game of Life <small>a clock, and painting with the pointer</small></h2>
+
+  <p>Press Run. Drag across the board to bring cells to life, or hold Shift
+    to kill them. The chart beneath follows the population.</p>
+
+  <x-ocaml>open Ui
+
+let cols = 64 and rows = 40
+
+let gosper =
+  [ (1, 5); (1, 6); (2, 5); (2, 6); (11, 5); (11, 6); (11, 7); (12, 4); (12, 8); (13, 3); (13, 9);
+    (14, 3); (14, 9); (15, 6); (16, 4); (16, 8); (17, 5); (17, 6); (17, 7); (18, 6); (21, 3); (21, 4);
+    (21, 5); (22, 3); (22, 4); (22, 5); (23, 2); (23, 6); (25, 1); (25, 2); (25, 6); (25, 7); (35, 3);
+    (35, 4); (36, 3); (36, 4) ]
+
+let acorn = [ (1, 0); (3, 1); (0, 2); (1, 2); (4, 2); (5, 2); (6, 2) ]
+let r_pentomino = [ (1, 0); (2, 0); (0, 1); (1, 1); (1, 2) ]
+let shift dx dy = List.map (fun (x, y) -> (x + dx, y + dy))
+
+let make cells =
+  let b = Array.make (cols * rows) false in
+  List.iter (fun (x, y) -> if x >= 0 && x < cols && y >= 0 && y < rows then b.((y * cols) + x) <- true) cells;
+  b
+
+let starts =
+  [ ("Gosper glider gun", `Cells (shift 2 2 gosper)); ("acorn", `Cells (shift 29 18 acorn));
+    ("R-pentomino", `Cells (shift 31 19 r_pentomino)); ("random soup", `Soup); ("empty", `Cells []) ]
+
+let start = Var.create (List.assoc "Gosper glider gun" starts)
+let density = Var.create 0.3
+let board = Var.create (make (shift 2 2 gosper))
+let generation = Var.create 0
+let history = Var.create []
+let running = Var.create false
+let every = Var.create 60
+let torus = Var.create true
+
+let alive b = Array.fold_left (fun n c -> if c then n + 1 else n) 0 b
+
+let set_board b =
+  Var.set board b;
+  Var.set generation 0;
+  Var.set history [ alive b ]
+
+let restart () =
+  match Var.peek start with
+  | `Cells cells -> set_board (make cells)
+  | `Soup -> set_board (Array.init (cols * rows) (fun _ -> Random.float 1. < Var.peek density))
+
+let () = Var.watch start (fun _ -> restart ())
+
+let step b =
+  let wrap = Var.peek torus in
+  let at x y =
+    if wrap then b.((((y + rows) mod rows) * cols) + ((x + cols) mod cols))
+    else x >= 0 && x < cols && y >= 0 && y < rows && b.((y * cols) + x)
+  in
+  Array.init (cols * rows) (fun i ->
+      let x = i mod cols and y = i / cols in
+      let n = ref 0 in
+      for dy = -1 to 1 do
+        for dx = -1 to 1 do
+          if (dx <> 0 || dy <> 0) && at (x + dx) (y + dy) then incr n
+        done
+      done;
+      !n = 3 || (b.(i) && !n = 2))
+
+let tick () =
+  let b = step (Var.peek board) in
+  Var.set board b;
+  Var.update generation succ;
+  Var.update history (fun h -> List.filteri (fun i _ -> i < 300) (alive b :: h))
+
+let paint (e : Event.t) =
+  let x = int_of_float e.Event.x and y = int_of_float e.Event.y in
+  if x >= 0 && x < cols && y >= 0 && y < rows then begin
+    let b = Array.copy (Var.peek board) in
+    b.((y * cols) + x) <- not e.Event.shift;
+    Var.set board b
+  end
+
+let view () =
+  let b = Var.get board in
+  let cells =
+    List.concat
+      (List.init (cols * rows) (fun i ->
+           if not b.(i) then []
+           else
+             [ element "rect"
+                 ~attrs:[ ("class", "cell"); ("x", string_of_int (i mod cols)); ("y", string_of_int (i / cols));
+                          ("width", "0.9"); ("height", "0.9"); ("rx", "0.25") ] [] ]))
+  in
+  element "svg"
+    ~attrs:[ ("class", "board life"); ("viewBox", Printf.sprintf "0 0 %d %d" cols rows); ("data-x-ocaml-prevent", "pointerdown") ]
+    ~on:[ ("pointerdown", paint); ("pointermove", fun e -> if e.Event.buttons land 1 = 1 then paint e) ]
+    (element "rect" ~attrs:[ ("class", "bg"); ("width", string_of_int cols); ("height", string_of_int rows) ] [] :: cells)
+
+let () =
+  show
+    (vbox
+       [ dyn view;
+         hbox
+           [ dyn (fun () ->
+                 if Var.get running then button ~icon:"⏸" "Pause" (fun () -> Var.set running false)
+                 else button ~kind:"primary" ~icon:"▶" "Run" (fun () -> Var.set running true));
+             button ~icon:"⏭" "Step" tick;
+             button ~icon:"↺" "Restart" restart;
+             dyn (fun () -> badge (Printf.sprintf "generation %d" (Var.get generation)));
+             dyn (fun () -> badge ~kind:"warn" (Printf.sprintf "%d alive" (alive (Var.get board)))) ];
+         grid ~columns:2
+           [ vbox ~gap:"0.3rem"
+               [ dropdown ~label:"start from" starts start;
+                 float_slider ~label:"soup density" ~min:0.05 ~max:0.8 density;
+                 int_slider ~label:"ms per step" ~min:16 ~max:500 every;
+                 switch ~label:"the edges wrap round" torus ];
+             dyn (fun () ->
+                 let h = List.rev (Var.get history) in
+                 Plot.(chart ~height:150 ~legend:false ~grid:false ~y_label:"alive"
+                         [ area (List.mapi (fun i n -> (float i, float n)) h) ])) ];
+         clock ~every ~running tick ])</x-ocaml>
+
+  <h2>The Mandelbrot set <small>pixels computed in OCaml</small></h2>
+
+  <p>Click to zoom in three times where you click; Shift-click to zoom out.
+    Every picture is computed in the worker, pixel by pixel, and sent as an
+    image.</p>
+
+  <x-ocaml>let centre = Var.create (-0.6, 0.)
+let span = Var.create 3.4
+let iterations = Var.create 200
+let scheme = Var.create "fire"
+
+let colour scheme t =
+  let c x = int_of_float (255. *. Float.max 0. (Float.min 1. x)) in
+  match scheme with
+  | "fire" -> let t = sqrt t in (c (t *. 2.2), c ((t *. 2.2) -. 0.8), c ((t *. 2.2) -. 1.6))
+  | "ice" -> let t = sqrt t in (c ((t *. 2.) -. 1.), c ((t *. 1.8) -. 0.4), c (t *. 1.6))
+  | _ -> Image.hsv ((t *. 4.) +. 0.6) 0.75 (Float.min 1. (t *. 6.))
+
+let width = 480 and height = 320
+
+let mandelbrot (cx, cy) span iters scheme =
+  let scale = span /. float width in
+  Image.rgb ~width ~height (fun px py ->
+      let x0 = cx +. ((float px -. (float width /. 2.)) *. scale)
+      and y0 = cy -. ((float py -. (float height /. 2.)) *. scale) in
+      let rec go x y i =
+        if i = iters || (x *. x) +. (y *. y) > 64. then (i, x, y)
+        else go ((x *. x) -. (y *. y) +. x0) ((2. *. x *. y) +. y0) (i + 1)
+      in
+      let i, x, y = go 0. 0. 0 in
+      if i = iters then (8, 6, 12)
+      else
+        (* The escape count, smoothed so that bands blend. *)
+        let smooth = float i +. 1. -. (log (log (sqrt ((x *. x) +. (y *. y)))) /. log 2.) in
+        colour scheme (Float.max 0. smooth /. float iters))
+
+let zoom ~shift px py =
+  let cx, cy = Var.peek centre and s = Var.peek span in
+  let scale = s /. float width in
+  Var.set centre (cx +. ((float px -. (float width /. 2.)) *. scale), cy -. ((float py -. (float height /. 2.)) *. scale));
+  Var.set span (if shift then s *. 3. else s /. 3.)
+
+let () =
+  show
+    (vbox
+       [ dyn (fun () ->
+             let t0 = Sys.time () in
+             let picture = mandelbrot (Var.get centre) (Var.get span) (Var.get iterations) (Var.get scheme) in
+             let ms = 1000. *. (Sys.time () -. t0) in
+             let cx, cy = Var.peek centre in
+             vbox ~gap:"0.4rem"
+               [ image ~smooth:true ~on_click:zoom picture;
+                 hbox
+                   [ badge (Printf.sprintf "centre %.10f %+.10fi" cx cy);
+                     badge ~kind:"warn" (Printf.sprintf "zoom ×%.3g" (3.4 /. Var.peek span));
+                     badge ~kind:"good" (Printf.sprintf "%d×%d pixels in %.0f ms" width height ms) ] ]);
+         hbox
+           [ toggle_buttons ~label:"iterations" (List.map (fun n -> (string_of_int n, n)) [ 50; 100; 200; 500; 1000 ]) iterations;
+             toggle_buttons ~label:"colours" [ ("fire", "fire"); ("ice", "ice"); ("rainbow", "rainbow") ] scheme;
+             button "Start again" (fun () -> Var.set centre (-0.6, 0.); Var.set span 3.4) ] ])</x-ocaml>
+
+  <h2>Fitting a curve <small>press, drag and release on a chart</small></h2>
+
+  <p>Drag the points about, or press anywhere empty to add one; Shift-press
+    a point to remove it. The polynomial is fitted by least squares as you
+    go, with the residuals drawn in grey.</p>
+
+  <x-ocaml>let points = Var.create [ (1., 2.); (2.5, 3.4); (4., 3.1); (5.5, 5.2); (7., 7.1); (8.5, 6.2) ]
+let degree = Var.create 2
+let held = ref None
+
+(* Least squares: solve (AᵀA) c = Aᵀy by elimination, pivoting on the
+   largest entry of each column. *)
+let fit deg pts =
+  let n = deg + 1 in
+  let m = Array.make_matrix n (n + 1) 0. in
+  List.iter
+    (fun (x, y) ->
+      for i = 0 to n - 1 do
+        for j = 0 to n - 1 do
+          m.(i).(j) <- m.(i).(j) +. (x ** float (i + j))
+        done;
+        m.(i).(n) <- m.(i).(n) +. (y *. (x ** float i))
+      done)
+    pts;
+  for col = 0 to n - 1 do
+    let best = ref col in
+    for r = col + 1 to n - 1 do
+      if Float.abs m.(r).(col) > Float.abs m.(!best).(col) then best := r
+    done;
+    let t = m.(col) in
+    m.(col) <- m.(!best);
+    m.(!best) <- t;
+    if Float.abs m.(col).(col) > 1e-12 then
+      for r = 0 to n - 1 do
+        if r <> col then begin
+          let f = m.(r).(col) /. m.(col).(col) in
+          for k = col to n do
+            m.(r).(k) <- m.(r).(k) -. (f *. m.(col).(k))
+          done
+        end
+      done
+  done;
+  Array.init n (fun i -> if Float.abs m.(i).(i) > 1e-12 then m.(i).(n) /. m.(i).(i) else 0.)
+
+let eval c x = Array.fold_right (fun a acc -> a +. (x *. acc)) c 0.
+
+let equation c =
+  let terms =
+    List.filter_map
+      (fun (i, a) ->
+        if Float.abs a < 5e-4 then None
+        else
+          let power = match i with 0 -> "" | 1 -> "x" | i -> Printf.sprintf "x^%d" i in
+          Some (Printf.sprintf "%s %.3g%s" (if a < 0. then "−" else "+") (Float.abs a) power))
+      (List.rev (List.mapi (fun i a -> (i, a)) (Array.to_list c)))
+  in
+  match terms with [] -> "y = 0" | t :: rest -> "y = " ^ String.concat " " ((if t.[0] = '+' then String.sub t 2 (String.length t - 2) else t) :: rest)
+
+let nearest (p : Plot.pointer) =
+  let d (x, y) = ((x -. p.Plot.x) ** 2.) +. ((y -. p.Plot.y) ** 2.) in
+  let best = ref None in
+  List.iteri (fun i q -> if d q < 0.16 && (match !best with None -> true | Some (_, dq) -> d q < dq) then best := Some (i, d q)) (Var.peek points);
+  Option.map fst !best
+
+let press (p : Plot.pointer) =
+  match nearest p with
+  | Some i when p.Plot.shift -> Var.set points (List.filteri (fun j _ -> j <> i) (Var.peek points))
+  | Some i -> held := Some i
+  | None ->
+      Var.set points (Var.peek points @ [ (p.Plot.x, p.Plot.y) ]);
+      held := Some (List.length (Var.peek points) - 1)
+
+let drag (p : Plot.pointer) =
+  match !held with
+  | Some i -> Var.set points (List.mapi (fun j q -> if j = i then (p.Plot.x, p.Plot.y) else q) (Var.peek points))
+  | None -> ()
+
+let () =
+  show
+    (vbox
+       [ dyn (fun () ->
+             let pts = Var.get points in
+             let deg = min (Var.get degree) (max 0 (List.length pts - 1)) in
+             let c = fit deg pts in
+             let mean = List.fold_left (fun s (_, y) -> s +. y) 0. pts /. float (max 1 (List.length pts)) in
+             let ss_res = List.fold_left (fun s (x, y) -> s +. ((y -. eval c x) ** 2.)) 0. pts in
+             let ss_tot = List.fold_left (fun s (_, y) -> s +. ((y -. mean) ** 2.)) 0. pts in
+             let r2 = if ss_tot > 0. then 1. -. (ss_res /. ss_tot) else 1. in
+             vbox ~gap:"0.4rem"
+               [ Plot.(
+                   chart ~x_range:(0., 10.) ~y_range:(0., 10.) ~width:900 ~height:440 ~on_press:press ~on_drag:drag
+                     ~on_release:(fun _ -> held := None)
+                     (List.map (fun (x, y) -> line ~color:"#9aa3b2" ~width:1. [ (x, y); (x, eval c x) ]) pts
+                     @ [ fn ~label:(Printf.sprintf "degree %d" deg) ~samples:300 (eval c);
+                         scatter ~label:"points" ~color:palette.(1) ~size:6. pts ]));
+                 hbox
+                   [ badge ~kind:(if r2 > 0.9 then "good" else if r2 > 0.5 then "warn" else "bad") (Printf.sprintf "R² = %.4f" r2);
+                     badge (Printf.sprintf "%d points" (List.length pts));
+                     text (equation c) ] ]);
+         hbox
+           [ styled [ ("flex", "1") ] (int_slider ~label:"degree" ~min:0 ~max:9 degree);
+             button "Scatter new points" (fun () ->
+                 Var.set points
+                   (List.init 12 (fun i ->
+                        let x = 0.5 +. (float i *. 0.8) in
+                        (x, 5. +. (3. *. sin (x /. 1.6)) +. Random.float 1.6 -. 0.8))));
+             button "Clear" (fun () -> Var.set points []) ] ])</x-ocaml>
+
+  <h2>Snake <small>the keyboard, and a clock that speeds up</small></h2>
+
+  <p>Click the board, then steer with the arrow keys (or WASD). Space starts,
+    pauses and plays again. Each apple makes you faster.</p>
+
+  <x-ocaml>let gw = 28 and gh = 18
+
+type dir = Up | Down | Left | Right
+type game = { body : (int * int) list; dir : dir; next : dir; food : int * int; alive : bool; score : int }
+
+let rec place_food body =
+  let p = (Random.int gw, Random.int gh) in
+  if List.mem p body then place_food body else p
+
+let new_game () =
+  let body = [ (6, 9); (5, 9); (4, 9) ] in
+  { body; dir = Right; next = Right; food = place_food body; alive = true; score = 0 }
+
+let game = Var.create (new_game ())
+let playing = Var.create false
+let best = Var.create 0
+let pace = Var.map (fun g -> max 55 (150 - (7 * g.score))) game
+
+let advance () =
+  let g = Var.peek game in
+  if g.alive then begin
+    let hx, hy = List.hd g.body in
+    let head = match g.next with Up -> (hx, hy - 1) | Down -> (hx, hy + 1) | Left -> (hx - 1, hy) | Right -> (hx + 1, hy) in
+    let x, y = head in
+    let eats = head = g.food in
+    let body = head :: (if eats then g.body else List.filteri (fun i _ -> i < List.length g.body - 1) g.body) in
+    if x < 0 || y < 0 || x >= gw || y >= gh || List.mem head (List.tl body) then begin
+      Var.set game { g with alive = false };
+      Var.set playing false;
+      Var.update best (max g.score)
+    end
+    else
+      Var.set game
+        { g with body; dir = g.next; food = (if eats then place_food body else g.food); score = (if eats then g.score + 1 else g.score) }
+  end
+
+let turn d =
+  let g = Var.peek game in
+  let back = match (d, g.dir) with Up, Down | Down, Up | Left, Right | Right, Left -> true | _ -> false in
+  if not back then Var.set game { g with next = d }
+
+let space () =
+  if not (Var.peek game).alive then Var.set game (new_game ());
+  Var.update playing not
+
+let key (e : Event.t) =
+  match e.Event.key with
+  | "ArrowUp" | "w" -> turn Up
+  | "ArrowDown" | "s" -> turn Down
+  | "ArrowLeft" | "a" -> turn Left
+  | "ArrowRight" | "d" -> turn Right
+  | " " -> space ()
+  | _ -> ()
+
+let rect cls (x, y) = element "rect" ~attrs:[ ("class", cls); ("x", string_of_int x); ("y", string_of_int y); ("width", "0.92"); ("height", "0.92"); ("rx", "0.3") ] []
+
+let label cls y s = element "text" ~attrs:[ ("class", cls); ("x", string_of_int (gw / 2)); ("y", y) ] [ text s ]
+
+let board () =
+  let g = Var.get game in
+  let fx, fy = g.food in
+  element "svg"
+    ~attrs:[ ("class", "board snake"); ("viewBox", Printf.sprintf "0 0 %d %d" gw gh) ]
+    ([ element "rect" ~attrs:[ ("class", "bg"); ("width", string_of_int gw); ("height", string_of_int gh) ] [];
+       element "circle" ~attrs:[ ("class", "food"); ("cx", Printf.sprintf "%d.46" fx); ("cy", Printf.sprintf "%d.46" fy); ("r", "0.42") ] [] ]
+    @ List.mapi (fun i p -> rect (if i = 0 then "head" else "body") p) g.body
+    @
+    if not g.alive then [ label "banner" "8" (Printf.sprintf "Game over: %d" g.score); label "hint" "10" "press space to play again" ]
+    else if not (Var.get playing) then [ label "banner" "8" "Snake"; label "hint" "10" "click here, then press space" ]
+    else [])
+
+let () =
+  show
+    (vbox
+       [ keyboard ~on_key:key (dyn board);
+         hbox
+           [ dyn (fun () -> badge ~kind:"good" (Printf.sprintf "score %d" (Var.get game).score));
+             dyn (fun () -> badge (Printf.sprintf "best %d" (Var.get best)));
+             dyn (fun () -> badge ~kind:"warn" (Printf.sprintf "%d ms a step" (Var.get pace)));
+             button ~icon:"←" "" (fun () -> turn Left); button ~icon:"↑" "" (fun () -> turn Up);
+             button ~icon:"↓" "" (fun () -> turn Down); button ~icon:"→" "" (fun () -> turn Right);
+             button ~kind:"primary" "Space" space ];
+         clock ~every:pace ~running:playing advance ])</x-ocaml>
+
+  <h2>A kaleidoscope <small>strokes drawn with the pointer, in symmetry</small></h2>
+
+  <p>Draw on the paper. Each stroke is repeated round the centre as many
+    times as the symmetry says, and mirrored if you like.</p>
+
+  <x-ocaml>let strokes = Var.create []
+let ink = Var.create "#2f6fdb"
+let nib = Var.create 3.
+let symmetry = Var.create 6
+let mirror = Var.create true
+
+let press (e : Event.t) = Var.update strokes (fun s -> (Var.peek ink, Var.peek nib, [ (e.Event.x, e.Event.y) ]) :: s)
+
+let drag (e : Event.t) =
+  if e.Event.buttons land 1 = 1 then
+    Var.update strokes (function (c, w, pts) :: rest -> (c, w, (e.Event.x, e.Event.y) :: pts) :: rest | [] -> [])
+
+let path pts = String.concat "" (List.mapi (fun i (x, y) -> Printf.sprintf "%s%.1f,%.1f" (if i = 0 then "M" else "L") x y) (List.rev pts))
+
+let paper () =
+  let n = Var.get symmetry and m = Var.get mirror in
+  let copies =
+    List.concat
+      (List.init n (fun k ->
+           let turn = Printf.sprintf "rotate(%.2f 400 250)" (360. *. float k /. float n) in
+           (turn, "") :: (if m then [ (turn, " translate(800 0) scale(-1 1)") ] else [])))
+  in
+  let drawn =
+    List.rev_map
+      (fun (c, w, pts) ->
+        List.map
+          (fun (turn, flip) ->
+            element "path"
+              ~attrs:[ ("d", path pts); ("transform", turn ^ flip); ("fill", "none"); ("stroke", c); ("stroke-width", string_of_float w);
+                       ("stroke-linecap", "round"); ("stroke-linejoin", "round") ] [])
+          copies)
+      (Var.get strokes)
+  in
+  element "svg"
+    ~attrs:[ ("class", "board sketch"); ("viewBox", "0 0 800 500"); ("data-x-ocaml-prevent", "pointerdown") ]
+    ~on:[ ("pointerdown", press); ("pointermove", drag) ]
+    (element "rect" ~attrs:[ ("class", "bg"); ("width", "800"); ("height", "500"); ("rx", "12") ] [] :: List.concat drawn)
+
+let () =
+  show
+    (vbox
+       [ dyn paper;
+         grid ~columns:2
+           [ vbox ~gap:"0.3rem" [ int_slider ~label:"symmetry" ~min:1 ~max:12 symmetry; switch ~label:"mirror" mirror ];
+             vbox ~gap:"0.3rem" [ color_picker ~label:"ink" ink; float_slider ~label:"nib" ~min:0.5 ~max:12. ~step:0.5 nib ] ];
+         hbox
+           [ button "Undo" (fun () -> Var.update strokes (function _ :: rest -> rest | [] -> []));
+             button ~kind:"danger" "Clear" (fun () -> Var.set strokes []);
+             dyn (fun () ->
+                 let s = Var.get strokes in
+                 note (Printf.sprintf "%d strokes, %d points" (List.length s) (List.fold_left (fun n (_, _, p) -> n + List.length p) 0 s))) ] ])</x-ocaml>
+
+  <h2>A harmonograph <small>play, pause, and change it as it swings</small></h2>
+
+  <p>Two damped pendulums at right angles, whose frequencies nearly agree.
+    Press play; the figure turns as the phase between them drifts. Change the
+    ratios while it runs.</p>
+
+  <x-ocaml>let frame = Var.create 0
+let fx = Var.create 2.
+let fy = Var.create 3.
+let detune = Var.create 0.006
+let decay = Var.create 0.012
+let hue = Var.create 0.08
+
+let figure () =
+  let phase = float (Var.get frame) *. 0.03 in
+  let fx = Var.get fx and fy = Var.get fy and d = Var.get decay and dt = Var.get detune in
+  let pts =
+    List.init 1400 (fun i ->
+        let t = float i *. 0.06 in
+        let fade = exp (-. d *. t) in
+        let x = fade *. (sin ((fx *. t) +. phase) +. (0.4 *. sin (((fx +. dt) *. t) +. 1.))) in
+        let y = fade *. (sin (fy *. t) +. (0.4 *. sin (((fy -. dt) *. t) +. 2.3))) in
+        (300. +. (190. *. x), 300. +. (190. *. y)))
+  in
+  let r, g, b = Image.hsv (Var.get hue) 0.7 1. in
+  element "svg"
+    ~attrs:[ ("class", "board harmony"); ("viewBox", "0 0 600 600") ]
+    [ element "rect" ~attrs:[ ("class", "bg"); ("width", "600"); ("height", "600"); ("rx", "14") ] [];
+      element "path"
+        ~attrs:[ ("d", path (List.rev pts)); ("fill", "none"); ("stroke", Printf.sprintf "rgb(%d,%d,%d)" r g b);
+                 ("stroke-width", "1.1"); ("stroke-opacity", "0.85") ] [] ]
+
+let () =
+  show
+    (hbox ~align:"flex-start"
+       [ styled [ ("flex", "1 1 22rem"); ("max-width", "32rem") ] (dyn figure);
+         styled [ ("flex", "1 1 16rem") ]
+           (card ~title:"Pendulums"
+              [ play ~interval:40 ~max:10_000 frame;
+                selection_slider ~label:"x frequency" (List.map (fun f -> (Printf.sprintf "%g" f, f)) [ 1.; 2.; 3.; 4.; 5. ]) fx;
+                selection_slider ~label:"y frequency" (List.map (fun f -> (Printf.sprintf "%g" f, f)) [ 1.; 2.; 3.; 4.; 5.; 6. ]) fy;
+                float_slider ~label:"detune" ~min:0. ~max:0.05 ~step:0.001 detune;
+                float_slider ~label:"decay" ~min:0. ~max:0.04 ~step:0.001 decay;
+                float_slider ~label:"hue" ~min:0. ~max:1. hue ]) ])</x-ocaml>
+
+  <p class="note">All of this is <code>Ui</code>, a library of a thousand
+    lines of OCaml on js_top_worker's widget protocol. <a href="ui.html">The
+    toolkit</a> shows each widget on its own.</p>
+
+  <script src="../x-ocaml.js" src-worker="../widgets/x-ocaml-widgets.worker.js" x-ocamlformat="disable"></script>
+</body>
+</html>
