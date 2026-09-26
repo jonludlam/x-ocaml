@@ -19,6 +19,7 @@ exports.TESTS = [
   ['/test_elements.html', 'Other custom elements on the page'],
   ['/test_big_module.html', 'A module of many definitions'],
   ['/test_displays.html', 'Displays and callbacks: what cells show on the page'],
+  ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
 ];
 
 exports.EXAMPLES = [

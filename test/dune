@@ -6,6 +6,8 @@
  (deps
   %{project_root}/x-ocaml.js
   %{project_root}/x-ocaml.worker.js
+  %{project_root}/widgets/x-ocaml-widgets.js
+  %{project_root}/widgets/x-ocaml-widgets.worker.js
   (source_tree .))
  (action
   (run node run_tests.js)))

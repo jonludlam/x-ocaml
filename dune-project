@@ -46,3 +46,15 @@
  (depends
   (ppxlib
    (>= 0.33.0))))
+
+(package
+ (name x-ocaml-widgets)
+ (synopsis
+  "js_top_worker's Widget library in x-ocaml cells, drawn as displays")
+ (depends
+  x-ocaml
+  js_top_worker-widget
+  (brr
+   (>= 0.0.7))
+  (js_of_ocaml
+   (>= 6.0.1))))
