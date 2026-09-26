@@ -58,3 +58,12 @@
    (>= 0.0.7))
   (js_of_ocaml
    (>= 6.0.1))))
+
+(package
+ (name x-ocaml-ui)
+ (synopsis
+  "A widget toolkit for x-ocaml cells, in the manner of ipywidgets")
+ (depends
+  js_top_worker-widget
+  (ppx_blob
+   (>= 0.9.0))))
