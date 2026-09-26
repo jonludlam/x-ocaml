@@ -18,6 +18,7 @@ exports.TESTS = [
   ['/sub/test_worker_absolute.html', 'A page below the root: its worker named /x-ocaml.worker.js'],
   ['/test_elements.html', 'Other custom elements on the page'],
   ['/test_big_module.html', 'A module of many definitions'],
+  ['/test_displays.html', 'Displays and callbacks: what cells show on the page'],
 ];
 
 exports.EXAMPLES = [
