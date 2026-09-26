@@ -1,0 +1,21 @@
+; x-ocaml's worker with widgets: js_top_worker's Widget library and the glue
+; linked in, and Widget visible to cells.
+(executable
+ (name x_worker)
+ (libraries x_worker x-ocaml-widgets)
+ (link_flags (-linkall))
+ (modes js)
+ (js_of_ocaml
+  (javascript_files ../../worker/stubs.js)
+  (sourcemap no)
+  (flags --export=%{dep:export.txt} --toplevel)))
+
+(rule
+ (targets export.txt)
+ (action
+  (with-stdout-to
+   %{targets}
+   (progn
+    (cat %{dep:../../worker/export.txt})
+    (echo
+     "Js_top_worker_message\nJs_top_worker_message__Message\nJs_top_worker_message__Widget_view\nWidget\n")))))
