@@ -1,3 +1,9 @@
+/sub/test_worker_absolute.html
+  [FAIL] the worker starts, and runs the cell
+  [FAIL] no errors on the page
+/sub/test_worker_relative.html
+  [FAIL] the worker starts, and runs the cell
+  [FAIL] no errors on the page
 /test_cells.html
   [PASS] a value is printed with its type
   [PASS] what a cell prints is shown
