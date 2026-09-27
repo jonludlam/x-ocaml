@@ -4,7 +4,7 @@ Embed OCaml notebooks in any web page thanks to WebComponents! Just copy and pas
 <script async
   src="https://cdn.jsdelivr.net/gh/art-w/x-ocaml.js@6/x-ocaml.js"
   src-worker="https://cdn.jsdelivr.net/gh/art-w/x-ocaml.js@6/x-ocaml.worker+effects.js"
-  integrity="sha256-HmIgCZUGcKkblBWmb6iB/7efug/d4gtX69uCZfMFrss="
+  integrity="sha256-a3MLwj7ITfkl+RLhRKKJXQN26Ef1Bxg2NkjBS/A26vI="
   crossorigin="anonymous"
 ></script>
 ```
