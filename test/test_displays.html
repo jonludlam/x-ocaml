@@ -87,6 +87,35 @@ let hits = ref 0</x-ocaml>
   ignore (X_ocaml_lib.display ~tag:"toy-required" "hello")</x-ocaml>
   </section>
 
+  <section class="case" data-case="H1">
+    <h2>An HTML display, updated while its cell still runs</h2>
+    <x-ocaml id="progress">let bar = X_ocaml_lib.html "starting"
+
+let () =
+  for i = 1 to 5 do
+    let t = Sys.time () in
+    while Sys.time () -. t &lt; 0.3 do () done;
+    X_ocaml_lib.update bar (Printf.sprintf "&lt;b data-step=\"%d\"&gt;step %d of 5&lt;/b&gt;" i i)
+  done</x-ocaml>
+  </section>
+
+  <section class="case" data-case="H2">
+    <h2>Controls in an HTML display call back</h2>
+    <x-ocaml id="controls">let said = X_ocaml_lib.html "nothing"
+let say s = X_ocaml_lib.update said s
+let token = X_ocaml_lib.callback say
+
+let () =
+  ignore
+    (X_ocaml_lib.html
+       (Printf.sprintf
+          {|&lt;button data-callback="%d" data-payload="pressed"&gt;press&lt;/button&gt;
+            &lt;input type="range" data-callback="%d" value="10"&gt;
+            &lt;input type="checkbox" data-callback="%d"&gt;
+            &lt;span data-callback="%d"&gt;no payload&lt;/span&gt;|}
+          token token token token))</x-ocaml>
+  </section>
+
   <section class="case" data-case="D5">
     <h2>Removing a display, silly tags and tokens, a callback that raises</h2>
     <x-ocaml id="silly">let gone = X_ocaml_lib.display ~tag:"toy-display" {|{"label":"going","token":0}|}
@@ -113,6 +142,14 @@ let () = ignore (X_ocaml_lib.display ~tag:"toy-display" (Printf.sprintf {|{"labe
     setTimeout(() => customElements.define('toy-late', class extends HTMLElement {
       set data(s) { this.textContent = JSON.parse(s).label; }
     }), 2500);
+
+    // Every change to the progress display, and whether its cell was running.
+    const during = [];
+    new MutationObserver(() => {
+      const b = area('progress');
+      const h = b && b.querySelector('x-ocaml-html');
+      if (h) try { during.push([h.textContent, label('progress')]); } catch (e) {}
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
 
     async function run() {
       check('D1: a display shows under its cell, with its data', await waitFor(() => toy('counter', 'clicked 0'), 20000));
@@ -151,6 +188,25 @@ let () = ignore (X_ocaml_lib.display ~tag:"toy-display" (Printf.sprintf {|{"labe
       check('D6: require loads the element\'s script, and it shows the display',
         await waitFor(() => labels('required')[0] === 'required: hello', 10000));
       check('D6: once', window.toyLoads === 1 && document.querySelectorAll('script[src$="toy-element.js"]').length === 1);
+
+      // H1: what the page showed while the cell ran, watched from the start
+      await waitFor(() => area('progress') && area('progress').textContent === 'step 5 of 5', 20000);
+      const html1 = area('progress').querySelector('x-ocaml-html');
+      check('H1: an HTML display shows markup as markup', html1.querySelector('b[data-step="5"]') !== null);
+      check('H1: updates show while the cell is still running',
+        during.some(([text, l]) => /step [1-4] of 5/.test(text) && l === 'Stop'));
+
+      await waitFor(() => area('controls') && area('controls').querySelectorAll('x-ocaml-html').length === 2, 20000);
+      const [saidEl, ctl] = area('controls').querySelectorAll('x-ocaml-html');
+      ctl.querySelector('button').click();
+      check('H2: a button calls back with its payload', await waitFor(() => saidEl.textContent === 'pressed', 10000));
+      const range = ctl.querySelector('input[type=range]');
+      range.value = '70'; range.dispatchEvent(new Event('input', { bubbles: true }));
+      check('H2: an input calls back with its value', await waitFor(() => saidEl.textContent === '70', 10000));
+      ctl.querySelector('input[type=checkbox]').click();
+      check('H2: a checkbox with whether it is checked', await waitFor(() => saidEl.textContent === 'true', 10000));
+      ctl.querySelector('span').click();
+      check('H2: anything else when clicked', await waitFor(() => saidEl.textContent === '', 10000));
 
       button('forever').click();
       await waitFor(() => label('forever') === 'Stop', 10000);
