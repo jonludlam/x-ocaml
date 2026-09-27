@@ -5,7 +5,8 @@
     shows one as a {e display}. *)
 
 val output_html : string -> unit
-(** Show HTML under the phrase being run. *)
+(** Show HTML under the phrase being run, with its other output, and fixed;
+    for HTML that changes, or calls back, see {!html}. *)
 
 (** {1 Displays}
 
@@ -23,7 +24,20 @@ val display : ?on_remove:(unit -> unit) -> tag:string -> string -> display
     the display goes because its cell runs again. *)
 
 val update : display -> string -> unit
-(** New data for the display, if it is still shown. *)
+(** New data for the display, if it is still shown. Data sent while the cell
+    is still running is shown as it arrives: a long computation can show
+    its progress. *)
+
+val html : ?on_remove:(unit -> unit) -> string -> display
+(** A display of HTML, which {!update} replaces. Unlike {!output_html}, it is
+    shown after the cell, not under its phrase. Elements in it whose
+    [data-callback] attribute is a {!callback} token, as {!string_of_token}
+    gives it, call it: an input with its value (["true"] or ["false"] for a
+    checkbox) as it changes, anything else when clicked, with its
+    [data-payload] attribute.
+
+    Each update replaces the HTML, and with it an input the reader is
+    using: keep controls in a display of their own, which is not updated. *)
 
 val remove : display -> unit
 
