@@ -10,3 +10,10 @@
   [PASS] a type error is reported
   [PASS] a cell sees the definitions of the cells before it
   [PASS] no errors on the page
+/test_elements.html
+  [PASS] cells still run
+  [PASS] an element defined before x-ocaml is not made a cell
+  [FAIL] nor one defined after
+  [FAIL] HTMLElement's prototype is untouched
+  [FAIL] x-ocaml leaves no global behind
+  [PASS] no errors on the page
