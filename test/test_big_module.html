@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: a module of many definitions</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <p>OCaml 5's bytecode compiler starts code whose frame needs more than
+    about 32 words of stack with a call to
+    <code>caml_ensure_stack_capacity</code>, which the toplevel must know.
+    A module holds its definitions on the stack until it is built, so a
+    dozen or so of them is enough.</p>
+  <x-ocaml id="units">module Units = struct
+  let km_of_miles m = m *. 1.609344
+  let miles_of_km k = k /. 1.609344
+  let m_of_feet f = f *. 0.3048
+  let feet_of_m m = m /. 0.3048
+  let cm_of_inches i = i *. 2.54
+  let inches_of_cm c = c /. 2.54
+  let kg_of_pounds p = p *. 0.45359237
+  let pounds_of_kg k = k /. 0.45359237
+  let g_of_ounces o = o *. 28.349523125
+  let ounces_of_g g = g /. 28.349523125
+  let l_of_pints p = p *. 0.56826125
+  let pints_of_l l = l /. 0.56826125
+  let c_of_f f = (f -. 32.) *. 5. /. 9.
+  let f_of_c c = c *. 9. /. 5. +. 32.
+  let kmh_of_mph m = km_of_miles m
+  let mph_of_kmh k = miles_of_km k
+end</x-ocaml>
+  <x-ocaml id="use">let marathon = Units.km_of_miles 26.2</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    (async () => {
+      // Each cell answers, one way or the other.
+      await waitFor(() => output('units') !== '' && output('use') !== '', 30000);
+      check('a module of sixteen conversions is defined', output('units').includes('module Units'));
+      check('and a later cell uses it', output('use').includes('val marathon : float = 42.16'));
+      done();
+    })();
+  </script>
+</body>
+</html>
