@@ -15,6 +15,7 @@ let display ?(on_remove = ignore) ~tag data =
   post (X_protocol.Display (X_ocaml_cells.cell (), d, tag, data));
   d
 
+let html ?on_remove s = display ?on_remove ~tag:"x-ocaml-html" s
 let live = X_ocaml_cells.live
 let update d data = if live d then post (X_protocol.Update (d, data))
 let remove = X_ocaml_cells.remove
