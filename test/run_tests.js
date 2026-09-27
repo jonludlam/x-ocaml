@@ -12,7 +12,6 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 8766;
 const TIMEOUT = 120000;
 const { TESTS, EXAMPLES: EXAMPLE_PAGES } = require('./pages.js');
 const PAGES = TESTS.map(([p]) => p);
@@ -33,21 +32,36 @@ function serve() {
     res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
     fs.createReadStream(file).pipe(res);
   });
-  return new Promise((resolve) => server.listen(PORT, () => resolve(server)));
+  // Any free port, so that runs side by side do not collide.
+  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+
+// Chromium: $XOCAML_CHROMIUM if set, else Playwright's own (npm install
+// fetches it), else an installed Google Chrome.
+async function launch() {
+  const headless = !process.argv.includes('--headed');
+  const tries = process.env.XOCAML_CHROMIUM
+    ? [{ executablePath: process.env.XOCAML_CHROMIUM }]
+    : [{}, { channel: 'chrome' }];
+  for (const t of tries) {
+    try { return await chromium.launch({ headless, ...t }); } catch (e) {}
+  }
+  console.error('No Chromium to run the tests in: in test/, run\n' +
+    '  npx playwright install chromium\n' +
+    'or set XOCAML_CHROMIUM to a Chromium or Chrome executable.');
+  process.exit(2);
 }
 
 (async () => {
   const server = await serve();
-  const browser = await chromium.launch({
-    headless: !process.argv.includes('--headed'),
-    executablePath: process.env.XOCAML_CHROMIUM || undefined,
-  });
+  const port = server.address().port;
+  const browser = await launch();
   let failed = 0;
   try {
     const page = await browser.newPage();
     page.on('pageerror', (e) => console.error(`[page error] ${e.message}`));
     for (const p of PAGES) {
-      await page.goto(`http://localhost:${PORT}${p}`);
+      await page.goto(`http://127.0.0.1:${port}${p}`);
       await page.waitForFunction(() => window.testResults && window.testResults.done, null, { timeout: TIMEOUT });
       const r = await page.evaluate(() => window.testResults);
       console.log(`${p}: ${r.passed}/${r.total} passed`);
@@ -60,7 +74,7 @@ function serve() {
       const onConsole = (m) => { if (m.type() === 'error') errors.push(m.text()); };
       page.on('pageerror', onError);
       page.on('console', onConsole);
-      await page.goto(`http://localhost:${PORT}${p}`);
+      await page.goto(`http://127.0.0.1:${port}${p}`);
       // Settled: no cell running, or waiting to, and the cells that run on
       // load have answered (a js_top_worker page loads its universe first).
       const settled = await page.waitForFunction(() => {
