@@ -34,6 +34,43 @@ let registry () = Jv.get Jv.global "customElements"
 let defined tag =
   not (Jv.is_none (Jv.call (registry ()) "get" [| Jv.of_string tag |]))
 
+(* <x-ocaml-html>, the one element x-ocaml defines itself: its data is HTML,
+   shown as it is, and elements in it with a data-callback token call back,
+   an input with its value when it changes, anything else when clicked. *)
+let html_element =
+  {|(function () {
+  function input(el) { return el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA'; }
+  function value(el) {
+    if (el.type === 'checkbox' || el.type === 'radio') return String(el.checked);
+    if (input(el)) return el.value;
+    return el.getAttribute('data-payload') || '';
+  }
+  return class extends HTMLElement {
+    constructor() {
+      super();
+      const call = (ev, inputs) => {
+        const el = ev.target.closest && ev.target.closest('[data-callback]');
+        if (!el || !this.contains(el) || input(el) !== inputs) return;
+        this.dispatchEvent(new CustomEvent('x-ocaml-callback', { bubbles: true,
+          detail: { token: Number(el.getAttribute('data-callback')), payload: value(el) } }));
+      };
+      this.addEventListener('click', (ev) => call(ev, false));
+      this.addEventListener('input', (ev) => call(ev, true));
+    }
+    set data(s) { this._data = s; this.innerHTML = s; }
+    get data() { return this._data; }
+  };
+})()|}
+
+let define_html () =
+  if not (defined "x-ocaml-html") then
+    ignore
+      (Jv.call (registry ()) "define"
+         [|
+           Jv.of_string "x-ocaml-html";
+           Jv.call Jv.global "eval" [| Jv.of_string html_element |];
+         |])
+
 (* An element can dispatch anything. Its token must be an int, or there is
    nothing to call; its payload is sent as it is if a string, as nothing if
    missing, and as JSON otherwise. *)
@@ -56,6 +93,7 @@ let payload d =
 (* A cell's displays go in its display area, just after it, made when the
    first comes; the elements in it call back with x-ocaml-callback events. *)
 let area t cell =
+  define_html ();
   match Hashtbl.find_opt t.areas cell with
   | Some a -> Some a
   | None ->
