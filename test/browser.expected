@@ -13,7 +13,7 @@
 /test_elements.html
   [PASS] cells still run
   [PASS] an element defined before x-ocaml is not made a cell
-  [FAIL] nor one defined after
-  [FAIL] HTMLElement's prototype is untouched
-  [FAIL] x-ocaml leaves no global behind
+  [PASS] nor one defined after
+  [PASS] HTMLElement's prototype is untouched
+  [PASS] x-ocaml leaves no global behind
   [PASS] no errors on the page
