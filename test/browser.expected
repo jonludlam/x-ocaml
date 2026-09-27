@@ -26,8 +26,8 @@
   [PASS] and one that is still calls back
   [PASS] no errors on the page but the elements' own
 /test_big_module.html
-  [FAIL] a module of sixteen conversions is defined
-  [FAIL] and a later cell uses it
+  [PASS] a module of sixteen conversions is defined
+  [PASS] and a later cell uses it
   [PASS] no errors on the page
 /test_cells.html
   [PASS] a value is printed with its type
