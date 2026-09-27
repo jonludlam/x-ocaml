@@ -1,0 +1,6 @@
+/test_cells.html
+  [PASS] a value is printed with its type
+  [PASS] what a cell prints is shown
+  [PASS] a type error is reported
+  [PASS] a cell sees the definitions of the cells before it
+  [PASS] no errors on the page
