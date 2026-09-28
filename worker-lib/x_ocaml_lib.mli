@@ -15,7 +15,8 @@ val output_html : string -> unit
     tag names a custom element, which receives [data]
     through its [data] property, now and at each {!update}: data for an
     element not yet defined waits until it is, so a library can load its
-    element's script after it first shows one. *)
+    element's script after it first shows one. doc/displays.md says how to
+    write such an element. *)
 
 type display
 
