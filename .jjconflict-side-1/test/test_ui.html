@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the Ui toolkit</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">The toolkit in <code>ui/</code>, against real cells: what
+    variables do, what the controls set, and the awkward cases: functions as
+    choices, typing fast, a slow clock, a handler that raises, a cell run
+    again.</p>
+
+  <section class="case" data-case="U1">
+    <h2>A handler's changes are drawn once</h2>
+    <x-ocaml id="batch">open Ui
+
+let a = Var.create 0 and b = Var.create 0
+let renders = ref 0
+
+let () =
+  show ~id:"batch"
+    (vbox
+       [ button "both" (fun () -> Var.update a succ; Var.update b succ);
+         dyn (fun () ->
+             incr renders;
+             element "span" ~attrs:[ ("data-t", "batch") ]
+               [ text (Printf.sprintf "%d %d %d" (Var.get a) (Var.get b) !renders) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U2">
+    <h2>link and dlink</h2>
+    <x-ocaml id="links">let x = Var.create 1 and y = Var.create 2
+let () = link x y
+let doubled = Var.create 0
+let () = dlink ~f:(fun v -> 2 * v) x doubled
+
+let () =
+  show ~id:"links"
+    (vbox
+       [ button "x+1" (fun () -> Var.update x succ);
+         button "y+10" (fun () -> Var.update y (( + ) 10));
+         dyn (fun () ->
+             element "span" ~attrs:[ ("data-t", "links") ]
+               [ text (Printf.sprintf "%d %d %d" (Var.get x) (Var.get y) (Var.get doubled)) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U3">
+    <h2>Choices whose values are functions</h2>
+    <p>Functions can only be compared by identity, and each mention of a
+      primitive such as <code>sin</code> makes a new closure: the controls
+      share one list of options.</p>
+    <x-ocaml id="funs">let options = [ ("sin", sin); ("cos", cos); ("exp", exp) ]
+let f = Var.create (List.assoc "sin" options)
+
+let () =
+  show ~id:"funs"
+    (vbox
+       [ dropdown options f;
+         toggle_buttons (List.filteri (fun i _ -> i < 2) options) f;
+         dyn (fun () -> element "span" ~attrs:[ ("data-t", "funs") ] [ text (Printf.sprintf "%g" ((Var.get f) 0.)) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U4">
+    <h2>Typing into a text input whose variable redraws the page</h2>
+    <x-ocaml id="typing">let name = Var.create ""
+
+let () =
+  show ~id:"typing"
+    (vbox
+       [ text_input ~placeholder:"type" name;
+         dyn (fun () -> element "span" ~attrs:[ ("data-t", "typed") ] [ text (String.uppercase_ascii (Var.get name)) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U5">
+    <h2>Picking several, tags, and a range</h2>
+    <x-ocaml id="multi">let picked = Var.create []
+let words = Var.create [ "one" ]
+let band = Var.create (20, 60)
+
+let () =
+  show ~id:"multi"
+    (vbox
+       [ select_multiple (List.map (fun s -> (s, s)) [ "a"; "b"; "c" ]) picked;
+         tags words;
+         range_slider band;
+         dyn (fun () ->
+             let lo, hi = Var.get band in
+             element "span" ~attrs:[ ("data-t", "multi") ]
+               [ text (Printf.sprintf "%s|%s|%d-%d" (String.concat "," (Var.get picked)) (String.concat "," (Var.get words)) lo hi) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U6">
+    <h2>A table: numbers sort as numbers, filtering, pages</h2>
+    <x-ocaml id="table">let () =
+  show ~id:"table"
+    (table ~page_size:2 ~header:[ "name"; "n" ] (fun () -> [ [ "ten"; "10" ]; [ "nine"; "9" ]; [ "hundred"; "100" ] ]))</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U7">
+    <h2>Tabs keep what their controls set</h2>
+    <x-ocaml id="tabs">let level = Var.create 3
+
+let () =
+  show ~id:"tabs"
+    (tabs [ ("one", int_slider ~max:10 level); ("two", text_of (Printf.sprintf "level %d") level) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U13">
+    <h2>A float slider at a whole number</h2>
+    <x-ocaml id="whole">let () = show ~id:"whole" (float_slider ~max:10. (Var.create 3.))</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U8">
+    <h2>A slow clock does not pile its ticks up</h2>
+    <p>Each tick takes 100 ms and the clock asks for one every 16 ms. The
+      ticks keep pace with the worker, and none are left over once it stops.</p>
+    <x-ocaml id="clock">let ticks = Var.create 0 and ticking = Var.create false
+
+let () =
+  show ~id:"clock"
+    (vbox
+       [ button "go" (fun () -> Var.set ticking true);
+         button "halt" (fun () -> Var.set ticking false);
+         element "span" ~attrs:[ ("data-t", "ticks") ] [ text_of string_of_int ticks ];
+         clock ~interval:16 ~running:ticking (fun () ->
+             let t = Sys.time () in
+             while Sys.time () -. t < 0.1 do () done;
+             Var.update ticks succ) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U9">
+    <h2>A click on a chart, in the chart's coordinates</h2>
+    <x-ocaml id="chart">let clicked = Var.create (0., 0.)
+
+let () =
+  show ~id:"chart"
+    (vbox
+       [ Plot.chart ~x_range:(0., 10.) ~y_range:(0., 10.) ~on_click:(fun p -> Var.set clicked (p.Plot.x, p.Plot.y))
+           [ Plot.scatter [ (5., 5.) ] ];
+         dyn (fun () -> let x, y = Var.get clicked in element "span" ~attrs:[ ("data-t", "clicked") ] [ text (Printf.sprintf "%.1f,%.1f" x y) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U10">
+    <h2>A handler that raises, and a widget that cannot be drawn</h2>
+    <x-ocaml id="raise">let broken = Var.create false
+
+let () =
+  show ~id:"raise"
+    (vbox
+       [ button "raise" (fun () -> failwith "on purpose");
+         button "break" (fun () -> Var.set broken true);
+         dyn (fun () -> if Var.get broken then failwith "cannot draw" else text "drawn") ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U11">
+    <h2>Keys, and interact's manual mode</h2>
+    <x-ocaml id="keys">let last = Var.create "none"
+
+let () =
+  show ~id:"keys"
+    (vbox
+       [ keyboard ~on_key:(fun e -> Var.set last e.Event.key) (text "focus me");
+         element "span" ~attrs:[ ("data-t", "key") ] [ text_of Fun.id last ];
+         interact ~manual:true
+           (let+ n = Interact.int "n" ~max:10 2 in
+            element "span" ~attrs:[ ("data-t", "manual") ] [ text (string_of_int (n * n)) ]) ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="U12">
+    <h2>A cell run again leaves no ghost behind</h2>
+    <p>The second cell shows a variable of the first. Run it again: its old
+      widget goes, and when the variable changes, only the new one is
+      drawn.</p>
+    <x-ocaml id="source">let shared = Var.create 0
+let () = show ~id:"source" (button "bump" (fun () -> Var.update shared succ))</x-ocaml>
+    <x-ocaml id="viewer">let () = show (element "span" ~attrs:[ ("data-t", "viewer") ] [ text_of string_of_int shared ])</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="widgets/x-ocaml-widgets.worker.js"></script>
+  <script>
+    const t = (name) => document.querySelector(`[data-t="${name}"]`);
+    const tx = (name) => (t(name) ? t(name).textContent : null);
+    const w = (id) => document.querySelector(`.x-ocaml-widget[data-widget-id="${id}"]`);
+    const btn = (id, label) => [...w(id).querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+    const typeInto = (el, s) => { el.focus(); for (const c of s) { el.value += c; el.dispatchEvent(new InputEvent('input', { bubbles: true, data: c })); } };
+    const change = (el, v) => { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); };
+
+    async function run() {
+      check('U1: the toolkit is loaded and draws', await waitFor(() => tx('batch'), 60000));
+      const before = +tx('batch').split(' ')[2];
+      btn('batch', 'both').click();
+      await waitFor(() => tx('batch').startsWith('1 1'), 10000);
+      await sleep(300);
+      check('U1: two changes, one redraw', +tx('batch').split(' ')[2] === before + 1);
+
+      await waitFor(() => tx('links'), 20000);
+      check('U2: link makes the second take the first\'s value', tx('links') === '1 1 2');
+      btn('links', 'x+1').click();
+      check('U2: changing one changes the other, and what follows it',
+        await waitFor(() => tx('links') === '2 2 4', 10000));
+      btn('links', 'y+10').click();
+      check('U2: in either direction', await waitFor(() => tx('links') === '12 12 24', 10000));
+
+      await waitFor(() => tx('funs'), 20000);
+      change(w('funs').querySelector('select'), '1');
+      check('U3: a dropdown of functions picks one', await waitFor(() => tx('funs') === '1', 10000));
+      check('U3: and the other control of the same variable shows it',
+        await waitFor(() => w('funs').querySelector('.xui-segment.xui-on').textContent === 'cos', 5000));
+      btn('funs', 'sin').click();
+      check('U3: toggle buttons of functions too', await waitFor(() => tx('funs') === '0' && w('funs').querySelector('select').value === '0', 10000));
+
+      await waitFor(() => w('typing') && w('typing').querySelector('input'), 20000);
+      const field = w('typing').querySelector('input');
+      typeInto(field, 'camel');
+      check('U4: every keystroke reaches the variable', await waitFor(() => tx('typed') === 'CAMEL', 10000));
+      check('U4: the input kept its value and its focus', field.value === 'camel' && document.activeElement === field
+        && w('typing').querySelector('input') === field);
+
+      await waitFor(() => tx('multi'), 20000);
+      const chip = (s) => [...w('multi').querySelectorAll('.xui-chip')].find((c) => c.textContent.includes(s));
+      chip('c').click();
+      await waitFor(() => tx('multi').startsWith('c|'), 5000);
+      chip('a').click();
+      check('U5: picks are kept in the options\' order', await waitFor(() => tx('multi').startsWith('a,c|'), 10000));
+      change(w('multi').querySelector('.xui-tag-input'), 'two');
+      check('U5: Enter adds a tag, and empties the input',
+        await waitFor(() => tx('multi').includes('|one,two|') && w('multi').querySelector('.xui-tag-input').value === '', 10000));
+      w('multi').querySelector('.xui-tag button').click();
+      check('U5: × removes one', await waitFor(() => tx('multi').includes('|two|'), 10000));
+      const lo = w('multi').querySelector('[data-thumb="lo"]');
+      lo.value = '90';
+      lo.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      check('U5: the low thumb cannot pass the high one', await waitFor(() => tx('multi').endsWith('|60-60'), 10000));
+
+      await waitFor(() => w('table') && w('table').querySelector('th'), 20000);
+      const firsts = () => [...w('table').querySelectorAll('tbody tr')].map((r) => r.children[1].textContent).join(',');
+      const header = (i) => w('table').querySelectorAll('th')[i];
+      header(1).click();
+      check('U6: numbers sort as numbers', await waitFor(() => firsts() === '9,10', 10000));
+      header(1).click();
+      check('U6: again, the other way', await waitFor(() => firsts() === '100,10', 10000));
+      btn('table', 'next ›').click();
+      check('U6: the next page', await waitFor(() => firsts() === '9', 10000));
+      const filter = w('table').querySelector('input');
+      typeInto(filter, 'ni');
+      check('U6: filtering', await waitFor(() => firsts() === '9' && w('table').textContent.includes('1 of 3 rows'), 10000));
+
+      await waitFor(() => w('tabs') && w('tabs').querySelector('input[type=range]'), 20000);
+      const slider = w('tabs').querySelector('input[type=range]');
+      slider.value = '8';
+      slider.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      await waitFor(() => w('tabs').querySelector('.xui-readout').textContent === '8', 5000);
+      w('tabs').querySelectorAll('.xui-tab')[1].click();
+      check('U7: the other tab sees what the first set', await waitFor(() => w('tabs').querySelector('.xui-tab-panel').textContent === 'level 8', 10000));
+      w('tabs').querySelectorAll('.xui-tab')[0].click();
+      check('U7: and coming back, the slider says it too',
+        await waitFor(() => w('tabs').querySelector('input[type=range]') && w('tabs').querySelector('input[type=range]').value === '8', 10000));
+
+      await waitFor(() => w('whole') && w('whole').querySelector('input'), 20000);
+      check('U13: the thumb is where the value says, not at the middle',
+        w('whole').querySelector('input').value === '3');
+
+      await waitFor(() => tx('ticks'), 20000);
+      btn('clock', 'go').click();
+      await sleep(1500);
+      btn('clock', 'halt').click();
+      await sleep(400);
+      const n1 = +tx('ticks');
+      await sleep(1500);
+      const n2 = +tx('ticks');
+      check(`U8: the clock ticked as fast as the ticks ran (${n1} in 1.5 s)`, n1 >= 4 && n1 <= 18);
+      check(`U8: and stopped, with nothing queued (${n2 - n1} after)`, n2 - n1 <= 1);
+
+      await waitFor(() => tx('clicked'), 20000);
+      const svg = w('chart').querySelector('svg');
+      // (5, 5) is at (339, 172) in the chart's own units: 56 + 566/2, 14 + 316/2.
+      const p = new DOMPoint(339, 172).matrixTransform(svg.getScreenCTM());
+      svg.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: p.x, clientY: p.y }));
+      check('U9: a click maps back to the data', await waitFor(() => tx('clicked') === '5.0,5.0', 10000));
+
+      await waitFor(() => w('raise') && btn('raise', 'raise'), 20000);
+      btn('raise', 'raise').click();
+      check('U10: a handler that raises says so, above the widget',
+        await waitFor(() => w('raise').querySelector('.xui-error') && w('raise').querySelector('.xui-error').textContent.includes('on purpose'), 10000));
+      btn('raise', 'dismiss').click();
+      check('U10: and the message can be dismissed', await waitFor(() => !w('raise').querySelector('.xui-error'), 10000));
+      btn('raise', 'break').click();
+      check('U10: a widget that raises as it is drawn says so in its place',
+        await waitFor(() => w('raise').textContent.includes('rendering failed') && w('raise').textContent.includes('cannot draw'), 10000));
+
+      await waitFor(() => tx('key'), 20000);
+      const keys = w('keys').querySelector('.xui-keys');
+      keys.focus();
+      const notPrevented = keys.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }));
+      check('U11: a key reaches the handler, named', await waitFor(() => tx('key') === 'ArrowLeft', 10000));
+      check('U11: and does nothing else (no scrolling)', notPrevented === false);
+      check('U11: manual interact computes once to start', tx('manual') === '4');
+      const n = w('keys').querySelector('.xui-controls input[type=range]');
+      n.value = '7';
+      n.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      await sleep(600);
+      check('U11: and not as its controls change', tx('manual') === '4');
+      btn('keys', 'Run').click();
+      check('U11: but when Run is pressed', await waitFor(() => tx('manual') === '49', 10000));
+
+      await waitFor(() => tx('viewer'), 20000);
+      const count = () => document.querySelectorAll('[data-t="viewer"]').length;
+      button('viewer').click();
+      await waitFor(() => count() === 1 && tx('viewer') === '0', 20000);
+      await sleep(500);
+      btn('source', 'bump').click();
+      await waitFor(() => tx('viewer') === '1', 10000);
+      await sleep(500);
+      check('U12: after the cell ran again, one widget follows the variable, not two', count() === 1 && tx('viewer') === '1');
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

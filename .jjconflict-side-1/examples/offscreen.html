@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Drawing from the worker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { max-width: 52rem; }
+    .x-ocaml-displays { margin: 0.4rem 0 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .x-ocaml-displays button { font: inherit; padding: 0.25rem 0.8rem; margin-right: 0.3rem; }
+    x-ocaml-canvas canvas { border-radius: 8px; cursor: crosshair; width: 100%; }
+    code { background: #f2f4f8; padding: 0 0.25em; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Drawing from the worker</h1>
+
+  <p>The same bouncing balls as on the <a href="displays.html">displays</a>
+    page, but drawn by the cell's code itself.
+    <code>X_ocaml_lib.Canvas.display</code> puts a canvas on the page, which
+    hands its drawing surface to the worker as an
+    <code>OffscreenCanvas</code>; <code>X_ocaml_lib.animate</code> calls the
+    cell's code at each of the worker's animation frames, and what it draws
+    shows on the page. No frame is sent as a message: the page's thread does
+    nothing but show them. Click the box to add a ball.</p>
+
+  <x-ocaml id="balls">type ball = { mutable x : float; mutable y : float; mutable vx : float; mutable vy : float;
+              r : float; colour : string }
+
+let width = 640. and height = 320.
+let colours = [| "#f47c34"; "#5fd08f"; "#6b9bf0"; "#e0a847"; "#f06a6a"; "#b48cf0" |]
+let balls = ref []
+
+let add x y =
+  balls :=
+    { x; y; vx = Random.float 8. -. 4.; vy = -. Random.float 4.;
+      r = 6. +. Random.float 12.; colour = colours.(Random.int 6) }
+    :: !balls
+
+let () = for _ = 1 to 12 do add (Random.float width) (Random.float (height /. 2.)) done
+
+let step () =
+  List.iter
+    (fun b -&gt;
+      b.vy &lt;- b.vy +. 0.3;
+      b.x &lt;- b.x +. b.vx;
+      b.y &lt;- b.y +. b.vy;
+      if b.y +. b.r &gt; height then begin b.y &lt;- height -. b.r; b.vy &lt;- -. b.vy *. 0.93 end;
+      if b.x -. b.r &lt; 0. || b.x +. b.r &gt; width then begin
+        b.x &lt;- Float.max b.r (Float.min (width -. b.r) b.x);
+        b.vx &lt;- -. b.vx
+      end)
+    !balls
+
+let draw c =
+  let open X_ocaml_lib.Canvas in
+  set_fill_style c "#141925";
+  fill_rect c 0. 0. (float (width c)) (float (height c));
+  List.iter
+    (fun b -&gt;
+      begin_path c;
+      arc c b.x b.y b.r 0. (2. *. Float.pi);
+      set_fill_style c b.colour;
+      fill c)
+    !balls
+
+let running = ref true
+
+let () =
+  ignore
+    (X_ocaml_lib.Canvas.display ~width:640 ~height:320
+       ~on_click:(fun x y -&gt; add x y)
+       (fun c -&gt;
+         let _stop = X_ocaml_lib.animate (fun _ -&gt; if !running then step (); draw c) in
+         ()))
+
+let () =
+  let toggle = X_ocaml_lib.callback (fun _ -&gt; running := not !running) in
+  let shake =
+    X_ocaml_lib.callback (fun _ -&gt;
+        List.iter (fun b -&gt; b.vy &lt;- b.vy -. 8. -. Random.float 6.; b.vx &lt;- b.vx +. Random.float 6. -. 3.) !balls)
+  in
+  ignore
+    (X_ocaml_lib.html
+       (Printf.sprintf {|&lt;button data-callback="%d"&gt;pause or play&lt;/button&gt;
+                         &lt;button data-callback="%d"&gt;shake&lt;/button&gt;
+                         click the box to add a ball|} toggle shake))</x-ocaml>
+
+  <p class="note">Run the cell again and the old canvas goes, with the loop
+    that drew it: <code>animate</code> belongs to the cell that called it.
+    A long computation in another cell holds up the frames, as the worker is
+    busy with it.</p>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js" x-ocamlformat="disable"></script>
+</body>
+</html>

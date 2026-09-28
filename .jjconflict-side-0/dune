@@ -1,0 +1,39 @@
+(vendored_dirs merlin-js js_top_worker mime_printer)
+
+(rule
+ (mode promote)
+ (target x-ocaml.js)
+ (deps src/x_ocaml.bc.js)
+ (action
+  (copy %{deps} %{target})))
+
+(rule
+ (mode promote)
+ (target x-ocaml.worker+effects.js)
+ (deps worker/effects/x_worker.bc.js)
+ (action
+  (copy %{deps} %{target})))
+
+(rule
+ (mode promote)
+ (target x-ocaml.worker.js)
+ (deps worker/no-effects/x_worker.bc.js)
+ (action
+  (copy %{deps} %{target})))
+
+(rule
+ (target README.md.expected)
+ (enabled_if
+  (= %{profile} release))
+ (action
+  (progn
+   (with-stdout-to
+    %{target}
+    (pipe-stdout
+     (run sha256sum %{dep:x-ocaml.js})
+     (run grep -o "^[^ ]\\+")
+     (run xxd -r -p)
+     (run base64)
+     (bash
+      "read hash; sed -E \"s| integrity=.*$| integrity=\\\"sha256-$hash\\\"|\" ../../README.md")))
+   (diff %{dep:README.md} %{target}))))

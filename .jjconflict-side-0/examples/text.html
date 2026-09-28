@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Text of all sorts</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Text of all sorts</h1>
+  <p>OCaml strings are bytes, so a string's length counts bytes, not
+    characters. The output of each phrase appears under that phrase,
+    whatever the text before it.</p>
+
+  <x-ocaml>let camel = "🐫";;
+let bytes = String.length camel;;
+let chars = List.length (List.of_seq (String.to_seq camel))</x-ocaml>
+
+  <x-ocaml>let greetings = ["Grüß Gott"; "Καλημέρα"; "こんにちは"; "Привет"; "مرحبا"]
+let () = List.iter print_endline greetings</x-ocaml>
+
+  <x-ocaml>(* A decomposed accent: e followed by a combining acute *)
+let e_acute = "e&#x301;";;
+let n = String.length e_acute</x-ocaml>
+
+  <x-ocaml>let decode s =
+  let rec go i acc =
+    if i >= String.length s then List.rev acc
+    else
+      let d = String.get_utf_8_uchar s i in
+      go (i + Uchar.utf_decode_length d) (Uchar.utf_decode_uchar d :: acc)
+  in
+  go 0 [];;
+let code_points = List.map Uchar.to_int (decode "a🐫é")</x-ocaml>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"></script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: awkward text and silly code</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">Text whose bytes and characters disagree, and code that tries to take the toplevel down. Each output belongs under the phrase that made it.</p>
+
+  <section class="case" data-case="X1">
+    <h2>Emoji, four bytes each</h2>
+    <x-ocaml id="emoji">let camel = "🐫🐫";;
+let two = 2</x-ocaml>
+  </section>
+
+  <section class="case" data-case="X2">
+    <h2>A combining accent: e and U+0301</h2>
+    <x-ocaml id="combining">let accent = "e&#x301;";;
+let n = String.length accent</x-ocaml>
+  </section>
+
+  <section class="case" data-case="X3">
+    <h2>Windows line endings</h2>
+    <p>Set from a script: the HTML parser would turn CRLF into LF.</p>
+    <x-ocaml id="crlf"></x-ocaml>
+  </section>
+
+  <section class="case" data-case="X4">
+    <h2>Tabs, a very long line, a cell of only a comment</h2>
+    <x-ocaml id="tabs">	let tabbed = 1;;
+	let tabbed2 = 2</x-ocaml>
+    <x-ocaml id="long">let long = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";;
+let after_long = 1</x-ocaml>
+    <x-ocaml id="comments">(* nothing but a comment, with an emoji 🐫 *)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="X5">
+    <h2>HTML entities, and ;; inside a string</h2>
+    <x-ocaml id="entities">let lt = 1 &lt; 2 &amp;&amp; "&gt;" = "&gt;"</x-ocaml>
+    <x-ocaml id="semis">let s = ";; not the end ;;";;
+let s2 = s</x-ocaml>
+  </section>
+
+  <section class="case" data-case="X6">
+    <h2>Output with no final newline, and on stderr</h2>
+    <x-ocaml id="noeol">print_string "no newline"; prerr_string "to stderr"</x-ocaml>
+  </section>
+
+  <section class="case" data-case="X8">
+    <h2>A function whose frame is big</h2>
+    <p>OCaml 5 has such functions check their stack first, with a call the
+      toplevel must know.</p>
+    <x-ocaml id="wide">let wide a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19 a20 a21 a22 a23 a24 a25 a26 a27 a28 a29 a30 a31 a32 a33 a34 a35 a36 a37 a38 a39 = a0 + a39</x-ocaml>
+  </section>
+
+  <section class="case" data-case="X7">
+    <h2>Code that tries to stop the toplevel</h2>
+    <p>Each is followed by a cell that should still run.</p>
+    <x-ocaml id="overflow">let rec deep n = 1 + deep (n + 1) in deep 0</x-ocaml>
+    <x-ocaml id="after-overflow">let survived_overflow = true</x-ocaml>
+    <x-ocaml id="use">#use "no_such_file.ml";;</x-ocaml>
+    <x-ocaml id="exit">let () = exit 3</x-ocaml>
+    <x-ocaml id="after-exit">let survived_exit = true</x-ocaml>
+    <x-ocaml id="assert">assert (1 = 2)</x-ocaml>
+    <x-ocaml id="after-assert">let survived_assert = true</x-ocaml>
+  </section>
+
+</main>
+
+  <script>
+    // The HTML parser turns CRLF into LF, so set it from a script.
+    document.getElementById('crlf').textContent = 'let crlf = 1;;\r\nlet crlf2 = 2';
+  </script>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    // The lines and outputs of a cell's editor in order: "L text" or "W text".
+    const layout = (id) => [...shadow(id).querySelector('.cm-content').children].map((ch) =>
+      (ch.classList.contains('cm-line') ? 'L ' : 'W ') + ch.textContent.replace(/\s+/g, ' ').trim());
+    // Each phrase's output right under its own line.
+    const underEach = (id, pairs) => {
+      const l = layout(id);
+      return pairs.every(([line, out]) => {
+        const i = l.findIndex((x) => x.startsWith('L ' + line));
+        return i >= 0 && l[i + 1] && l[i + 1].startsWith('W ') && l[i + 1].includes(out);
+      });
+    };
+
+    async function run() {
+      await waitFor(() => output('after-assert') !== '', 60000);
+      await sleep(3000);
+
+      check('X1: each output under its own phrase', underEach('emoji', [['let camel', 'val camel'], ['let two', 'val two']]));
+      check('X2: likewise', underEach('combining', [['let accent', 'val accent'], ['let n', 'val n : int = 3']]));
+      check('X3: two lines, each with its output', underEach('crlf', [['let crlf =', 'val crlf :'], ['let crlf2', 'val crlf2']]));
+      check('X4: tabs: likewise', underEach('tabs', [['let tabbed =', 'val tabbed :'], ['let tabbed2', 'val tabbed2']]));
+      check('X4: after a very long line, the next phrase still gets its output', underEach('long', [['let after_long', 'val after_long']]));
+      check('X4: a cell of only a comment runs, quietly', button('comments').getAttribute('aria-label') === 'Run');
+      check('X5: HTML entities come through as characters', code('entities').includes('1 < 2 && ">" = ">"') && output('entities').includes('val lt : bool = true'));
+      check('X5: ;; inside a string is not the end of a phrase', output('semis').includes('val s2'));
+      check('X6: both are shown', output('noeol').includes('no newline') && output('noeol').includes('to stderr'));
+      check('X7: a stack overflow is reported', output('overflow').includes('Stack_overflow') || output('overflow').includes('overflow'));
+      check('X7: and the next cell still runs', output('after-overflow').includes('val survived_overflow'));
+      check('X7: #use of a missing file is reported', output('use').includes('Cannot find file no_such_file.ml'));
+      check('X7: exit is reported, not obeyed', output('exit').includes('not implemented'));
+      check('X8: a function of forty parameters is defined', output('wide').includes('val wide'));
+      check('X7: and the page carries on', output('after-exit').includes('val survived_exit'));
+      check('X7: a failed assert is reported as an exception', output('assert').includes('Exception'));
+      check('X7: and does not stop the page', output('after-assert').includes('val survived_assert'));
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

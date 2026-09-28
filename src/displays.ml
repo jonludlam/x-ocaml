@@ -2,6 +2,7 @@ open Brr
 
 type t = {
   post : X_protocol.request -> unit;
+  transfer : token:int -> payload:string -> Jv.t -> unit;
   base : string; (* the worker's URL, which scripts are relative to *)
   cells : (int, El.t) Hashtbl.t; (* cell id -> its element *)
   areas : (int, El.t) Hashtbl.t; (* cell id -> its display area *)
@@ -17,10 +18,11 @@ let url ?base u =
   in
   Jv.to_string (Jv.get (Jv.new' (Jv.get Jv.global "URL") args) "href")
 
-let create ~post ~worker_url () =
+let create ~post ~transfer ~worker_url () =
   let page = Jv.to_string (Jv.get (Document.to_jv G.document) "baseURI") in
   {
     post;
+    transfer;
     base = url ~base:page worker_url;
     cells = Hashtbl.create 8;
     areas = Hashtbl.create 8;
@@ -62,14 +64,47 @@ let html_element =
   };
 })()|}
 
-let define_html () =
-  if not (defined "x-ocaml-html") then
+(* <x-ocaml-canvas>: a canvas whose drawing surface goes to the worker, once,
+   with the canvas callback, so that code there draws on it directly (see
+   X_ocaml_lib.Canvas). A click calls back with where it was. *)
+let canvas_element =
+  {|(function () {
+  return class extends HTMLElement {
+    set data(s) {
+      this._data = s;
+      const d = this.d = JSON.parse(s);
+      if (this.canvas) return;
+      const c = this.canvas = document.createElement('canvas');
+      c.width = d.width; c.height = d.height;
+      c.style.cssText = 'display:block;max-width:100%';
+      c.addEventListener('click', (ev) => {
+        if (this.d.click == null) return;
+        const r = c.getBoundingClientRect();
+        const x = (ev.clientX - r.left) / r.width * this.d.width, y = (ev.clientY - r.top) / r.height * this.d.height;
+        this.dispatchEvent(new CustomEvent('x-ocaml-callback', { bubbles: true,
+          detail: { token: this.d.click, payload: x.toFixed(1) + ' ' + y.toFixed(1) } }));
+      });
+      this.append(c);
+      if (!c.transferControlToOffscreen) {
+        this.append(document.createTextNode('This browser cannot draw on a canvas from a worker.'));
+        return;
+      }
+      this.dispatchEvent(new CustomEvent('x-ocaml-callback', { bubbles: true,
+        detail: { token: d.canvas, payload: '', transfer: c.transferControlToOffscreen() } }));
+    }
+    get data() { return this._data; }
+  };
+})()|}
+
+let define tag src =
+  if not (defined tag) then
     ignore
       (Jv.call (registry ()) "define"
-         [|
-           Jv.of_string "x-ocaml-html";
-           Jv.call Jv.global "eval" [| Jv.of_string html_element |];
-         |])
+         [| Jv.of_string tag; Jv.call Jv.global "eval" [| Jv.of_string src |] |])
+
+let define_html () =
+  define "x-ocaml-html" html_element;
+  define "x-ocaml-canvas" canvas_element
 
 (* An element can dispatch anything. Its token must be an int, or there is
    nothing to call; its payload is sent as it is if a string, as nothing if
@@ -104,7 +139,11 @@ let area t cell =
             let d = Jv.get (Ev.to_jv ev) "detail" in
             if not (Jv.is_none d) then
               match Option.bind (Jv.find d "token") token with
-              | Some token -> t.post (Callback (token, payload d))
+              | Some token -> (
+                  match Jv.find d "transfer" with
+                  | Some v when not (Jv.is_none v) ->
+                      t.transfer ~token ~payload:(payload d) v
+                  | _ -> t.post (Callback (token, payload d)))
               | None -> ()
           in
           ignore

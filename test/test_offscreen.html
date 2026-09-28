@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: drawing from the worker</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+  <script>
+    // Count what the worker posts to the page, to see that frames are not
+    // among it.
+    window.fromWorker = 0;
+    window.Worker = class extends window.Worker {
+      constructor(...args) {
+        super(...args);
+        this.addEventListener('message', () => window.fromWorker++);
+      }
+    };
+  </script>
+</head>
+<body>
+<main>
+  <p class="lede">A cell shows a canvas with
+    <code>X_ocaml_lib.Canvas.display</code>: the page hands its drawing
+    surface to the worker as an <code>OffscreenCanvas</code>, and the cell's
+    code draws on it at the worker's animation frames, with no message per
+    frame.</p>
+
+  <section class="case" data-case="O1">
+    <h2>The drawing context's other methods, by name</h2>
+    <x-ocaml id="named">let () =
+  ignore
+    (X_ocaml_lib.Canvas.display ~width:40 ~height:40 (fun c ->
+         let open X_ocaml_lib.Canvas in
+         set c "fillStyle" (String "rgb(10, 20, 30)");
+         call c "fillRect" [ Int 0; Int 0; Float 40.; Float 40. ]))</x-ocaml>
+  </section>
+
+  <section class="case" data-case="O2">
+    <h2>A canvas drawn by the worker, frame after frame</h2>
+    <x-ocaml id="setup">let ticks = Array.make 8 0
+let gen = ref 0
+let clicks = ref "none"
+let stop_it = ref (fun () -> ())</x-ocaml>
+    <x-ocaml id="anim">let g = incr gen; !gen
+let colour = if g = 1 then "#ff0000" else "#0000ff"
+
+let () =
+  ignore
+    (X_ocaml_lib.Canvas.display ~width:200 ~height:100
+       ~on_click:(fun x y -> clicks := Printf.sprintf "%.0f %.0f" x y)
+       (fun c ->
+         let open X_ocaml_lib.Canvas in
+         stop_it :=
+           X_ocaml_lib.animate (fun _ ->
+               ticks.(g) &lt;- ticks.(g) + 1;
+               set_fill_style c colour;
+               fill_rect c 0. 0. (float (width c)) (float (height c));
+               set_fill_style c "#00ff00";
+               fill_rect c (float (ticks.(g) mod 180)) 40. 20. 20.)))</x-ocaml>
+    <x-ocaml id="query" run-on="click">let t = (ticks.(1), ticks.(2), Random.bits ())</x-ocaml>
+    <x-ocaml id="clicked" run-on="click">let c = !clicks</x-ocaml>
+    <x-ocaml id="stopper" run-on="click">let () = !stop_it ()</x-ocaml>
+  </section>
+
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    const area = (id) => { const n = document.getElementById(id).nextElementSibling; return n && n.classList.contains('x-ocaml-displays') ? n : null; };
+    const canvasOf = (id) => area(id) && area(id).querySelector('x-ocaml-canvas canvas');
+    // A canvas whose drawing surface went to the worker cannot be read
+    // directly; drawn onto another, it shows its last frame.
+    function pixel(src, x, y) {
+      const c = document.createElement('canvas');
+      c.width = src.width; c.height = src.height;
+      const g = c.getContext('2d');
+      g.drawImage(src, 0, 0);
+      return [...g.getImageData(x, y, 1, 1).data].slice(0, 3).join(',');
+    }
+    // Where the green block is, along the middle row.
+    function block(src) {
+      const c = document.createElement('canvas');
+      c.width = src.width; c.height = src.height;
+      const g = c.getContext('2d');
+      g.drawImage(src, 0, 0);
+      const d = g.getImageData(0, 50, src.width, 1).data;
+      for (let x = 0; x < src.width; x++) if (d[4 * x] === 0 && d[4 * x + 1] === 255) return x;
+      return -1;
+    }
+    const ticks = () => { const m = /\((\d+), (\d+), \d+\)/.exec(output('query')); return m ? [+m[1], +m[2]] : null; };
+    async function query() {
+      const before = output('query');
+      button('query').click();
+      await waitFor(() => output('query') !== before && /\(\d+, \d+, \d+\)/.test(output('query')), 10000);
+      return ticks();
+    }
+
+    async function run() {
+      check('O2: the canvas is shown, and drawn by the worker',
+        await waitFor(() => canvasOf('anim') && pixel(canvasOf('anim'), 5, 5) === '255,0,0', 30000));
+      const x1 = block(canvasOf('anim'));
+      await sleep(500);
+      const x2 = block(canvasOf('anim'));
+      check('O2: frames keep coming (the block moved from ' + x1 + ' to ' + x2 + ')', x1 >= 0 && x2 >= 0 && x1 !== x2);
+
+      const m0 = window.fromWorker;
+      await sleep(1000);
+      check('O2: with no message from the worker per frame (' + (window.fromWorker - m0) + ' in a second)', window.fromWorker - m0 < 5);
+
+      const t1 = await query();
+      await sleep(500);
+      const t2 = await query();
+      check('O2: the worker still answers other cells, and the loop runs between them (' + t1 + ' then ' + t2 + ')',
+        t1 && t2 && t1[0] > 0 && t2[0] > t1[0]);
+
+      const c = canvasOf('anim');
+      const r = c.getBoundingClientRect();
+      c.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+      await sleep(300);
+      button('clicked').click();
+      check('O2: a click on the canvas calls back with where it was',
+        await waitFor(() => /"(99|100|101) (49|50|51)"/.test(output('clicked')), 10000));
+
+      const old = canvasOf('anim');
+      button('anim').click();
+      check('O2: running the cell again gives a new canvas, drawn by the new loop',
+        await waitFor(() => canvasOf('anim') && canvasOf('anim') !== old && !old.isConnected
+          && pixel(canvasOf('anim'), 5, 5) === '0,0,255', 20000));
+      const u1 = await query();
+      await sleep(500);
+      const u2 = await query();
+      check('O2: and the old loop has stopped (' + u1 + ' then ' + u2 + ')',
+        u1 && u2 && u1[0] === u2[0] && u2[1] > u1[1]);
+
+      button('stopper').click();
+      await sleep(500);
+      const s1 = await query();
+      await sleep(500);
+      const s2 = await query();
+      check('O2: the function animate returns stops it (' + s1 + ' then ' + s2 + ')', s1 && s2 && s1[1] === s2[1]);
+
+      check('O1: call and set reach the rest of the context',
+        await waitFor(() => canvasOf('named') && pixel(canvasOf('named'), 20, 20) === '10,20,30', 10000));
+
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

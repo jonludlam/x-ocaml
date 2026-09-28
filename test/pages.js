@@ -19,6 +19,7 @@ exports.TESTS = [
   ['/test_elements.html', 'Other custom elements on the page'],
   ['/test_big_module.html', 'A module of many definitions'],
   ['/test_displays.html', 'Displays and callbacks: what cells show on the page'],
+  ['/test_offscreen.html', 'A canvas the worker draws on: OffscreenCanvas, animate'],
   ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],
 ];
@@ -30,6 +31,7 @@ exports.EXAMPLES = [
   ['/examples/theming.html', 'A dark theme through the --xo-* variables'],
   ['/examples/text.html', 'Text of all sorts'],
   ['/examples/displays.html', 'Displays: live output, controls, a canvas, KaTeX, Mermaid and sound'],
+  ['/examples/offscreen.html', 'Drawing from the worker: bouncing balls on an OffscreenCanvas'],
   ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
   ['/examples/ui.html', 'A widget toolkit: controls, linking, interact, plots, tables'],
   ['/examples/ui-demos.html', 'Things made with widgets: Life, Mandelbrot, curve fitting, Snake, a kaleidoscope'],

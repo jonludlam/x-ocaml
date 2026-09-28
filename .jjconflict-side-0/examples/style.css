@@ -1,0 +1,7 @@
+/* Shared by the example pages, not by the cells: the cells style
+   themselves in their shadow DOM. */
+body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #222; }
+h1 { font-size: 1.6rem; }
+code { font-size: 0.95em; }
+nav { margin-bottom: 1.5rem; font-size: 0.9rem; }
+.note { border-left: 3px solid #bbb; padding-left: 0.8rem; color: #555; }

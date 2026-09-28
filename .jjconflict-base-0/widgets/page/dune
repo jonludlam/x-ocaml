@@ -1,0 +1,8 @@
+; The page's half of widgets: a program of its own, loaded by the page when
+; the worker's half first shows a widget (X_ocaml_lib.require).
+(executable
+ (name x_ocaml_widgets)
+ (libraries brr)
+ (modes js)
+ (js_of_ocaml
+  (sourcemap no)))

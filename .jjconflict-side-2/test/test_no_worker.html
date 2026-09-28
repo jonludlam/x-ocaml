@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: no worker given</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+  <script>
+    window.errorsLogged = [];
+    const error = console.error.bind(console);
+    console.error = (...a) => { window.errorsLogged.push(a.join(' ')); error(...a); };
+  </script>
+</head>
+<body>
+<main>
+  <p class="lede">This page's script tag has no src-worker attribute.</p>
+
+  <section class="case" data-case="W1">
+    <h2>A cell on a page that cannot run it</h2>
+    <x-ocaml id="c">let c = 1</x-ocaml>
+  </section>
+
+</main>
+
+  <script src="x-ocaml.js"></script>
+  <script>
+    async function run() {
+      await sleep(2000);
+      check('W1: x-ocaml says what is missing', window.errorsLogged.some((e) => e.includes('src-worker')));
+      check('W1: and throws nothing on the page', window.pageErrors.length === 0);
+      check('W1: the cells stay as plain text', cell('c').shadowRoot === null && cell('c').textContent === 'let c = 1');
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

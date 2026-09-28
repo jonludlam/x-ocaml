@@ -1,0 +1,8 @@
+(executable
+ (name x_worker)
+ (libraries x_worker)
+ (modes js)
+ (js_of_ocaml
+  (javascript_files ../stubs.js)
+  (sourcemap no)
+  (flags --export=%{dep:../export.txt} --toplevel)))

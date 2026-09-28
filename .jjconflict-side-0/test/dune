@@ -1,0 +1,15 @@
+; Browser tests. Once: npm install (in this directory), which fetches
+; Playwright and its Chromium.
+; Then: dune build @runbrowser
+
+(rule
+ (alias runbrowser)
+ (deps
+  %{project_root}/x-ocaml.js
+  %{project_root}/x-ocaml.worker.js
+  %{project_root}/widgets/x-ocaml-widgets.js
+  %{project_root}/widgets/x-ocaml-widgets.worker.js
+  (source_tree %{project_root}/examples)
+  (source_tree .))
+ (action
+  (run node run_tests.js)))

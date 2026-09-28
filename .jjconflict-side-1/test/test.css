@@ -1,0 +1,210 @@
+/* The test pages' own look. The cells style themselves in their shadow DOM;
+   this frames them. Colours: steel paper, slate ink, and three signals that
+   always mean the same thing: pass, fail, still running. */
+
+:root {
+  --paper: #f2f4f7;
+  --card: #ffffff;
+  --ink: #17212e;
+  --muted: #5d6978;
+  --rule: #d7dde5;
+  --id: #3456c8;
+  --pass: #1f8a53;
+  --fail: #c4352a;
+  --wait: #b7791f;
+  --sans: "Recursive", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Recursive", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--paper); color: var(--ink); }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-variation-settings: "CASL" 0, "MONO" 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+a { color: var(--id); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--id); outline-offset: 2px; }
+
+code, .mono {
+  font-family: var(--mono);
+  font-variation-settings: "MONO" 1, "CASL" 0;
+  font-size: 0.92em;
+}
+
+/* ---- The header: where the page is, and the strip of its checks ---- */
+
+.bench {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+
+.bench-inner, main { max-width: 56rem; margin: 0 auto; padding: 0 1.25rem; }
+
+.bench-inner { padding-top: 0.9rem; padding-bottom: 0.75rem; }
+
+.crumb {
+  font-family: var(--mono);
+  font-variation-settings: "MONO" 1;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-decoration: none;
+}
+.crumb:hover { color: var(--id); }
+
+.bench h1 {
+  margin: 0.1rem 0 0.6rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 800;
+  font-variation-settings: "CASL" 1, "MONO" 0;
+  letter-spacing: -0.01em;
+}
+
+/* One segment per check, in the order they ran. */
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  min-height: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.strip li {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--pass);
+  transform-origin: bottom;
+  animation: land 0.18s ease-out;
+}
+.strip li.fail { background: var(--fail); }
+.strip li a { display: block; width: 100%; height: 100%; border-radius: 3px; }
+.strip li a:hover { outline: 2px solid var(--ink); outline-offset: 1px; }
+.strip li.running {
+  width: 30px;
+  background: repeating-linear-gradient(-45deg, var(--wait) 0 5px, #e5c285 5px 10px);
+  background-size: 200% 100%;
+  animation: crawl 1.2s linear infinite;
+}
+@keyframes land { from { transform: scaleY(0.2); opacity: 0; } }
+@keyframes crawl { to { background-position: -28px 0; } }
+
+.tally {
+  margin-top: 0.45rem;
+  font-family: var(--mono);
+  font-variation-settings: "MONO" 1;
+  font-size: 13px;
+  color: var(--muted);
+}
+.tally b { font-weight: 700; color: var(--ink); }
+.tally .bad { color: var(--fail); }
+.tally .good { color: var(--pass); }
+
+/* ---- The page ---- */
+
+main { padding-top: 1.25rem; padding-bottom: 4rem; }
+
+.lede { margin: 0 0 1.5rem; max-width: 42rem; color: var(--muted); }
+
+/* A case: what it tries, the cells it tries it on, and how its checks went.
+   Its left edge takes the colour of its checks. */
+.case {
+  position: relative;
+  margin: 0 0 1.1rem;
+  padding: 0.85rem 1rem 0.9rem 1.15rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  isolation: isolate; /* keeps the cells' buttons under the header */
+  scroll-margin-top: 8.5rem; /* clear of the sticky header */
+}
+.case::before {
+  content: "";
+  position: absolute;
+  left: -1px; top: -1px; bottom: -1px;
+  width: 4px;
+  border-radius: 6px 0 0 6px;
+  background: var(--rule);
+}
+.case[data-state="pass"]::before { background: var(--pass); }
+.case[data-state="fail"]::before { background: var(--fail); }
+
+.case h2 {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  margin: 0 0 0.7rem;
+  font-size: 1rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.case-id {
+  flex: none;
+  font-family: var(--mono);
+  font-variation-settings: "MONO" 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--id);
+}
+.case p { margin: 0 0 0.7rem; color: var(--muted); }
+
+.checks {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0 0;
+  border-top: 1px dashed var(--rule);
+  list-style: none;
+  font-family: var(--mono);
+  font-variation-settings: "MONO" 1;
+  font-size: 12.5px;
+}
+.checks::before {
+  content: "Checks";
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* Each check marked as in the strip: a square in its signal colour. */
+.checks li { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.1rem 0; }
+.checks li::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  transform: translateY(0.05em);
+  background: var(--pass);
+}
+.checks li.fail::before { background: var(--fail); }
+.checks li.fail { color: var(--fail); font-weight: 600; }
+.checks:not(:has(li))::after {
+  content: "waiting";
+  color: var(--wait);
+}
+
+/* Checks that are about the page as a whole. */
+.case.page-checks { background: transparent; }
+.case.page-checks h2 { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .strip li, .strip li.running { animation: none; }
+}
+
+@media (max-width: 40rem) {
+  .bench h1 { font-size: 1.35rem; }
+  .case { padding: 0.75rem 0.7rem 0.8rem 0.9rem; }
+}

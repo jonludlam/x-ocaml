@@ -1,0 +1,14 @@
+; The two halves of widgets, side by side: a page's script tag names the
+; worker, and the worker has the page load its page half from beside it.
+
+(rule
+ (mode promote)
+ (target x-ocaml-widgets.worker.js)
+ (action
+  (copy %{dep:worker/x_worker.bc.js} %{target})))
+
+(rule
+ (mode promote)
+ (target x-ocaml-widgets.js)
+ (action
+  (copy %{dep:page/x_ocaml_widgets.bc.js} %{target})))

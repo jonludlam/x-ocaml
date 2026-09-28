@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Theming</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body.dark { background: #1e1f22; color: #ddd; }
+    body.dark a { color: #8ab4f8; }
+    /* The cells read these through their shadow DOM. */
+    body.dark x-ocaml {
+      --xo-bg: #2b2d31;
+      --xo-text: #e6e6e6;
+      --xo-gutter-bg: #232428;
+      --xo-gutter-text: #7a7c80;
+      --xo-gutter-border: #3a3c40;
+      --xo-active-line-focused: #ffffff10;
+      --xo-selection: #4a6da755;
+      --xo-selection-focused: #4a6da788;
+      --xo-meta-bg: #25262a;
+      --xo-meta-text: #b8bcc4;
+      --xo-stdout-bg: #1f2d3a;
+      --xo-stdout-text: #a8d1ff;
+      --xo-stderr-bg: #3a2222;
+      --xo-stderr-text: #ff8a8a;
+      --xo-tooltip-bg: #2b2d31;
+      --xo-tooltip-text: #e6e6e6;
+      --xo-tooltip-border: #3a3c40;
+      --xo-btn-icon: #9aa0a6;
+      --xo-exercise-border: #66bb6a;
+      --xo-syntax-keyword: #c792ea;
+      --xo-syntax-string: #c3e88d;
+      --xo-syntax-literal: #f78c6c;
+      --xo-syntax-atom: #82aaff;
+      --xo-syntax-type: #ffcb6b;
+      --xo-syntax-comment: #7f8591;
+      --xo-syntax-definition: #82aaff;
+    }
+    x-ocaml.big { --xo-font-size: 1.25em; --xo-font: "Courier New", monospace; }
+  </style>
+</head>
+<body class="dark">
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Theming</h1>
+  <p><button id="toggle">Switch to light</button></p>
+
+  <p>The cells take their colours and some sizes from CSS custom properties
+    (<code>--xo-bg</code>, <code>--xo-text</code>, <code>--xo-stdout-bg</code>
+    and others), which reach into their shadow DOM. This page sets them on
+    <code>body.dark x-ocaml</code>, syntax colours
+    (<code>--xo-syntax-keyword</code>, <code>--xo-syntax-string</code>, ...)
+    included.</p>
+
+  <x-ocaml>let colours = ["red"; "green"; "blue"]
+let () = List.iter print_endline colours</x-ocaml>
+  <x-ocaml data-expect="error">let oops : int = "a string"</x-ocaml>
+  <x-ocaml mode="exercise">(* a comment *)
+let theme = "dark" and answer = 42 and yes = true</x-ocaml>
+
+  <p>One cell with a bigger font of its own:</p>
+  <x-ocaml class="big">let big = true</x-ocaml>
+
+  <script>
+    document.getElementById('toggle').onclick = (e) => {
+      const dark = document.body.classList.toggle('dark');
+      e.target.textContent = dark ? 'Switch to light' : 'Switch to dark';
+    };
+  </script>
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"></script>
+</body>
+</html>

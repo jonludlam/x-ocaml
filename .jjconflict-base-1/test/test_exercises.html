@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: saved exercises</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+  <script>
+    // A reader's earlier version of "kept"; none of "fresh".
+    const key = (id) => 'xo:' + location.pathname + ':' + id;
+    localStorage.setItem(key('kept'), 'let edited = 2');
+  </script>
+</head>
+<body>
+<main>
+  <p class="lede">An exercise with a data-id keeps what the reader wrote in
+    local storage, shows it again next time, and offers a way back to the
+    original.</p>
+
+  <section class="case" data-case="S1">
+    <h2>An exercise with a kept version</h2>
+    <p>Before the page loaded, storage held <code>let edited = 2</code> for it.</p>
+    <x-ocaml id="kept" mode="exercise" data-id="kept">let original = 1</x-ocaml>
+  </section>
+
+  <section class="case" data-case="S2">
+    <h2>An exercise with none, edited here</h2>
+    <x-ocaml id="fresh" mode="exercise" data-id="fresh">let fresh = 1</x-ocaml>
+  </section>
+
+  <section class="case" data-case="S3">
+    <h2>Reset, on S1's exercise</h2>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    const resetShown = (id) => {
+      const b = shadow(id).querySelector('.reset_exercise_btn');
+      return b !== null && b.style.display !== 'none';
+    };
+
+    async function run() {
+      await waitFor(() => output('fresh').includes('val fresh'), 30000);
+
+      check('S1: the kept version replaces the original', code('kept') === 'let edited = 2');
+      check('S1: and it is the one that runs', output('kept').includes('val edited : int = 2'));
+      check('S1: Reset shows when a version is kept', resetShown('kept'));
+      check('S2: but not when none is', !resetShown('fresh'));
+
+      type('fresh', '(* typed *) ');
+      await sleep(800);
+      check('S2: an edit is kept', localStorage.getItem(key('fresh')) === '(* typed *) let fresh = 1');
+      check('S2: and Reset then shows', resetShown('fresh'));
+
+      shadow('kept').querySelector('.reset_exercise_btn').click();
+      await sleep(300);
+      check('S3: Reset brings back the original', code('kept') === 'let original = 1');
+      check('S3: and forgets the kept version', localStorage.getItem(key('kept')) === null);
+      check('S3: and hides itself', !resetShown('kept'));
+
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+:host { display: block; position: relative; font-family: var(--xo-font, monospace); font-size: var(--xo-font-size, 1em); margin-bottom: var(--xo-margin-bottom, 0.75em) }
+:host([mode="exercise"]) .cm-editor { border-left: 3px solid var(--xo-exercise-border, #4CAF50); }
+:host([mode="exercise"]) .cm-gutters { border-left: none !important; }
+.cm-editor { background: var(--xo-bg, transparent); color: var(--xo-text, inherit); }
+.cm-editor.cm-focused { outline: 1px dotted var(--xo-focus-outline, #AAA) !important }
+.cm-gutters { background: var(--xo-gutter-bg, inherit) !important; color: var(--xo-gutter-text, #6c6c6c) !important; border-right: 1px solid var(--xo-gutter-border, #ddd) !important; }
+.cm-cursor { border-left-color: var(--xo-text, currentColor) !important; }
+.cm-selectionBackground { background: var(--xo-selection, #AAA4) !important; }
+.cm-focused .cm-selectionBackground { background: var(--xo-selection-focused, #AAA6) !important; }
+.cm-tooltip { background: var(--xo-tooltip-bg, #fff) !important; color: var(--xo-tooltip-text, #333) !important; border: 1px solid var(--xo-tooltip-border, #ddd) !important; }
+.cm-tooltip-section {
+  max-width: 400px;
+  height: 1lh;
+  text-overflow: ellipsis; /* not working, because width/height must be px(?) */
+  padding: 0.3em 0.5em;
+  overflow: hidden;
+  color: var(--xo-tooltip-text, #333);
+}
+.cm-lineNumbers { min-width: var(--xo-line-numbers-min-width, 30px) }
+.cm-lineNumbers .cm-gutterElement { padding: var(--xo-gutter-element-padding, 0 3px 0 5px) !important; }
+.cm-content { padding-left: var(--xo-content-padding-left, 0) !important; }
+.cm-activeLine, .cm-activeLineGutter { background: var(--xo-active-line, transparent) !important }
+.cm-focused .cm-activeLine,
+.cm-focused .cm-activeLineGutter
+{
+  background: var(--xo-active-line-focused, #AAA2) !important;
+}
+
+.run_btn {
+  position: absolute; width: 100%; height: 100%; z-index: 999; pointer-events: none;
+}
+.run_btn button {
+  pointer-events: auto;
+  position: absolute; right: 2px; top: 2px;
+  width: 28px; height: 28px;
+  padding: 0; margin: 0;
+  border: 2.5px solid transparent;
+  border-radius: 50%;
+  background-color: var(--xo-btn-icon, currentColor);
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+  box-sizing: border-box;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='white'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='white'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.run_btn button::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 53%;
+  transform: translate(-50%, -50%);
+  width: 0; height: 0;
+  border-style: solid;
+  border-width: 5px 0 5px 8.5px;
+  border-color: transparent transparent transparent var(--xo-btn-play, white);
+}
+.run_btn button:hover { opacity: 0.8; }
+
+/* Running state: spinning arc with stop square */
+.run_btn button.running {
+  background-color: transparent;
+  -webkit-mask: none;
+  mask: none;
+  border-color: var(--xo-btn-spinner-track, rgba(128,128,128,0.15));
+  border-top-color: var(--xo-btn-spinner, #E53935);
+  opacity: 1;
+  animation: xo-spin 0.8s linear infinite;
+}
+.run_btn button.running::after {
+  width: 8px; height: 8px;
+  border: none;
+  left: 50%;
+  background: var(--xo-btn-spinner, #E53935);
+  border-radius: 1px;
+}
+.run_btn button.running:hover { opacity: 0.7; }
+@keyframes xo-spin { to { transform: rotate(360deg); } }
+
+.test-details { position: relative }
+.test-details summary {
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--xo-test-summary-text, #666);
+  padding: 0.3em 0.5em;
+  user-select: none;
+}
+.test-details summary:hover { color: var(--xo-test-summary-hover, #333); }
+.test-indicator { font-weight: bold; margin-left: 0.2em; }
+.test-indicator.test-pass { color: var(--xo-test-pass, #4CAF50); }
+.test-indicator.test-fail { color: var(--xo-test-fail, #E53935); }
+.test-indicator.test-error { color: var(--xo-test-error, #FF9800); }
+
+.caml_stdout {
+  background: var(--xo-stdout-bg, #E8F6FF);
+  color: var(--xo-stdout-text, #141A6A);
+  margin: 0;
+  padding: 0.2em 0.2em;
+  padding-left: 0.7em;
+}
+.caml_stderr {
+  background: var(--xo-stderr-bg, #FDEEEE);
+  color: var(--xo-stderr-text, #EB5656);
+  margin: 0;
+  padding: 0.2em 0.2em;
+  padding-left: 0.7em;
+}
+.caml_meta {
+  margin: 0;
+  padding: 0.2em 0.5em;
+  font-style: italic;
+  color: var(--xo-meta-text, #444);
+  padding-bottom: 0.5em;
+  background: var(--xo-meta-bg, #eee);
+}
+.caml_html {
+  margin: 0;
+  padding: 0.2em 0.5em;
+  color: var(--xo-text, black);
+  border: 1px solid transparent;
+  white-space: collapse;
+}
+
+.reset_btn_wrap {
+  position: absolute; right: 32px; top: 2px; z-index: 999;
+  pointer-events: none;
+}
+.reset_exercise_btn {
+  pointer-events: auto;
+  cursor: pointer;
+  width: 28px; height: 28px;
+  padding: 0; margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--xo-reset-btn-text, #888);
+  font-size: 18px; line-height: 28px;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+.reset_exercise_btn:hover {
+  opacity: 1;
+  background: var(--xo-reset-btn-hover-bg, rgba(0,0,0,0.08));
+  color: var(--xo-reset-btn-hover-text, #333);
+}
+
+table, tr, td, th {
+  border: 1px solid var(--xo-text, black);
+  border-collapse: collapse;
+  padding: 0.2em;
+}
+
+/* Syntax colours: CodeMirror's defaults, each a --xo-syntax-* variable. */
+.xo-keyword { color: var(--xo-syntax-keyword, #708); }
+.xo-atom { color: var(--xo-syntax-atom, #219); }
+.xo-literal { color: var(--xo-syntax-literal, #164); }
+.xo-string { color: var(--xo-syntax-string, #a11); }
+.xo-escape { color: var(--xo-syntax-escape, #e40); }
+.xo-definition { color: var(--xo-syntax-definition, #00f); }
+.xo-local { color: var(--xo-syntax-local, #30a); }
+.xo-type { color: var(--xo-syntax-type, #085); }
+.xo-class { color: var(--xo-syntax-class, #167); }
+.xo-special { color: var(--xo-syntax-special, #256); }
+.xo-property { color: var(--xo-syntax-property, #00c); }
+.xo-comment { color: var(--xo-syntax-comment, #940); }
+.xo-meta { color: var(--xo-syntax-meta, #404740); }
+.xo-invalid { color: var(--xo-syntax-invalid, #f00); }

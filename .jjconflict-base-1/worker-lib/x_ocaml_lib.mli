@@ -1,0 +1,66 @@
+(** What code running in a cell can do on the page besides print.
+
+    Libraries build on this to put things on the page that the reader can
+    use: the page halves of such libraries are custom elements, and a cell
+    shows one as a {e display}. *)
+
+val output_html : string -> unit
+(** Show HTML under the phrase being run, with its other output, and fixed;
+    for HTML that changes, or calls back, see {!html}. *)
+
+(** {1 Displays}
+
+    A display is an element on the page, shown in a box after the cell whose
+    code made it (or whose callback did), until the cell runs again or the
+    toplevel restarts. Its tag names a custom element, which receives [data]
+    through its [data] property, now and at each {!update}: data for an
+    element not yet defined waits until it is, so a library can load its
+    element's script after it first shows one. doc/displays.md says how to
+    write such an element. *)
+
+type display
+
+val display : ?on_remove:(unit -> unit) -> tag:string -> string -> display
+(** [display ~tag data] shows [<tag>] with [data]. [on_remove] is called when
+    the display goes because its cell runs again. *)
+
+val update : display -> string -> unit
+(** New data for the display, if it is still shown. Data sent while the cell
+    is still running is shown as it arrives: a long computation can show
+    its progress. *)
+
+val html : ?on_remove:(unit -> unit) -> string -> display
+(** A display of HTML, which {!update} replaces. Unlike {!output_html}, it is
+    shown after the cell, not under its phrase. Elements in it with a
+    [data-callback] attribute naming a {!callback} token call it: an input
+    with its value (["true"] or ["false"] for a checkbox) as it changes,
+    anything else when clicked, with its [data-payload] attribute.
+
+    Each update replaces the HTML, and with it an input the reader is
+    using: keep controls in a display of their own, which is not updated. *)
+
+val remove : display -> unit
+
+val live : display -> bool
+(** Whether the display is still shown. *)
+
+(** {1 Callbacks} *)
+
+val callback : (string -> unit) -> int
+(** [callback f] is a token for [f], which an element on the page calls by
+    dispatching an [x-ocaml-callback] event with [detail]
+    [{ token; payload }]: [f payload] runs as part of the cell that registered
+    it, and so is forgotten when that cell runs again. *)
+
+(** {1 Elements} *)
+
+val require : tag:string -> src:string -> unit
+(** [require ~tag ~src]: the element [<tag>] is defined by the script at
+    [src], relative to the worker's own URL. The page loads it once, unless
+    [<tag>] is already defined. *)
+
+(**/**)
+
+val id : (int * int) ref
+val forget_cell : int -> unit
+val invoke : int -> string -> unit

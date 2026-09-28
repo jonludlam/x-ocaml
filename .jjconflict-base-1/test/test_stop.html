@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: run and stop</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">The run button becomes a stop button while its cell runs.
+    Stopping replaces the toplevel, so every cell starts again from nothing.</p>
+
+  <section class="case" data-case="P1">
+    <h2>A cell that never ends, stopped, and a cell run on the fresh toplevel</h2>
+    <x-ocaml id="first">let x = 1</x-ocaml>
+    <x-ocaml id="loop" run-on="click">let rec forever () = forever () in forever ()</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      await waitFor(() => output('first').includes('val x'), 30000);
+      check('P1: the button starts as Run', button('loop').getAttribute('aria-label') === 'Run');
+
+      button('loop').click();
+      await sleep(1000);
+      check('P1: a running cell shows Stop', button('loop').getAttribute('aria-label') === 'Stop'
+        && button('loop').classList.contains('running'));
+
+      button('loop').click();
+      await sleep(300);
+      check('P1: stopping shows Run again', button('loop').getAttribute('aria-label') === 'Run'
+        && !button('loop').classList.contains('running'));
+      check('P1: and clears every cell', output('first') === '');
+
+      button('first').click();
+      check('P1: a fresh toplevel runs cells again',
+        await waitFor(() => output('first').includes('val x : int = 1'), 20000));
+
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>

@@ -39,7 +39,9 @@ let create ~worker ~worker_url ?extra_style ?inline_style
         Setup
         :: Option.to_list
              (Option.map (fun c -> X_protocol.Format_config c) format_config);
-      displays = Displays.create ~post:(Client.post worker) ~worker_url ();
+      displays =
+        Displays.create ~post:(Client.post worker)
+          ~transfer:(Client.transfer worker) ~worker_url ();
     }
   in
   Client.on_message worker (route t);

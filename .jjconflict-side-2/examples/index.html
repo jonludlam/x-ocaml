@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml examples</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>x-ocaml examples</h1>
+  <p>Each page shows one side of x-ocaml. Build with <code>dune build</code>
+    at the root of the repository, then serve the repository's root
+    directory, for example with <code>python3 -m http.server</code>, and
+    open <code>/examples/</code>.</p>
+  <ul>
+    <li><a href="tutorial.html">A short tutorial</a>: prose, a hidden helper,
+      exercises the reader writes, tests that check them, and the reader's
+      work kept across reloads.</li>
+    <li><a href="running.html">Running and stopping</a>: long computations,
+      one that never ends, and the Stop button.</li>
+    <li><a href="on_click.html">Nothing runs until asked</a>:
+      <code>run-on="click"</code>, and a different element name.</li>
+    <li><a href="theming.html">Theming</a>: a dark theme through the
+      <code>--xo-*</code> variables.</li>
+    <li><a href="text.html">Text of all sorts</a>: accents, emoji and
+      other scripts, in code and in output.</li>
+    <li><a href="displays.html">Displays</a>: elements a cell puts on the
+      page that change as it computes and call it back, with
+      <code>X_ocaml_lib</code> alone: a live estimate, controls with no
+      JavaScript, a canvas, KaTeX, Mermaid and sound.</li>
+    <li><a href="offscreen.html">Drawing from the worker</a>: a canvas the
+      cell's code draws on directly, at the worker's animation frames.</li>
+    <li><a href="widgets.html">Widgets</a>: cells that draw controls and
+      pictures and hear the reader's clicks and typing, on the worker with
+      widgets built in <code>widgets/</code>.</li>
+    <li><a href="ui.html">A widget toolkit</a>: <code>Ui</code>, the
+      library in <code>widgets/ui/</code>: sliders, pickers, tabs, tables,
+      plots, timers and <code>interact</code>, in the manner of ipywidgets.</li>
+    <li><a href="ui-demos.html">Things made with widgets</a>: the Game of
+      Life, the Mandelbrot set, a curve fitter, Snake, a kaleidoscope and a
+      harmonograph.</li>
+  </ul>
+</body>
+</html>

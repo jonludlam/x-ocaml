@@ -47,6 +47,21 @@ let make ?extra_load url =
 let on_message t fn = t.handler <- fn
 let post t msg = Worker.post t.worker (X_protocol.req_to_bytes msg)
 
+(* A callback that hands the worker a JS value, which is transferred, not
+   marshalled: see worker/x_worker.ml. *)
+let transfer t ~token ~payload value =
+  let msg =
+    Jv.obj
+      [|
+        ("xOcamlTransfer", Jv.of_int token);
+        ("payload", Jv.of_string payload);
+        ("value", value);
+      |]
+  in
+  Worker.post
+    ~opts:(Brr_io.Message.opts ~transfer:[ Brr_io.Message.transfer value ] ())
+    t.worker msg
+
 let restart t =
   Worker.terminate t.worker;
   t.worker <- Worker.create t.script;

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: storage full</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+  <script>
+    Storage.prototype.setItem = function () {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    };
+  </script>
+</head>
+<body>
+<main>
+  <p class="lede">Every write to local storage fails, as when it is full.</p>
+
+  <section class="case" data-case="F1">
+    <h2>An exercise, edited</h2>
+    <x-ocaml id="ex" mode="exercise" data-id="full">let ex = 1</x-ocaml>
+  </section>
+
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    async function run() {
+      await waitFor(() => output('ex').includes('val ex'), 30000);
+      type('ex', '(* x *) ');
+      await sleep(600);
+      check('F1: a full storage does not break editing', code('ex') === '(* x *) let ex = 1');
+      check('F1: and Reset stays hidden, since nothing was kept',
+        shadow('ex').querySelector('.reset_exercise_btn').style.display === 'none');
+      noPageErrors();
+      window.testResults.done = true;
+    }
+    run();
+  </script>
+</body>
+</html>
