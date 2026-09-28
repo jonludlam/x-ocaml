@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: module aliases</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <p>A module alias has no value at run time; the cells after it must still
+    run, and see it.</p>
+  <x-ocaml id="lib">module H = List</x-ocaml>
+  <x-ocaml id="use">let n = H.length [ 1; 2; 3 ]</x-ocaml>
+  <x-ocaml id="local">module A = struct let v = 1 end
+module B = A
+let w = B.v</x-ocaml>
+  <x-ocaml id="after">let after = 1</x-ocaml>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    (async () => {
+      check('an alias to a library module is printed',
+        await waitFor(() => output('lib').includes('module H = List'), 30000));
+      check('the next cell runs, and sees the alias',
+        await waitFor(() => output('use').includes('val n : int = 3'), 10000));
+      check('an alias to a module of the page works',
+        await waitFor(() => output('local').includes('module B = A') &&
+                            output('local').includes('val w : int = 1'), 10000));
+      check('the cells after them run',
+        await waitFor(() => output('after').includes('val after : int = 1'), 10000));
+      done();
+    })();
+  </script>
+</body>
+</html>
