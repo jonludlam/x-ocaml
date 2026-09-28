@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Braids</title>
+  <style>
+    :root { color-scheme: light dark; --ink: #222; --muted: #666; --paper: #fdfcf9; --code: #f0eee8; --rule: #d8d4ca; }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #e6e3dc; --muted: #a09c93; --paper: #1b1b1d; --code: #2b2b2f; --rule: #3a3a3f; }
+    }
+    body { font-family: Georgia, 'Iowan Old Style', serif; font-size: 1.08rem; line-height: 1.6;
+      max-width: 46rem; margin: 2.5rem auto 5rem; padding: 0 1rem; color: var(--ink); background: var(--paper); }
+    h1 { font-weight: 400; font-size: 2.4rem; margin-bottom: 0.2rem; }
+    h1 + p { color: var(--muted); margin-top: 0; font-style: italic; }
+    h2 { font-weight: 400; font-size: 1.45rem; margin-top: 2.8rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.2rem; }
+    code { font-family: ui-monospace, Menlo, monospace; font-size: 0.88em; background: var(--code); padding: 0 0.25em; border-radius: 3px; }
+    /* The cells keep x-ocaml's own light look, as cards, whatever the page's theme. */
+    x-ocaml { font-size: 0.82rem; margin: 0.9rem 0 1.3rem; background: #fff; color: #222; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+    .note { border-left: 3px solid var(--rule); padding-left: 0.8rem; color: var(--muted); font-size: 0.95em; }
+    details { margin: 1rem 0; }
+    summary { cursor: pointer; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>Braids</h1>
+  <p>Words of crossings, and the pictures that make sense of them.</p>
+
+  <p>Take a few strands side by side, hanging from a bar, and cross
+    neighbouring ones over each other as you go down: that is a braid.
+    Write down only the crossings, in order from the top, and you have a
+    word. Number the places 1, 2, 3, … from the left: <b>σ<sub>i</sub></b>
+    says that the strand in place <i>i</i> crosses <em>over</em> its
+    neighbour in place <i>i</i>+1, and <b>σ<sub>i</sub><sup>−1</sup></b>
+    that it passes <em>under</em> it. So <code>[1; 2; -1; 3]</code> is
+    σ<sub>1</sub>σ<sub>2</sub>σ<sub>1</sub><sup>−1</sup>σ<sub>3</sub>
+    on four strands.</p>
+
+  <p>As a list of numbers that says very little. Drawn, it says a lot. The
+    cells on this page are OCaml, run in your browser: the first few define
+    braids and draw them, and from then on every braid a cell computes is
+    shown as a picture under the line that computed it. You can change any
+    cell and run it again.</p>
+
+  <h2>A small braid library</h2>
+
+  <p>A braid is its number of strands and its word. <code>sigma i</code> is
+    one crossing, <code>a ** b</code> is <code>a</code> with <code>b</code>
+    hung below it, and <code>inverse b</code> undoes <code>b</code>.</p>
+
+  <x-ocaml id="braid">(* A braid on [strands] strands is a word of crossings, read from the
+   top down: [i] is sigma_i, where the strand in place i crosses over
+   the strand in place i+1, and [-i] is its inverse, where it passes
+   under. *)
+type braid = { strands : int; word : int list }
+
+let sigma i = { strands = i + 1; word = [ i ] }
+let identity n = { strands = n; word = [] }
+
+(* [a ** b] is a, then b below it. *)
+let ( ** ) a b = { strands = max a.strands b.strands; word = a.word @ b.word }
+
+(* Undo the crossings, last first: the mirror image, top to bottom. *)
+let inverse b = { b with word = List.rev_map (fun c -&gt; -c) b.word }
+
+let rec power b k =
+  if k = 0 then identity b.strands
+  else if k &lt; 0 then power (inverse b) (-k)
+  else b ** power b (k - 1)</x-ocaml>
+
+  <p>To draw a braid, we follow its strands down. Each strand is named by
+    the place it starts in, and a crossing swaps the two strands it
+    involves. At the bottom, each strand has ended up somewhere: that is the
+    braid's <em>permutation</em>.</p>
+
+  <x-ocaml id="follow">(* Follow the strands down. Name each strand by the place it starts in;
+   [places] lists the strand in each place. A crossing [i] or [-i] swaps
+   the strands in places i and i+1. *)
+let start n = List.init n (fun p -&gt; p + 1)
+
+let swap c places =
+  let i = abs c in
+  List.mapi
+    (fun p s -&gt;
+      if p = i - 1 then List.nth places i
+      else if p = i then List.nth places (i - 1)
+      else s)
+    places
+
+let finish b = List.fold_left (fun ps c -&gt; swap c ps) (start b.strands) b.word
+
+(* [permutation b] lists, for strands 1, 2, ..., n, the place each ends in. *)
+let rec place_of s = function
+  | [] -&gt; 0
+  | t :: ts -&gt; if t = s then 1 else 1 + place_of s ts
+
+let permutation b = List.map (fun s -&gt; place_of s (finish b)) (start b.strands)</x-ocaml>
+
+  <p>The rest is drawing. Each crossing is one row: two curves, and the
+    one that passes under is cut short around the middle, so that you see
+    it go behind. Each strand keeps the colour of the place it started in,
+    marked by a dot at the top.</p>
+
+  <details>
+    <summary>The drawing code: text, curves, and SVG</summary>
+    <x-ocaml id="text">(* The braid as text: runs of one crossing are written as powers, so
+   [[1; 1; 1; -2]] is sigma_1 cubed, then sigma_2 inverse. The glyphs
+   are given by their Unicode code points, to keep this cell ASCII. *)
+let glyph code =
+  let b = Buffer.create 4 in
+  Buffer.add_utf_8_uchar b (Uchar.of_int code);
+  Buffer.contents b
+
+let digits glyph_of n =
+  String.to_seq (string_of_int n)
+  |&gt; Seq.map (fun d -&gt; glyph (glyph_of (Char.code d - Char.code '0')))
+  |&gt; List.of_seq |&gt; String.concat ""
+
+(* Subscript digits are U+2080 to U+2089; superscript 1, 2 and 3 are
+   older, at U+00B9, U+00B2 and U+00B3. *)
+let sub = digits (fun d -&gt; 0x2080 + d)
+let sup = digits (fun d -&gt; if d = 1 then 0xB9 else if d = 2 || d = 3 then 0xB0 + d else 0x2070 + d)
+let sigma_glyph = glyph 0x3C3 and minus = glyph 0x207B
+
+let letter (c, k) =
+  let e = if c &gt; 0 then k else -k in
+  let power = if e = 1 then "" else if e &gt; 0 then sup e else minus ^ sup (-e) in
+  sigma_glyph ^ sub (abs c) ^ power
+
+let rec runs = function
+  | [] -&gt; []
+  | c :: rest -&gt; (
+      match runs rest with
+      | (c', k) :: more when c' = c -&gt; (c, k + 1) :: more
+      | more -&gt; (c, 1) :: more)
+
+let word_string b = String.concat "" (List.map letter (runs b.word))
+
+let to_string b =
+  if b.word = [] then Printf.sprintf "no crossings, %d strands" b.strands
+  else Printf.sprintf "%s, %d strands" (word_string b) b.strands</x-ocaml>
+    <x-ocaml id="geometry">(* The drawing: strand places are [gap] apart, each crossing a row
+   [row] tall. A crossing is two cubic curves; the one passing under is
+   cut short around the middle, so the gap shows whatever is behind. *)
+let gap = 30.
+let row = 32.
+let margin = 12.
+let x_of place = margin +. (gap *. float (place - 1))
+
+let colours =
+  [ "#e15759"; "#4e79a7"; "#59a14f"; "#f28e2b"; "#b07aa1"; "#76b7b2"; "#edc948"; "#9c755f" ]
+
+let colour s = List.nth colours ((s - 1) mod List.length colours)
+
+let pt (x, y) = Printf.sprintf "%.1f %.1f" x y
+
+let line s (x0, y0) (x1, y1) =
+  Printf.sprintf "&lt;path d='M%s L%s' stroke='%s'/&gt;" (pt (x0, y0)) (pt (x1, y1)) (colour s)
+
+let cubic s (p0, p1, p2, p3) =
+  Printf.sprintf "&lt;path d='M%s C%s %s %s' stroke='%s'/&gt;" (pt p0) (pt p1) (pt p2) (pt p3) (colour s)</x-ocaml>
+    <x-ocaml id="curves">(* A strand going from place [a] to place [b] in the row at height [y]. *)
+let s_curve a b y =
+  let x0 = x_of a and x1 = x_of b and m = y +. (row /. 2.) in
+  ((x0, y), (x0, m), (x1, m), (x1, y +. row))
+
+(* The part of a cubic from [t] on, and up to [t]: de Casteljau. *)
+let mix (x0, y0) (x1, y1) t = (x0 +. (t *. (x1 -. x0)), y0 +. (t *. (y1 -. y0)))
+
+let split (p0, p1, p2, p3) t =
+  let a = mix p0 p1 t and b = mix p1 p2 t and c = mix p2 p3 t in
+  let d = mix a b t and e = mix b c t in
+  let m = mix d e t in
+  ((p0, a, d, m), (m, e, c, p3))
+
+(* The under strand, with a gap between [0.36] and [0.64] of the way. *)
+let under s q =
+  let first, rest = split q 0.36 in
+  let _, last = split rest (0.28 /. 0.64) in
+  cubic s first ^ cubic s last</x-ocaml>
+    <x-ocaml id="rows">(* One row: the crossing [c] and, beside it, straight strands. *)
+let straight y p s = line s (x_of p, y) (x_of p, y +. row)
+
+let crossing y c places =
+  let i = abs c in
+  let a = List.nth places (i - 1) and b = List.nth places i in
+  let right = s_curve i (i + 1) y and left = s_curve (i + 1) i y in
+  if c &gt; 0 then under b left ^ cubic a right else under a right ^ cubic b left
+
+let draw_row y c places =
+  let others = List.mapi (fun p s -&gt; if p + 1 = abs c || p = abs c then "" else straight y (p + 1) s) places in
+  String.concat "" others ^ crossing y c places
+
+(* All the rows from height [y] down; returns the drawing and the strands'
+   places at the bottom. *)
+let rec draw_rows y places = function
+  | [] -&gt; ("", places)
+  | c :: rest -&gt;
+      let drawn, bottom = draw_rows (y +. row) (swap c places) rest in
+      (draw_row y c places ^ drawn, bottom)</x-ocaml>
+  </details>
+
+  <p>Last, <code>pp</code> is a <em>printer</em> for braids: it gives the
+    page the drawing, with <code>X_ocaml_lib.output_html</code>, and the
+    toplevel a line of text. <code>#install_printer</code> tells the
+    toplevel to use it for every braid it shows.</p>
+
+  <x-ocaml id="svg">let svg ~width ~height body =
+  Printf.sprintf
+    "&lt;svg xmlns='http://www.w3.org/2000/svg' width='%.0f' height='%.0f' viewBox='0 0 %.0f %.0f' fill='none' stroke-width='4.5' stroke-linecap='round'&gt;%s&lt;/svg&gt;"
+    width height width height body
+
+let dot s (x, y) = Printf.sprintf "&lt;circle cx='%.1f' cy='%.1f' r='4.5' fill='%s'/&gt;" x y (colour s)
+
+(* The braid, with a dot where each strand starts, and a short lead
+   above and below (a longer one if there are no crossings). *)
+let lead b = if b.word = [] then row else 6.
+
+let draw b =
+  let top = margin +. 6. and n = b.strands in
+  let rows, bottom = draw_rows top (start n) b.word in
+  let y = top +. (row *. float (List.length b.word)) in
+  let tail p s = line s (x_of (p + 1), y) (x_of (p + 1), y +. lead b) in
+  let head s = line s (x_of s, margin) (x_of s, top) ^ dot s (x_of s, margin) in
+  let body = String.concat "" (List.map head (start n)) ^ rows ^ String.concat "" (List.mapi tail bottom) in
+  svg ~width:(x_of n +. margin) ~height:(y +. lead b +. margin) body
+
+let pp ppf b =
+  X_ocaml_lib.output_html (draw b);
+  Format.pp_print_string ppf (to_string b)</x-ocaml>
+
+  <x-ocaml id="install">#install_printer pp</x-ocaml>
+
+  <h2>One crossing, then more</h2>
+
+  <p>Here is σ<sub>1</sub>: the red strand crosses over the blue one. Its
+    inverse is the same crossing the other way: red goes under.</p>
+
+  <x-ocaml id="one">let over = sigma 1
+let under = inverse (sigma 1)</x-ocaml>
+
+  <p>Composing braids hangs one below the other. The inverse of a braid
+    undoes its crossings, last first: it is its mirror image, top to
+    bottom.</p>
+
+  <x-ocaml id="compose">let b = sigma 1 ** sigma 2 ** inverse (sigma 1) ** sigma 3
+let b' = inverse b</x-ocaml>
+
+  <h2>Pulling it apart</h2>
+
+  <p>A braid followed by its inverse looks like a tangle. But each crossing
+    in the middle meets its own undoing: pull the strands tight and they
+    come apart, one pair of crossings after another, until they hang
+    straight. Cancelling σ<sub>i</sub>σ<sub>i</sub><sup>−1</sup> wherever
+    they meet is <em>free reduction</em>, and it does the same to the word.</p>
+
+  <x-ocaml id="tangle">let tangle = b ** inverse b</x-ocaml>
+
+  <x-ocaml id="reduce">(* Free reduction: a crossing followed at once by its inverse cancels.
+   The stack holds what is left so far, last crossing on top. *)
+let reduce b =
+  let step stack c =
+    match stack with d :: rest when d = -c -&gt; rest | _ -&gt; c :: stack
+  in
+  { b with word = List.rev (List.fold_left step [] b.word) }
+
+let pulled = reduce tangle</x-ocaml>
+
+  <h2>Two words, one braid</h2>
+
+  <p>Different words can be the same braid. Follow each strand down in
+    these two: red goes from the left to the right, green from the right to
+    the left, blue stays in the middle, and in both, red passes over blue
+    and green, and blue over green. Slide the middle crossing of one to the
+    side and you have the other. This is the <em>braid relation</em>,
+    σ<sub>1</sub>σ<sub>2</sub>σ<sub>1</sub> =
+    σ<sub>2</sub>σ<sub>1</sub>σ<sub>2</sub>.</p>
+
+  <x-ocaml id="relation">let left = sigma 1 ** sigma 2 ** sigma 1
+let right = sigma 2 ** sigma 1 ** sigma 2</x-ocaml>
+
+  <p>Crossings far apart, which share no strand, slide past each other:
+    σ<sub>1</sub>σ<sub>3</sub> = σ<sub>3</sub>σ<sub>1</sub>. With
+    cancelling a crossing against its inverse, and putting such a pair in,
+    these two rules are all there is: two words are the same braid when one
+    can be turned into the other with them (Artin, 1925).</p>
+
+  <x-ocaml id="far">let first = sigma 1 ** sigma 3
+let second = sigma 3 ** sigma 1</x-ocaml>
+
+  <p>But turning one word into another by hand is a search, and it may not
+    be clear where to start. Artin found a test that needs none. Think of
+    the strands' lower ends as pegs in a board, and of a braid as a way of
+    moving the pegs around each other: follow the strands down, and each
+    crossing swaps two neighbouring pegs, one passing in front of the
+    other.</p>
+
+  <p>Now put elastic bands on the board, one for each peg: from a nail at
+    the edge, around the peg, and back to the nail. Move the pegs as the
+    braid says, and the bands are dragged along, never cut and never lifted
+    over a peg, so a band that went around one peg can end up winding
+    around several. Write each band down as the pegs it goes around, in
+    order, with a minus for going around one the other way. Two braids are
+    the same exactly when they leave every band the same, once a peg gone
+    around and straight back is crossed out. The cell below does just
+    that: <code>loops</code> writes down where a braid leaves each band,
+    and <code>equal</code> compares them.</p>
+
+  <x-ocaml id="artin">(* Artin's action: a braid moves loops around the strands' feet, and
+   each loop is a word in the free group on x_1 ... x_n, here [j] for
+   x_j and [-j] for its inverse. Two braids are equal exactly when they
+   move every x_j to the same loop (Artin, 1925). *)
+let rec cancel = function
+  | [] -&gt; []
+  | g :: rest -&gt; (
+      match cancel rest with h :: more when h = -g -&gt; more | more -&gt; g :: more)
+
+let invert w = List.rev_map (fun g -&gt; -g) w
+
+(* Where the crossing [c], [i] or [-i], sends the loop x_j. *)
+let image c j =
+  let i = abs c in
+  if c &gt; 0 then (if j = i then [ i; i + 1; -i ] else if j = i + 1 then [ i ] else [ j ])
+  else if j = i then [ i + 1 ]
+  else if j = i + 1 then [ -(i + 1); i; i + 1 ]
+  else [ j ]
+
+let act c w =
+  cancel (List.concat_map (fun g -&gt; if g &gt; 0 then image c g else invert (image c (-g))) w)
+
+let loops b = List.map (fun j -&gt; List.fold_right act b.word [ j ]) (start b.strands)
+
+let equal a b =
+  let n = max a.strands b.strands in
+  loops { a with strands = n } = loops { b with strands = n }</x-ocaml>
+
+  <x-ocaml id="equal">equal left right;;
+equal first second;;
+equal (sigma 1 ** sigma 2) (sigma 2 ** sigma 1);;
+equal tangle (identity 4);;
+equal (sigma 1 ** sigma 2 ** inverse (sigma 1)) (inverse (sigma 2) ** sigma 1 ** sigma 2)</x-ocaml>
+
+  <p class="note">The last pair has no crossing to cancel, and neither word
+    is the other with crossings slid about, yet they are the same braid.
+    Draw them and look.</p>
+
+  <x-ocaml id="look">let lhs = sigma 1 ** sigma 2 ** inverse (sigma 1)
+let rhs = inverse (sigma 2) ** sigma 1 ** sigma 2</x-ocaml>
+
+  <h2>Where the strands go</h2>
+
+  <p>The colours let you follow a strand from its dot to the bottom. A plait,
+    the way hair is braided, takes the left strand over the middle, then the
+    right strand over the new middle, again and again:
+    (σ<sub>1</sub>σ<sub>2</sub><sup>−1</sup>)<sup>6</sup>.</p>
+
+  <x-ocaml id="plait">let plait = power (sigma 1 ** inverse (sigma 2)) 6</x-ocaml>
+
+  <p>Every strand visits every place, and after three plaits each is back
+    where it began: the permutation of one plait sends strand 1 to place 3,
+    2 to 1 and 3 to 2.</p>
+
+  <x-ocaml id="perm">permutation (sigma 1 ** inverse (sigma 2));;
+permutation plait</x-ocaml>
+
+  <h2>Half a turn, and a whole one</h2>
+
+  <p>Hold the top of the strands still and turn the bottom through half a
+    turn, as you would a ribbon: every pair of strands crosses once. That is
+    Garside's <em>half twist</em>, Δ. It reverses the strands.</p>
+
+  <x-ocaml id="delta">(* Garside's half twist, Delta: turn the bottom of the strands through
+   half a turn, like a ribbon. [climb i] is [1; 2; ...; i]; Delta on n
+   strands climbs to n-1, then to n-2, ..., then to 1. *)
+let rec climb i = if i = 0 then identity 1 else climb (i - 1) ** sigma i
+let rec delta n = if n &lt;= 1 then identity n else climb (n - 1) ** delta (n - 1)
+let full_twist n = power (delta n) 2
+
+let half = delta 4</x-ocaml>
+
+  <x-ocaml id="halfperm">permutation half</x-ocaml>
+
+  <p>Turn it another half turn, and every strand is back in its own place.
+    The <em>full twist</em> Δ<sup>2</sup> permutes nothing, yet it is not
+    the braid of straight strands: every strand wraps once around all the
+    others, and no pulling undoes that.</p>
+
+  <x-ocaml id="full">let full = full_twist 4</x-ocaml>
+
+  <x-ocaml id="fullfacts">permutation full;;
+equal full (identity 4)</x-ocaml>
+
+  <p>The half twist turns the braid over: a crossing slid down through it
+    comes out in the mirror place, so Δσ<sub>1</sub> = σ<sub>3</sub>Δ. The
+    full twist turns it over twice, and every braid slides through it
+    untouched: it commutes with everything.</p>
+
+  <x-ocaml id="garside">equal (half ** sigma 1) (sigma 3 ** half);;
+equal (full ** b) (b ** full);;
+equal (half ** b) (b ** half)</x-ocaml>
+
+  <h2>Tie the ends</h2>
+
+  <p>Join the bottom of each strand to the top of its place, round the
+    side, and a braid becomes a knot, or a link of several loops, one for
+    each cycle of its permutation. Every knot is the closure of some braid
+    (Alexander, 1923). Each loop is drawn in one colour.</p>
+
+  <x-ocaml id="closure">(* Close a braid: join the bottom of each strand back round to the top of
+   its place. The result is a knot, or a link of several: one loop for each
+   cycle of the permutation. Colour each loop by its smallest strand. *)
+type closure = Closure of braid
+
+let rec orbit b s p = if p = s then [] else p :: orbit b s (List.nth (permutation b) (p - 1))
+let loop_of b s = List.fold_left min s (orbit b s (List.nth (permutation b) (s - 1)))
+let components b = List.length (List.filter (fun s -&gt; loop_of b s = s) (start b.strands))
+
+(* The loop from place [p] at the bottom [y1] back to the top [y0]:
+   a U round to the right, up, and back over. *)
+let back n y0 y1 p =
+  let x = x_of p and x' = x_of n +. (gap *. float (n - p + 1)) in
+  let k = 0.55 *. (x' -. x) in
+  Printf.sprintf "M%s C%s %s %s L%s C%s %s %s" (pt (x, y1)) (pt (x, y1 +. k)) (pt (x', y1 +. k))
+    (pt (x', y1)) (pt (x', y0)) (pt (x', y0 -. k)) (pt (x, y0 -. k)) (pt (x, y0))
+
+let draw_closure b =
+  let n = b.strands in
+  let k = (0.75 *. 0.55 *. gap *. float (2 * n - 1)) +. margin in
+  let rows, bottom = draw_rows k (List.map (loop_of b) (start n)) b.word in
+  let y1 = k +. (row *. float (List.length b.word)) in
+  let arc p s = Printf.sprintf "&lt;path d='%s' stroke='%s'/&gt;" (back n k y1 p) (colour s) in
+  let arcs = List.mapi (fun p s -&gt; arc (p + 1) s) bottom in
+  svg ~width:(x_of n +. (gap *. float n) +. margin) ~height:(y1 +. k) (rows ^ String.concat "" arcs)
+
+let pp_closure ppf (Closure b) =
+  X_ocaml_lib.output_html (draw_closure b);
+  let c = components b in
+  Format.fprintf ppf "the closure of %s: %s" (word_string b)
+    (if c = 1 then "a knot" else Printf.sprintf "a link of %d loops" c)</x-ocaml>
+
+  <x-ocaml id="install-closure">#install_printer pp_closure</x-ocaml>
+
+  <p>Three crossings of two strands close up into the trefoil, the simplest
+    true knot; two into the Hopf link, two rings through each other. The
+    plait's first two rounds give the figure eight knot.</p>
+
+  <x-ocaml id="knots">let trefoil = Closure (power (sigma 1) 3)
+let hopf = Closure (power (sigma 1) 2)
+let figure_eight = Closure (power (sigma 1 ** inverse (sigma 2)) 2)</x-ocaml>
+
+  <p class="note">Your turn: what is the closure of the full twist on three
+    strands? Of <code>sigma 1 ** sigma 2</code>?</p>
+
+  <x-ocaml id="yours">Closure (full_twist 3)</x-ocaml>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"></script>
+</body>
+</html>
