@@ -33,6 +33,16 @@ let constructor_done = true</x-ocaml>
 let token = X_ocaml_lib.callback (fun p -> X_ocaml_lib.update shown ("got " ^ p))
 let token_text = X_ocaml_lib.string_of_token token</x-ocaml>
 
+  <!-- data-callback values that are not tokens -->
+  <x-ocaml id="html">let () =
+  ignore
+    (X_ocaml_lib.html
+       (Printf.sprintf
+          {|&lt;button data-callback="abc"&gt;letters&lt;/button&gt;
+            &lt;button data-callback=""&gt;empty&lt;/button&gt;
+            &lt;button data-callback="%s.5"&gt;a fraction&lt;/button&gt;
+            &lt;button data-callback="%s" data-payload="html"&gt;a token&lt;/button&gt;|}
+          token_text token_text))</x-ocaml>
   <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
   <script>
     const area = (id) => { const n = document.getElementById(id).nextElementSibling; return n && n.classList.contains('x-ocaml-displays') ? n : null; };
@@ -72,6 +82,14 @@ let token_text = X_ocaml_lib.string_of_token token</x-ocaml>
       check('a missing payload as nothing', (await answer({ token })) === 'got ');
       check('and after all that, a callback still works', (await answer({ token, payload: 'still' })) === 'got still');
 
+      await waitFor(() => area('html') && area('html').querySelectorAll('button').length === 4, 10000);
+      const buttons = [...area('html').querySelectorAll('button')];
+      const before = el.textContent;
+      for (const b of buttons.slice(0, 3)) b.click();
+      await sleep(500);
+      check('in an HTML display, a data-callback that is not a token calls nothing', el.textContent === before);
+      buttons[3].click();
+      check('and one that is still calls back', await waitFor(() => el.textContent === 'got html', 5000));
       check('no errors on the page but the elements\' own',
         window.pageErrors.every((e) => expected.some((x) => e.includes(x))));
       window.testResults.done = true;

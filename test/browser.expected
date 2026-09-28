@@ -24,6 +24,8 @@
   [PASS] a boolean as its JSON
   [PASS] a missing payload as nothing
   [PASS] and after all that, a callback still works
+  [PASS] in an HTML display, a data-callback that is not a token calls nothing
+  [PASS] and one that is still calls back
   [PASS] no errors on the page but the elements' own
 /test_cells.html
   [PASS] a value is printed with its type
@@ -40,6 +42,12 @@
   [PASS] on_remove runs in the worker when its display goes
   [PASS] require loads the element's script, and it shows the display
   [PASS] the script is loaded once
+  [PASS] an HTML display shows markup as markup
+  [PASS] each update shows, not only the last
+  [PASS] a button calls back with its payload
+  [PASS] an input calls back with its value
+  [PASS] a checkbox with whether it is checked
+  [PASS] anything else when clicked
   [PASS] a removed display goes, and an impossible tag is skipped
   [PASS] a callback that raises, or none at all, leaves the worker answering
   [PASS] the callback of a cell's earlier run is forgotten (calling it did nothing)
