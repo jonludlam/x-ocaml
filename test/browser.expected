@@ -6,10 +6,10 @@
   [PASS] no errors on the page
 /test_alias.html
   [PASS] an alias to a library module is printed
-  [FAIL] the next cell runs, and sees the alias
-  [FAIL] an alias to a module of the page works
-  [FAIL] the cells after them run
-  [FAIL] no errors on the page
+  [PASS] the next cell runs, and sees the alias
+  [PASS] an alias to a module of the page works
+  [PASS] the cells after them run
+  [PASS] no errors on the page
 /test_cells.html
   [PASS] a value is printed with its type
   [PASS] what a cell prints is shown

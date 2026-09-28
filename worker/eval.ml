@@ -5,7 +5,7 @@ module Value_env : sig
   type t
 
   val empty : t
-  val capture : t -> Ident.t list -> t
+  val capture : t -> Env.t -> Ident.t list -> t
   val restore : t -> unit
 end = struct
   module String_map = Map.Make (String)
@@ -14,12 +14,22 @@ end = struct
 
   let empty = String_map.empty
 
-  let capture t idents =
+  (* A module alias, such as [module H = List], has no value: the toplevel
+     binds none for it, and [Topeval.getvalue] fails on it. *)
+  let is_alias env ident =
+    match Env.find_module (Path.Pident ident) env with
+    | { Types.md_type = Mty_alias _; _ } -> true
+    | _ -> false
+    | exception Not_found -> false
+
+  let capture t env idents =
     List.fold_left
       (fun t ident ->
-        let name = Translmod.toplevel_name ident in
-        let v = Topeval.getvalue name in
-        String_map.add name v t)
+        if is_alias env ident then t
+        else
+          let name = Translmod.toplevel_name ident in
+          let v = Topeval.getvalue name in
+          String_map.add name v t)
       t idents
 
   let restore t = String_map.iter (fun name v -> Topeval.setvalue name v) t
@@ -45,8 +55,9 @@ module Environment = struct
       match !environments with
       | [] -> invalid_arg "empty environment"
       | (_, previous_env, previous_values) :: _ ->
-          let idents = Env.diff previous_env !Toploop.toplevel_env in
-          Value_env.capture previous_values idents
+          let env = !Toploop.toplevel_env in
+          let idents = Env.diff previous_env env in
+          Value_env.capture previous_values env idents
     in
     environments := (id, !Toploop.toplevel_env, values) :: !environments
 end
