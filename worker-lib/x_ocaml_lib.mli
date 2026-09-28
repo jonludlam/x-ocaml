@@ -1,8 +1,4 @@
-(** What code running in a cell can do on the page besides print.
-
-    Libraries build on this to put things on the page that the reader can
-    use: the page halves of such libraries are custom elements, and a cell
-    shows one as a {e display}. *)
+(** Library for putting rich and/or interactive elements on a page *)
 
 val output_html : string -> unit
 (** Show HTML under the phrase being run, with its other output, and fixed;
@@ -15,12 +11,13 @@ val output_html : string -> unit
     tag names a custom element, which receives [data]
     through its [data] property, now and at each {!update}: data for an
     element not yet defined waits until it is, so a library can load its
-    element's script after it first shows one. *)
+    element's script after it first shows one. {{!page-displays}How displays
+    work} describes how to write such an element. *)
 
 type display
 
 val display : ?on_remove:(unit -> unit) -> tag:string -> string -> display
-(** [display ~tag data] shows [<tag>] with [data]. [on_remove] is called when
+(** [display ~tag data] inserts [<tag>] with [data]. [on_remove] is called when
     the display goes because its cell runs again. *)
 
 val update : display -> string -> unit
@@ -36,8 +33,9 @@ val html : ?on_remove:(unit -> unit) -> string -> display
     checkbox) as it changes, anything else when clicked, with its
     [data-payload] attribute.
 
-    Each update replaces the HTML, and with it an input the reader is
-    using: keep controls in a display of their own, which is not updated. *)
+    Each update replaces the HTML, and with it any input the reader is
+    using: therefore keep controls in a display of their own, which is not
+    updated. *)
 
 val remove : display -> unit
 
