@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the braids example</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <p>The braids example, examples/braids.html, run in a frame: every cell
+    runs, and the drawings its printer gives show what the words say.</p>
+  <iframe id="page" src="/examples/braids.html" style="width: 900px; height: 700px"></iframe>
+  <script>
+    const frame = document.getElementById('page');
+    const cell = (id) => frame.contentDocument.getElementById(id).shadowRoot;
+    const text = (id) => [...cell(id).querySelectorAll('.caml_stdout, .caml_stderr, .caml_meta')]
+      .map((e) => e.textContent).join('\n');
+    // The drawings under the cell, in order.
+    const svgs = (id) => [...cell(id).querySelectorAll('.caml_html svg')];
+    // A crossing is drawn as three cubic curves: the strand over, and the
+    // strand under in two, either side of the gap.
+    const crossings = (svg) => [...svg.querySelectorAll('path')]
+      .filter((p) => p.getAttribute('d').includes('C')).length / 3;
+    const answers = (id) => [...text(id).matchAll(/- : [^=]+ = (.*)/g)].map((m) => m[1]);
+
+    frame.addEventListener('load', async () => {
+      frame.contentWindow.addEventListener('error', (e) => window.pageErrors.push(String(e.message)));
+      const cells = [...frame.contentDocument.querySelectorAll('x-ocaml')];
+      const quiet = ['install', 'install-closure'];
+      const ran = await waitFor(() => cells.every((c) =>
+        quiet.includes(c.id) || (c.shadowRoot && text(c.id) !== '')) && svgs('yours').length === 1, 50000);
+      check('every cell of the example runs', ran);
+      check('and none fails',
+        cells.every((c) => !/Error|Exception/.test(text(c.id)) && !cell(c.id).querySelector('.caml_stderr')));
+      check('a braid is drawn under the phrase that made it, with its word as text',
+        /val over : braid = \S+, 2 strands/.test(text('one')) && svgs('one').length === 2
+        && crossings(svgs('one')[0]) === 1);
+      check('b and its inverse are drawn, with four crossings each',
+        svgs('compose').length === 2 && svgs('compose').every((s) => crossings(s) === 4));
+      check('b times its inverse reduces to four straight strands',
+        text('reduce').includes('val pulled : braid = no crossings, 4 strands')
+        && svgs('reduce').length === 1 && crossings(svgs('reduce')[0]) === 0
+        && svgs('reduce')[0].querySelectorAll('circle').length === 4);
+      const [left, right] = svgs('relation');
+      check("the braid relation's two sides are drawn, differently, with three crossings each",
+        left && right && crossings(left) === 3 && crossings(right) === 3
+        && left.innerHTML !== right.innerHTML);
+      check('and are equal, as far crossings commuted are; sigma_1 sigma_2 and sigma_2 sigma_1 are not',
+        answers('equal').join(' ') === 'true true false true true');
+      check('the plait comes back to where it began',
+        answers('perm').join(' ') === '[3; 1; 2] [1; 2; 3]');
+      check('the full twist permutes nothing, but is not the identity',
+        answers('fullfacts').join(' ') === '[1; 2; 3; 4] false');
+      check('the closure of sigma_1 cubed is a knot, of sigma_1 squared a link of two',
+        /trefoil : closure = .*: a knot/.test(text('knots'))
+        && /hopf : closure = .*: a link of 2 loops/.test(text('knots'))
+        && svgs('knots').length === 3);
+      done();
+    });
+  </script>
+</body>
+</html>

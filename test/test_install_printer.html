@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: a printer that shows a picture</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <p>A printer installed with <code>#install_printer</code> can give the page
+    HTML with <code>X_ocaml_lib.output_html</code>, as well as printing text:
+    the HTML shows under the phrase whose value it printed.</p>
+  <x-ocaml id="printer">type dot = Dot of string
+let pp ppf (Dot colour) =
+  X_ocaml_lib.output_html
+    (Printf.sprintf "&lt;span class='dot' style='color:%s'&gt;&amp;#x25CF;&lt;/span&gt;" colour);
+  Format.fprintf ppf "a %s dot" colour</x-ocaml>
+  <x-ocaml id="install">#install_printer pp</x-ocaml>
+  <x-ocaml id="values">let red = Dot "red"
+let answer = 42
+let blue = Dot "blue"</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    // What the cell 'values' answered, in order: [class, text] for each part.
+    const parts = () => [...shadow('values').querySelectorAll('.caml_meta, .caml_html')]
+      .map((e) => [e.className, e.className === 'caml_html' ? e.innerHTML : e.textContent]);
+    (async () => {
+      await waitFor(() => output('values').includes('val blue')
+        && parts().filter(([c]) => c === 'caml_html').length === 2, 30000);
+      const p = parts();
+      const at = (text) => p.findIndex(([c, t]) => c === 'caml_meta' && t.includes(text));
+      const red = at('val red'), answer = at('val answer'), blue = at('val blue');
+      check('the printer prints its text as the value',
+        p[red] && p[red][1].includes('val red : dot = a red dot')
+        && p[blue] && p[blue][1].includes('val blue : dot = a blue dot'));
+      check('its HTML shows right under the phrase that printed it',
+        red >= 0 && p[red + 1] && p[red + 1][0] === 'caml_html'
+        && p[red + 1][1].includes("class=\"dot\"") && p[red + 1][1].includes('color:red')
+        && blue >= 0 && p[blue + 1] && p[blue + 1][0] === 'caml_html'
+        && p[blue + 1][1].includes('color:blue'));
+      check('and only there: a phrase of another type shows none',
+        answer === red + 2 && blue === answer + 1);
+      done();
+    })();
+  </script>
+</body>
+</html>

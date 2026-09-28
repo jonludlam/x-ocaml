@@ -4,6 +4,18 @@
 /sub/test_worker_relative.html
   [PASS] the worker starts, and runs the cell
   [PASS] no errors on the page
+/test_braids.html
+  [PASS] every cell of the example runs
+  [PASS] and none fails
+  [PASS] a braid is drawn under the phrase that made it, with its word as text
+  [PASS] b and its inverse are drawn, with four crossings each
+  [PASS] b times its inverse reduces to four straight strands
+  [PASS] the braid relation's two sides are drawn, differently, with three crossings each
+  [PASS] and are equal, as far crossings commuted are; sigma_1 sigma_2 and sigma_2 sigma_1 are not
+  [PASS] the plait comes back to where it began
+  [PASS] the full twist permutes nothing, but is not the identity
+  [PASS] the closure of sigma_1 cubed is a knot, of sigma_1 squared a link of two
+  [PASS] no errors on the page
 /test_cells.html
   [PASS] a value is printed with its type
   [PASS] what a cell prints is shown
@@ -16,4 +28,9 @@
   [PASS] nor one defined after
   [PASS] HTMLElement's prototype is untouched
   [PASS] x-ocaml leaves no global behind
+  [PASS] no errors on the page
+/test_install_printer.html
+  [PASS] the printer prints its text as the value
+  [PASS] its HTML shows right under the phrase that printed it
+  [PASS] and only there: a phrase of another type shows none
   [PASS] no errors on the page
