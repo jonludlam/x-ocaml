@@ -668,11 +668,13 @@ let () = passage "first descent" descending</x-ocaml>
        transpose (-6) right ++ (pickup (p "c4") ++ a_inv (p "b3") |&gt; natural 3) ))</x-ocaml>
 
   <p><b>Bar 14.</b> The cadence in A minor. The left hand has the thirds
-    of bar 6, but the right hand's line is new, and written out.</p>
+    of bar 6, but the right hand's line is new, and written out. The
+    prall on its C, before the cadence, is in some editions and not in
+    others.</p>
 
   <x-ocaml id="to_a">let () =
   passage "to A minor"
-    ( notes "16 c5 a5 g5 b5 a5 e5 f5 d5 g4 f5 e5 d5 8 c5 16 b4 a4",
+    ( notes "16 c5 a5 g5 b5 a5 e5 f5 d5 g4 f5 e5 d5 8 c5!p 16 b4 a4",
       thirds (p "a3") ++ thirds (p "c4") ++ notes "8 e4 a3 e4 e3" )</x-ocaml>
 
   <p><b>Bars 15 to 19.</b> Each hand in turn holds a note while the other
@@ -688,12 +690,13 @@ let () = passage "first descent" descending</x-ocaml>
 
   <p><b>Bars 19 to 22.</b> The run climbs back to C over the left hand's
     quavers from bar 3, now upside down, and the piece ends on a chord of
-    C major.</p>
+    C major. The prall on the right hand's E in bar 20 is an editor's,
+    like the one in bar 14.</p>
 
   <x-ocaml id="home">let () =
   passage "home"
     ( pickup (p "d5") ++ a (p "e5") ++ pickup (p "f5") ++ a (p "g5")
-      ++ notes "8 c6 g5 e5 16 d5 c5" ++ pickup (p "c5") ++ a_inv (p "b4")
+      ++ notes "8 c6 g5 e5!p 16 d5 c5" ++ pickup (p "c5") ++ a_inv (p "b4")
       ++ notes "16 a4 bn4 c5 e4 d4 c5 f4 b4" ++ [ chord semibreve [ "e4"; "g4"; "c5" ] ],
       (* the left hand's quavers from bars 3 and 4, upside down *)
       transpose (-2) (invert (take 12 counter))
@@ -703,10 +706,12 @@ let () = passage "first descent" descending</x-ocaml>
 
   <h2>The whole invention</h2>
 
-  <p>Every passage, one after the other. The notes, their times, lengths
-    and ornaments are the same as in David Huron's Humdrum edition of the
-    piece, all 455 of them, with its ornaments read as the
-    Bach-Gesellschaft edition prints them.</p>
+  <p>Every passage, one after the other. The notes, their times and
+    lengths are the same as in David Huron's Humdrum edition of the
+    piece, all 455 of them. So are the ornaments, read as the
+    Bach-Gesellschaft edition prints them, apart from the pralls in bars
+    14 and 20, which that edition and Huron's leave out and others
+    have.</p>
 
   <x-ocaml id="whole">(* The two hands of the whole piece, performed. *)
 let invention () =
