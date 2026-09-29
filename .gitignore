@@ -13,3 +13,5 @@
 *.sw[lmnop]
 
 _build/
+
+_site/
