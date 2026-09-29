@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Celtic knots</title>
+  <style>
+    :root { color-scheme: light dark; --ink: #2b211c; --muted: #6d6257; --paper: #fbf8f1; --code: #efe8da; --rule: #ddd3c1; --accent: #8a2f1c; }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #ece5d8; --muted: #a99f92; --paper: #1c1a18; --code: #2d2a26; --rule: #3d3832; --accent: #e08a6a; }
+    }
+    body { font-family: Georgia, 'Iowan Old Style', serif; font-size: 1.08rem; line-height: 1.6;
+      max-width: 50rem; margin: 2.5rem auto 5rem; padding: 0 1rem; color: var(--ink); background: var(--paper); }
+    nav { font-size: 0.9rem; margin-bottom: 1.5rem; }
+    a { color: var(--accent); }
+    h1 { font-weight: 400; font-size: 2.4rem; margin-bottom: 0.2rem; }
+    h1 + p { color: var(--muted); margin-top: 0; font-style: italic; }
+    h2 { font-weight: 400; font-size: 1.45rem; margin-top: 2.8rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.2rem; }
+    code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; background: var(--code); padding: 0 0.25em; border-radius: 3px; }
+    /* The cells keep x-ocaml's own light look, as cards, whatever the page's theme. */
+    x-ocaml { font-size: 0.82rem; margin: 0.9rem 0 1.3rem; background: #fff; color: #222; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+    .note { border-left: 3px solid var(--rule); padding-left: 0.8rem; color: var(--muted); font-size: 0.95em; }
+    details { margin: 1rem 0; }
+    summary { cursor: pointer; color: var(--muted); }
+    dl.kinds dt { font-family: ui-monospace, Menlo, monospace; font-size: 0.9em; }
+    dl.kinds dd { margin: 0 0 0.5rem 1.5rem; }
+    /* Pictures and their controls: side by side where there is room. */
+    .x-ocaml-displays { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; margin: 0.4rem 0 1.4rem; }
+    .x-ocaml-displays > x-ocaml-html { display: block; flex: 1 1 24rem; min-width: 0; }
+    .x-ocaml-displays > x-ocaml-html:has(> .panel) { flex: 0 1 17rem; }
+    .caption { margin: 0.4rem 0 0; text-align: center; color: var(--muted); font-size: 0.95em; }
+    .badge { display: inline-block; padding: 0 0.6rem; border-radius: 99px; color: #fff; background: #2f6f9f; font: 600 0.8rem system-ui, sans-serif; line-height: 1.6; }
+    .badge.good { background: #3f8a4f; }
+    .panel { font: 0.85rem/1.4 system-ui, sans-serif; background: var(--code); border: 1px solid var(--rule); border-radius: 8px; padding: 0.6rem 0.8rem; display: grid; gap: 0.35rem; }
+    .panel h3 { margin: 0 0 0.2rem; font-size: 0.95rem; }
+    .panel .row { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) 2.2rem; align-items: center; gap: 0.5rem; }
+    .panel .row > span:first-child { color: var(--muted); }
+    .panel .row:has(input[type=checkbox]) > span:first-child { order: 2; }
+    .panel .row:has(input[type=checkbox]) > input { order: 1; margin: 0; }
+    .panel .row:has(input[type=checkbox]) { grid-template-columns: auto 1fr; }
+    .panel input[type=range] { width: 100%; margin: 0; accent-color: var(--accent); }
+    .panel input[type=checkbox] { accent-color: var(--accent); }
+    .panel output { text-align: right; font-family: ui-monospace, Menlo, monospace; font-size: 0.8rem; }
+    .panel .row:has(.choice) { grid-template-columns: auto 1fr; }
+    .choice { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice span { display: inline-block; padding: 0.1rem 0.55rem; border: 1px solid var(--rule); border-radius: 5px; cursor: pointer; background: var(--paper); }
+    .choice input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .buttons { display: flex; gap: 0.4rem; margin-top: 0.2rem; }
+    .panel button { font: inherit; padding: 0.2rem 0.8rem; border: 1px solid var(--rule); border-radius: 5px; background: var(--paper); color: var(--ink); cursor: pointer; }
+    .panel button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .edge { cursor: pointer; }
+    .edge:hover { stroke: rgba(138, 47, 28, 0.28); }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">the demos</a></nav>
+  <h1>Celtic knots</h1>
+  <p>Drawn by following a thread around a graph.</p>
+
+  <p>The interlace in the Book of Kells and on the high crosses looks as if
+    it must have been drawn one careful stroke at a time. It was built from
+    a method, though, and the method is simple enough to put into a
+    program. Start with a regular plait, where every strand goes over, then
+    under, then over. Then <em>break</em> it here and there, turning strands
+    back where they would have crossed. J. Romilly Allen described knotwork
+    this way in 1904, and George Bain's <i>Celtic Art: The Methods of
+    Construction</i> (1951) taught a generation to draw it.</p>
+
+  <p>This page takes a slightly more general view, following Christian
+    Mercat. Every Celtic knot is drawn over a graph: dots, with lines
+    between them. The threads cross at the middle of every line and wrap
+    round the dots. A plait is the knot of a square grid, and breaks are
+    changes to single edges. The cells below are OCaml, running in your
+    browser. They build the graph, follow the threads and draw the
+    picture, and you can change any of them and run it again.</p>
+
+  <h2>The graph</h2>
+
+  <p>A graph here is a set of points in the plane, joined by straight
+    edges. At the middle of each edge, one of three things happens.</p>
+
+  <dl class="kinds">
+    <dt>Cross</dt><dd>the two threads that meet there cross over each other;</dd>
+    <dt>Along</dt><dd>there is a wall along the edge, and the threads turn back to stay on their own side of it;</dd>
+    <dt>Across</dt><dd>there is a wall across the edge, and the threads turn back to stay at their own end of it.</dd>
+  </dl>
+
+  <x-ocaml id="graph">(* A graph drawn in the plane: points, and straight edges between them.
+   The threads of the knot cross at the middle of every edge. *)
+type graph = { pos : (float * float) array; edges : (int * int) array }
+
+(* At each edge the threads cross, or turn back before it: [Along]
+   puts a wall along the edge, [Across] puts one across it. *)
+type junction = Cross | Along | Across
+
+let every kind g = Array.make (Array.length g.edges) kind
+
+(* Points in the plane are pairs of floats. *)
+let ( +: ) (a, b) (c, d) = (a +. c, b +. d)
+let ( -: ) (a, b) (c, d) = (a -. c, b -. d)
+let ( *: ) k (a, b) = (k *. a, k *. b)
+let dot (a, b) (c, d) = (a *. c) +. (b *. d)
+let norm v = sqrt (dot v v)
+let unit v = (1. /. norm v) *: v
+let left (a, b) = (-.b, a)
+let right (a, b) = (b, -.a)
+let angle (a, b) = atan2 b a</x-ocaml>
+
+  <p>Most Celtic panels are drawn on a square grid:</p>
+
+  <x-ocaml id="grid">(* The square grid of [w] by [h] squares. *)
+let square_grid w h =
+  let id i j = (j * (w + 1)) + i in
+  let pos = Array.init ((w + 1) * (h + 1)) (fun k -&gt; (float (k mod (w + 1)), float (k / (w + 1)))) in
+  let edges = ref [] in
+  for j = 0 to h do
+    for i = 0 to w do
+      if i &lt; w then edges := (id i j, id (i + 1) j) :: !edges;
+      if j &lt; h then edges := (id i j, id i (j + 1)) :: !edges
+    done
+  done;
+  { pos; edges = Array.of_list (List.rev !edges) }
+
+(* Graphs print as their size. *)
+let pp_graph ppf g = Format.fprintf ppf "&lt;%d points, %d edges&gt;" (Array.length g.pos) (Array.length g.edges);;
+
+#install_printer pp_graph</x-ocaml>
+
+  <h2>Following the threads</h2>
+
+  <p>Around the middle of an edge there are four corners: at each end of
+    the edge, the corner on one side of it and the corner on the other.
+    Four pieces of thread leave the middle, one into each corner. A
+    thread goes round its corner to the middle of the next edge about
+    that point, then through that middle, round another corner, and so on
+    until it gets back to where it started.</p>
+
+  <p>So we need two moves. <code>corner</code> takes a thread round a
+    point to the next edge. For that, each point must know its edges in
+    order round it, anticlockwise, which <code>around</code> works out by
+    sorting them by angle. <code>through</code> takes a thread through the
+    middle of an edge. The three kinds of junction differ only in which
+    corner they send the thread on to.</p>
+
+  <x-ocaml id="ports">(* Around each point, its edges in anticlockwise order, each as the edge
+   and which of its ends (0 or 1) is at this point. *)
+let around g =
+  let ends = Array.make (Array.length g.pos) [] in
+  Array.iteri
+    (fun e (u, v) -&gt;
+      ends.(u) &lt;- (e, 0) :: ends.(u);
+      ends.(v) &lt;- (e, 1) :: ends.(v))
+    g.edges;
+  let direction w (e, end_) =
+    let u, v = g.edges.(e) in
+    angle (g.pos.(if end_ = 0 then v else u) -: g.pos.(w))
+  in
+  Array.mapi (fun w es -&gt; Array.of_list (List.sort (fun a b -&gt; compare (direction w a) (direction w b)) es)) ends
+
+(* Four threads meet at the middle of an edge, one heading into each of
+   the four corners beside it. A port names one: the edge, the end it
+   heads towards, and whether the corner is anticlockwise of the edge
+   there, or clockwise. *)
+type port = { e : int; end_ : int; ccw : bool }
+
+let vertex g p = if p.end_ = 0 then fst g.edges.(p.e) else snd g.edges.(p.e)
+
+(* Round a corner: to the next edge anticlockwise (or clockwise) about
+   the point, arriving on the side of it that faces back. *)
+let corner g rot p =
+  let es = rot.(vertex g p) in
+  let n = Array.length es in
+  let rec find i = if es.(i) = (p.e, p.end_) then i else find (i + 1) in
+  let i = find 0 in
+  let e, end_ = es.((if p.ccw then i + 1 else i - 1 + n) mod n) in
+  { e; end_; ccw = not p.ccw }
+
+(* Through the middle of an edge. Crossing, a thread carries on to the
+   far end, still on the same turn. A wall along the edge sends it to the
+   far end on its own side; a wall across sends it back to its own end,
+   round the other side. *)
+let through kind p =
+  match kind with
+  | Cross -&gt; { p with end_ = 1 - p.end_ }
+  | Along -&gt; { p with end_ = 1 - p.end_; ccw = not p.ccw }
+  | Across -&gt; { p with ccw = not p.ccw }</x-ocaml>
+
+  <p>Following one thread marks the ports it uses. Starting again from
+    any unused port finds the next thread, until every port is used.</p>
+
+  <x-ocaml id="threads">(* Follow every thread: through an edge's middle, round a corner, through
+   the next middle, until it is back where it started. A thread is the
+   list of middles it passes, each as the port it arrives by and the port
+   it leaves by. *)
+let threads g kinds =
+  let rot = around g in
+  let index p = (p.e * 4) + (p.end_ * 2) + if p.ccw then 1 else 0 in
+  let seen = Array.make (4 * Array.length g.edges) false in
+  let rec follow start p acc =
+    let q = through kinds.(p.e) p in
+    seen.(index p) &lt;- true;
+    seen.(index q) &lt;- true;
+    let r = corner g rot q in
+    if r = start then List.rev ((p, q) :: acc) else follow start r ((p, q) :: acc)
+  in
+  List.filter_map
+    (fun k -&gt;
+      if seen.(k) then None
+      else
+        let p = { e = k / 4; end_ = k / 2 mod 2; ccw = k mod 2 = 1 } in
+        Some (follow p p []))
+    (List.init (Array.length seen) Fun.id)</x-ocaml>
+
+  <p>How many separate threads does a 4 by 3 plait have?</p>
+
+  <x-ocaml id="count">let plait = square_grid 4 3;;
+List.length (threads plait (every Cross plait))</x-ocaml>
+
+  <p>Just one. A single thread, woven through the whole panel with no
+    loose ends, is what the Celtic artists aimed for.</p>
+
+  <h2>Over, under</h2>
+
+  <p>Which thread goes over at a crossing? Real interlace <em>alternates</em>:
+    follow any thread and it goes over, then under, then over, all the way
+    round. It might seem that we'd have to search for a way of choosing
+    that works everywhere. In fact one local rule is enough. At a
+    crossing, the thread joining the two anticlockwise corners goes over.</p>
+
+  <x-ocaml id="over">(* At a crossing, the thread from anticlockwise corner to anticlockwise
+   corner goes over. *)
+let over (p, _) = p.ccw
+
+(* Does each thread go over, under, over, under, all the way round? *)
+let alternates g kinds =
+  let rec ok = function a :: (b :: _ as rest) -&gt; a &lt;&gt; b &amp;&amp; ok rest | _ -&gt; true in
+  List.for_all
+    (fun t -&gt;
+      match List.filter_map (fun ((p, _) as j) -&gt; if kinds.(p.e) = Cross then Some (over j) else None) t with
+      | [] -&gt; true
+      | first :: _ as l -&gt; ok (l @ [ first ]))
+    (threads g kinds)</x-ocaml>
+
+  <p>This works because rounding a corner always swaps anticlockwise for
+    clockwise, while going through a crossing keeps it. So a thread
+    arrives at crossing after crossing on alternate sides. A wall swaps
+    sides once going through and once more rounding the next corner, so
+    the next crossing comes out right as well.</p>
+
+  <x-ocaml id="check">alternates plait (every Cross plait);;
+alternates (square_grid 7 5) (every Cross (square_grid 7 5))</x-ocaml>
+
+  <details>
+    <summary>The drawing: where the threads go, and their curves</summary>
+
+    <p>The only geometry is at the middles and in the corners. A thread
+      leaves the middle of an edge at an angle to it, 45 degrees on a
+      square grid. It rounds each corner the way the old draughtsmen did,
+      with a straight run, an arc of a circle, and another straight run.
+      The circle has to touch both straight lines. Of all the circles that
+      do, <code>round</code> chooses how big, from a sharp corner (0) to
+      the largest that fits (1). Out of each crossing, a thread runs
+      straight for a little way, as it does in drawn knotwork.</p>
+
+  <x-ocaml id="geometry">(* Where the threads go. [mid] is an edge's middle, [half] half its
+   length. *)
+let mid g e =
+  let u, v = g.edges.(e) in
+  0.5 *: (g.pos.(u) +: g.pos.(v))
+
+let half g e =
+  let u, v = g.edges.(e) in
+  0.5 *. norm (g.pos.(v) -: g.pos.(u))
+
+(* The angle of the corner that the port [p] heads into, anticlockwise
+   from one edge to the other: a whole turn at the end of a lone edge. *)
+let corner_angle g rot p =
+  let q = corner g rot p in
+  let c = g.pos.(vertex g p) in
+  let d p = mid g p.e -: c in
+  let first, last = if p.ccw then (p, q) else (q, p) in
+  let th = angle (d last) -. angle (d first) in
+  if th &lt;= 1e-9 then th +. (2. *. Float.pi) else th
+
+(* How far off its edge a thread leaves the middle: the angle that
+   takes it straight across its corner, averaged with the one on the far
+   side of the crossing, so that it goes straight through. Corners of
+   half a turn or more have no straight way across and do not count. On
+   a square grid it is 45 degrees. *)
+let slant g rot p =
+  let straight p =
+    let th = corner_angle g rot p in
+    if th &lt; Float.pi -. 0.01 then Some ((Float.pi -. th) /. 2.) else None
+  in
+  match (straight p, straight { p with end_ = 1 - p.end_ }) with
+  | Some a, Some b -&gt; (a +. b) /. 2.
+  | Some a, None | None, Some a -&gt; a
+  | None, None -&gt; Float.pi /. 4.
+
+(* The way a thread leaves an edge's middle through the port [p]. *)
+let heading g rot p =
+  let a = unit (g.pos.(vertex g p) -: mid g p.e) and s = slant g rot p in
+  (cos s *: a) +: (sin s *: if p.ccw then right a else left a)
+
+(* A thread passing a middle, from [p] to [q]: a point, and the way it
+   goes. Crossing, it goes over the middle itself; turned back by a wall,
+   it passes a little way off it, on its own side: on a square grid, a
+   quarter of an edge off, so that a thread passing wall after wall runs
+   straight past them. *)
+let waypoint g rot (p, q) =
+  let hp = heading g rot p and hq = heading g rot q in
+  let at = if p.ccw = q.ccw then mid g p.e else mid g p.e +: ((0.3536 *. half g p.e) *: (hp +: hq)) in
+  (at, unit (hq -: hp))</x-ocaml>
+  <x-ocaml id="curves">(* Round each corner as the old draughtsmen did: straight, then an arc of
+   a circle, then straight again. Everything is drawn as cubics; a line
+   is a cubic with its handles on it, and an arc is cut into quarter
+   turns, each close to a cubic. *)
+type cubic = (float * float) * (float * float) * (float * float) * (float * float)
+
+let line a b : cubic = (a, a +: ((1. /. 3.) *: (b -: a)), a +: ((2. /. 3.) *: (b -: a)), b)
+
+let cross (a, b) (c, d) = (a *. d) -. (b *. c)
+
+(* The arc about [c] of radius [r], from angle [a0], turning [sweep]
+   (anticlockwise if positive). *)
+let arc c r a0 sweep =
+  let n = max 1 (Float.to_int (Float.ceil (Float.abs sweep /. (Float.pi /. 2.) -. 1e-6))) in
+  let d = sweep /. float n in
+  let k = 4. /. 3. *. tan (d /. 4.) *. r in
+  let at a = c +: (r *: (cos a, sin a)) and tangent a = (-.sin a, cos a) in
+  List.init n (fun i -&gt;
+      let a = a0 +. (d *. float i) and b = a0 +. (d *. float (i + 1)) in
+      ((at a, at a +: (k *: tangent a), at b -: (k *: tangent b), at b) : cubic))
+
+(* Straight from [a] to [t1], round the circle of radius [r] whose centre
+   is [r] along [n1] from [t1], and straight on into [b], from [r] back
+   along [n2] from the centre. *)
+let rounded a b (n1, n2) turn t1 r =
+  let c = t1 +: (r *: n1) in
+  (line a t1 :: arc c r (angle (t1 -: c)) turn) @ [ line (c -: (r *: n2)) b ]
+
+(* The side of each line, [ta] and [tb], that a thread turning [turn] turns to. *)
+let sides turn ta tb =
+  let side v = if turn &gt; 0. then left v else right v in
+  (side ta, side tb)
+
+(* [s] and [u] such that s ta + u tb = d, for [d0] and for [d1]. *)
+let straights ta tb d0 d1 =
+  let det = cross ta tb in
+  let solve d = (cross d tb /. det, cross ta d /. det) in
+  (solve d0, solve d1)
+
+(* The radii that leave two straights, [x0 + r x1] and [y0 + r y1], at
+   least zero long run from [lo] to [hi]: [round] of the way along, or
+   [lo] if there is no end to them, or none if there are none. *)
+let radius ~round (x0, x1) (y0, y1) =
+  let lo = ref 0. and hi = ref infinity in
+  List.iter
+    (fun (x0, x1) -&gt;
+      if x1 &gt; 1e-9 then lo := Float.max !lo (-.x0 /. x1)
+      else if x1 &lt; -1e-9 then hi := Float.min !hi (-.x0 /. x1)
+      else if x0 &lt; -1e-9 then hi := -1.)
+    [ (x0, x1); (y0, y1) ];
+  if !hi &lt; !lo then None
+  else
+    let r = if !hi = infinity then !lo else !lo +. (round *. (!hi -. !lo)) in
+    if r &lt;= 1e-9 then None else Some r
+
+(* From [a] heading [ta] to [b] heading [tb], turning through [turn]
+   (anticlockwise if positive): go straight a distance [s], round a
+   circle of radius [r], and straight a distance [u] into [b]. The centre
+   is [r] to the turning side of both lines, [n1] and [n2], so
+
+     s ta + u tb = (b - a) + r (n2 - n1)
+
+   and [s] and [u] grow or shrink steadily with [r]. They must be at
+   least [s_min] and [u_min], for the straight runs out of crossings.
+   Turning less than half a turn, the circles that fit run
+   from nothing up to one that leaves the least straight at one end, and
+   [round] is how far along to go; turning more, the smallest circle that
+   fits is taken. *)
+let circle ~round ~s_min ~u_min (a, ta) (b, tb) turn =
+  let ns = sides turn ta tb in
+  (* [s] and [u] for no circle, and how fast they grow with [r] *)
+  let base, rate = straights ta tb (b -: a) (snd ns -: fst ns) in
+  match radius ~round (fst base -. s_min, fst rate) (snd base -. u_min, snd rate) with
+  | None -&gt; None
+  | Some r -&gt; Some (rounded a b ns turn (a +: ((fst base +. (r *. fst rate)) *: ta)) r)
+
+(* A U-turn between parallel lines: the circle has to fit between them,
+   and only the difference of the straights is fixed. *)
+let u_turn ~s_min ~u_min (a, ta) (b, tb) turn =
+  let ((n1, _) as ns) = sides turn ta tb in
+  let along = Float.max s_min (dot (b -: a) ta +. u_min) in
+  rounded a b ns turn (a +: (along *: ta)) (Float.abs (dot (b -: a) n1) /. 2.)
+
+let fillet ~round ~s_min ~u_min ((_, ta) as from) ((_, tb) as to_) turn =
+  if Float.abs (cross ta tb) &gt;= 0.02 then circle ~round ~s_min ~u_min from to_ turn
+  else if dot ta tb &gt; 0. then None
+  else Some (u_turn ~s_min ~u_min from to_ turn)
+
+(* When there is no such circle, one cubic will do. *)
+let single (a, ta) (b, tb) ~turn ~reach =
+  let k = norm (b -: a) /. (3. *. (cos (Float.min 3. (Float.abs turn) /. 4.) ** 2.)) in
+  let k = if Float.abs turn &gt; Float.pi /. 2. then Float.max k reach else k in
+  [ ((a, a +: (k *: ta), b -: (k *: tb), b) : cubic) ]
+
+let bend ~round ~s_min ~u_min from to_ ~turn ~reach =
+  match fillet ~round ~s_min ~u_min from to_ turn with
+  | Some cs -&gt; cs
+  | None -&gt; (
+      match fillet ~round ~s_min:0. ~u_min:0. from to_ turn with
+      | Some cs -&gt; cs
+      | None -&gt; single from to_ ~turn ~reach)
+
+(* How far a thread turns rounding a corner: the angle between the ways
+   it leaves and arrives, plus as many whole turns as it takes to be
+   nearest [estimate]. Rounding a corner anticlockwise about its point
+   (when the corner is on the anticlockwise side of the edge it leaves),
+   a thread turns about as much as the corner is wide, less the slants. *)
+let turning ta tb estimate =
+  let exact = atan2 (cross ta tb) (dot ta tb) in
+  exact +. (2. *. Float.pi *. Float.round ((estimate -. exact) /. (2. *. Float.pi)))
+
+(* A thread's corners, each as cubics: corner [i] runs from the thread's
+   [i]th middle to the next. Out of each crossing it runs straight for at
+   least [straight] where it can, as the old draughtsmen drew it. *)
+let corners ?(round = 0.7) ?(straight = 0.) g rot kinds thread =
+  let js = Array.of_list thread in
+  let n = Array.length js in
+  Array.of_list
+    (List.init n (fun i -&gt;
+         let ((_, q) as j) = js.(i) and ((r, _) as j') = js.((i + 1) mod n) in
+         let estimate = corner_angle g rot q +. slant g rot q +. slant g rot r -. Float.pi in
+         let ((_, ta) as from) = waypoint g rot j and ((_, tb) as to_) = waypoint g rot j' in
+         let turn = turning ta tb (if q.ccw then estimate else -.estimate) in
+         let reach = 0.6 *. Float.abs turn *. Float.min (half g q.e) (half g r.e) in
+         let at_crossing (p, _) = kinds.(p.e) = Cross in
+         let s_min = if at_crossing j then straight else 0. and u_min = if at_crossing j' then straight else 0. in
+         bend ~round ~s_min ~u_min from to_ ~turn ~reach))</x-ocaml>
+  <x-ocaml id="paths">(* Points along a cubic, a cubic's length near enough, and the first or
+   last [l] of a run of cubics: de Casteljau's split, at a fraction of the
+   way along. *)
+let point_on ((p0, p1, p2, p3) : cubic) t =
+  let s = 1. -. t in
+  ((s *. s *. s) *: p0) +: ((3. *. s *. s *. t) *: p1) +: ((3. *. s *. t *. t) *: p2) +: ((t *. t *. t) *: p3)
+
+let length c =
+  let pts = List.init 9 (fun i -&gt; point_on c (float i /. 8.)) in
+  fst (List.fold_left (fun (l, p) q -&gt; (l +. norm (q -: p), q)) (0., List.hd pts) (List.tl pts))
+
+let split ((p0, p1, p2, p3) : cubic) t : cubic * cubic =
+  let mix a b = a +: (t *: (b -: a)) in
+  let a = mix p0 p1 and b = mix p1 p2 and c = mix p2 p3 in
+  let d = mix a b and e = mix b c in
+  let m = mix d e in
+  ((p0, a, d, m), (m, e, c, p3))
+
+let rec first l = function
+  | [] -&gt; []
+  | c :: rest -&gt;
+      let lc = length c in
+      if l &lt;= lc then [ fst (split c (l /. lc)) ] else c :: first (l -. lc) rest
+
+let reverse ((p0, p1, p2, p3) : cubic) : cubic = (p3, p2, p1, p0)
+let last l cs = List.rev_map reverse (first l (List.rev_map reverse cs))
+
+(* Cubics as an SVG path. *)
+let pt (x, y) = Printf.sprintf "%.3f,%.3f" x y
+
+let path ?(closed = true) cs =
+  let p0, _, _, _ = List.hd cs in
+  String.concat "" (("M" ^ pt p0) :: List.map (fun (_, a, b, c) -&gt; Printf.sprintf "C%s %s %s" (pt a) (pt b) (pt c)) cs)
+  ^ if closed then "Z" else ""</x-ocaml>
+  </details>
+
+  <p>Last, <code>draw</code> puts it together as SVG, a string, and
+    <code>show</code> puts that on the page in a display of its own, with
+    <code>X_ocaml_lib.html</code>. There is no need to cut
+    the threads where they go under. Each thread is drawn whole, as one
+    thick line, in any order. Then at every crossing, a short piece of the
+    thread that goes over is drawn again, on top of a slightly thicker
+    line in the colour of the background. That rubs out the thread beneath
+    and leaves a gap on either side of the one above. With
+    <code>~outline</code>, each thread gets dark edges too, and with
+    <code>~construction</code>, the graph is drawn underneath.</p>
+
+  <x-ocaml id="draw">(* The picture, as SVG. Each thread is drawn whole, as one wide stroke
+   (or, with [~outline], a dark one with a narrower one in its colour on
+   top), one thread on top of another in no particular order. Then, at
+   every crossing, a short piece of the thread that goes over is drawn
+   again, on a still wider stroke in the colour of the background: that
+   rubs out the thread beneath, and leaves a gap either side. With
+   [~construction] the graph shows too: its points, its edges and its
+   walls. [on_edge] is a callback token, which clicking an edge calls
+   with the edge's number. *)
+let ink = "#2b211c"
+let vellum = "#f4ecd8"
+let gold = "#d9a441"
+let palette = [ "#c0492f"; "#2f6f9f"; "#4a8f4f"; "#d9a441"; "#7d5199"; "#1f8a86"; "#b04a78"; "#6c7a2a" ]
+
+let shortest g = Array.fold_left Float.min infinity (Array.init (Array.length g.edges) (fun e -&gt; 2. *. half g e))
+
+(* SVG elements with no content, and their attributes. *)
+let el tag attrs =
+  Printf.sprintf "&lt;%s%s/&gt;" tag (String.concat "" (List.map (fun (k, v) -&gt; Printf.sprintf {| %s="%s"|} k v) attrs))
+
+let num = Printf.sprintf "%.3f"
+let svg_line (a, b) (c, d) extra = el "line" ([ ("x1", num a); ("y1", num b); ("x2", num c); ("y2", num d) ] @ extra)
+let stroke colour w = [ ("stroke", colour); ("stroke-width", num w) ]
+
+(* What drawing a knot needs to know. *)
+type knot = {
+  g : graph;
+  rot : (int * int) array array;
+  kinds : junction array;
+  width : float;
+  outline : bool;
+  colours : bool;
+  ts : (port * port) list list; (* the threads *)
+  cs : cubic list array list; (* and their corners *)
+}
+
+let colour k i = if k.colours then List.nth palette (i mod List.length palette) else gold
+
+(* A ribbon along the path [d], in thread [i]'s colour. *)
+let ribbon k i ?(d' = "") d =
+  let d' = if d' = "" then d else d' in
+  if k.outline then [ el "path" (("d", d) :: stroke ink k.width); el "path" (("d", d') :: stroke (colour k i) (0.62 *. k.width)) ]
+  else [ el "path" (("d", d') :: stroke (colour k i) k.width) ]
+
+(* Over each crossing, the thread that goes over, from [l] before the
+   middle to [l] after it: the end of the corner coming in, and the start
+   of the one going out. [l] is just enough to cover the thread beneath,
+   and its halo, which reach further along the thread above the more
+   slantwise they cross. The colour runs on a little past the dark, to
+   cover the dark's ends. *)
+let halo k = 1.3 *. k.width
+
+let reach k ((p, _) as j) =
+  let other = { p with ccw = not p.ccw } in
+  let _, t = waypoint k.g k.rot j and _, t' = waypoint k.g k.rot (other, { other with end_ = 1 - other.end_ }) in
+  let sin = Float.max 0.3 (Float.abs (cross t t')) and cos = Float.abs (dot t t') in
+  ((0.5 *. k.width) +. (0.5 *. halo k *. cos)) /. sin +. (0.05 *. k.width)
+
+let over_crossing k i cs n i_mid ((p, _) as j) =
+  if k.kinds.(p.e) &lt;&gt; Cross || not (over j) then []
+  else
+    let piece l = path ~closed:false (last l cs.((i_mid - 1 + n) mod n) @ first l cs.(i_mid)) in
+    let l = reach k j in
+    el "path" (("d", piece l) :: stroke vellum (halo k)) :: ribbon k i ~d':(piece (l +. (0.1 *. k.width))) (piece l)
+
+let over_crossings k =
+  List.concat
+    (List.mapi
+       (fun i (t, cs) -&gt; List.concat (List.mapi (over_crossing k i cs (Array.length cs)) t))
+       (List.combine k.ts k.cs))
+
+(* The graph: its edges behind the threads, its walls and points in front. *)
+let edge_of k e = let u, v = k.g.edges.(e) in (k.g.pos.(u), k.g.pos.(v))
+
+let wall k e =
+  let a, b = edge_of k e in
+  let m = mid k.g e in
+  let stroke = [ ("stroke", "#8a2f1c"); ("stroke-width", num (0.3 *. k.width)); ("stroke-linecap", "round") ] in
+  match k.kinds.(e) with
+  | Cross -&gt; []
+  | Along -&gt; [ svg_line (a +: (0.08 *: (m -: a))) (b +: (0.08 *: (m -: b))) stroke ]
+  | Across -&gt;
+      let n = left (b -: a) in
+      [ svg_line (m +: (0.42 *: n)) (m -: (0.42 *: n)) stroke ]
+
+let edges k =
+  List.init (Array.length k.g.edges) (fun e -&gt;
+      let a, b = edge_of k e in
+      svg_line a b [ ("stroke", "#c9b99a"); ("stroke-width", num (0.12 *. k.width)); ("stroke-dasharray", "0.06 0.06") ])
+
+let walls_and_points k =
+  List.concat (List.init (Array.length k.g.edges) (wall k))
+  @ Array.to_list
+      (Array.map (fun (x, y) -&gt; el "circle" [ ("cx", num x); ("cy", num y); ("r", num (0.2 *. k.width)); ("fill", "#8a7a60") ]) k.g.pos)
+
+(* Wide, invisible lines over the edges, which call back when clicked. *)
+let targets k token =
+  List.init (Array.length k.g.edges) (fun e -&gt;
+      let a, b = edge_of k e in
+      svg_line a b
+        [ ("stroke", "transparent"); ("stroke-width", num (2.2 *. k.width)); ("class", "edge");
+          ("data-callback", X_ocaml_lib.string_of_token token); ("data-payload", string_of_int e) ])
+
+(* The box around it all, with room for the ribbons' width. *)
+let box k paths =
+  let pts =
+    Array.to_list k.g.pos
+    @ List.concat_map (List.concat_map (fun c -&gt; List.init 5 (fun i -&gt; point_on c (float i /. 4.)))) paths
+  in
+  let lo f = List.fold_left (fun m p -&gt; Float.min m (f p)) infinity pts -. k.width -. 0.1 in
+  let hi f = List.fold_left (fun m p -&gt; Float.max m (f p)) neg_infinity pts +. k.width +. 0.1 in
+  (lo fst, lo snd, hi fst -. lo fst, hi snd -. lo snd)
+
+let svg k ~scale ~construction ?on_edge () =
+  let paths = List.map (fun cs -&gt; List.concat (Array.to_list cs)) k.cs in
+  let x0, y0, w, h = box k paths in
+  let threads = List.concat (List.mapi (fun i cs -&gt; ribbon k i (path cs)) paths) in
+  let targets = match on_edge with None -&gt; [] | Some token -&gt; targets k token in
+  Printf.sprintf
+    {|&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="%s %s %s %s" fill="none" style="display: block; width: 100%%; height: auto; margin: 0 auto; max-width: %.0fpx"&gt;%s&lt;/svg&gt;|}
+    (num x0) (num y0) (num w) (num h) (Float.max 340. (w *. scale))
+    (String.concat ""
+       ((el "rect" [ ("x", num x0); ("y", num y0); ("width", num w); ("height", num h); ("fill", vellum) ]
+         :: (if construction then edges k else []))
+        @ threads @ over_crossings k
+        @ (if construction then walls_and_points k else [])
+        @ targets))
+
+(* The threads, and their corners. *)
+let prepare ?round ~width ~outline ~colours g kinds =
+  let rot = around g in
+  let ts = threads g kinds in
+  let cs = List.map (corners ?round ~straight:(0.9 *. width) g rot kinds) ts in
+  { g; rot; kinds; width; outline; colours; ts; cs }
+
+(* [draw]'s work, with its options as options. *)
+let picture ~width ~round ~outline ~colours ~construction ~on_edge ~scale g kinds =
+  (* Ribbons a third as wide as the shortest edge, unless told. *)
+  let width = match width with Some w -&gt; w | None -&gt; 0.34 *. shortest g in
+  let no = Option.value ~default:false in
+  let k = prepare ?round ~width ~outline:(no outline) ~colours:(no colours) g kinds in
+  svg k ~scale:(Option.value scale ~default:56. /. shortest g) ~construction:(no construction) ?on_edge ()
+
+let draw ?width ?round ?outline ?colours ?construction ?on_edge ?scale g kinds =
+  picture ~width ~round ~outline ~colours ~construction ~on_edge ~scale g kinds
+
+(* A picture in a display of its own, under the cell. *)
+let show picture = ignore (X_ocaml_lib.html picture)</x-ocaml>
+
+  <x-ocaml id="first">let () = show (draw ~construction:true plait (every Cross plait))</x-ocaml>
+
+  <p>The pictures from here on have controls. They are HTML as well: a
+    slider or a checkbox whose <code>data-callback</code> attribute holds a
+    callback token, from <code>X_ocaml_lib.callback</code>, calls the
+    OCaml function behind it as the reader moves it, with its value. The
+    function sets what the control stands for and redraws the picture,
+    which is <code>X_ocaml_lib.update</code> with the new SVG. The controls
+    go in a display of their own, which is never replaced, so a slider
+    stays in the reader's hand while the picture beside it changes.</p>
+
+  <x-ocaml id="controls">(* Controls, as HTML. Each is given [redraw], and calls back through the
+   token in its data-callback attribute: an input with its value as the
+   reader moves it, a button when it is pressed. A slider shows its
+   value itself, as it moves. *)
+let token f = X_ocaml_lib.string_of_token (X_ocaml_lib.callback f)
+let row label control = Printf.sprintf {|&lt;label class="row"&gt;&lt;span&gt;%s&lt;/span&gt;%s&lt;/label&gt;|} label control
+
+let slider label ~min ~max ~step value set redraw =
+  row label
+    (Printf.sprintf
+       {|&lt;input type="range" min="%g" max="%g" step="%g" value="%g" data-callback="%s" oninput="this.nextElementSibling.value = this.value"&gt;&lt;output&gt;%g&lt;/output&gt;|}
+       min max step value (token (fun v -&gt; set (float_of_string v); redraw ())) value)
+
+let int_slider label ~min ~max r = slider label ~min:(float min) ~max:(float max) ~step:1. (float !r) (fun v -&gt; r := int_of_float v)
+let float_slider label ~min ~max ~step r = slider label ~min ~max ~step !r (fun v -&gt; r := v)
+
+let checkbox label r redraw =
+  row label
+    (Printf.sprintf {|&lt;input type="checkbox"%s data-callback="%s"&gt;|} (if !r then " checked" else "")
+       (token (fun v -&gt; r := v = "true"; redraw ())))
+
+(* One of several, as a row of buttons. *)
+let groups = ref 0
+
+let choice label options r redraw =
+  incr groups;
+  let option (name, v) =
+    Printf.sprintf {|&lt;label&gt;&lt;input type="radio" name="choice-%d"%s data-callback="%s"&gt;&lt;span&gt;%s&lt;/span&gt;&lt;/label&gt;|} !groups
+      (if !r == v then " checked" else "") (token (fun _ -&gt; r := v; redraw ())) name
+  in
+  row label (Printf.sprintf {|&lt;span class="choice"&gt;%s&lt;/span&gt;|} (String.concat "" (List.map option options)))
+
+let button ?(primary = false) label f redraw =
+  Printf.sprintf {|&lt;button%s data-callback="%s"&gt;%s&lt;/button&gt;|} (if primary then {| class="primary"|} else "")
+    (token (fun _ -&gt; f (); redraw ())) label
+
+let buttons bs redraw = Printf.sprintf {|&lt;div class="buttons"&gt;%s&lt;/div&gt;|} (String.concat "" (List.map (fun b -&gt; b redraw) bs))
+
+(* [interact picture controls] shows [picture ()] and, in a display of
+   its own beside it that is never replaced, the controls, which redraw
+   it. [redraw], if given, is set to the function that redraws it, for
+   other callbacks to call. *)
+let interact ?title ?(redraw = ref ignore) picture controls =
+  let shown = X_ocaml_lib.html (picture ()) in
+  redraw := (fun () -&gt; X_ocaml_lib.update shown (picture ()));
+  let head = match title with None -&gt; "" | Some t -&gt; Printf.sprintf "&lt;h3&gt;%s&lt;/h3&gt;" t in
+  let panel = String.concat "" (List.map (fun c -&gt; c !redraw) controls) in
+  ignore (X_ocaml_lib.html (Printf.sprintf {|&lt;div class="panel"&gt;%s%s&lt;/div&gt;|} head panel))
+
+let caption ?badge text =
+  let pill = match badge with None -&gt; "" | Some kind -&gt; Printf.sprintf {| class="badge %s"|} kind in
+  Printf.sprintf {|&lt;p class="caption"&gt;&lt;span%s&gt;%s&lt;/span&gt;&lt;/p&gt;|} pill text
+
+let plural n thing = Printf.sprintf "%d %s%s" n thing (if n = 1 then "" else "s")</x-ocaml>
+
+  <h2>Plaits</h2>
+
+  <p>With no breaks, a square grid gives a plait. The threads run
+    diagonally and turn back at the border. Change the size and watch how
+    many threads there are, try <b>roundness</b> to see how the turns are
+    made, and <b>dark edges</b> for the look of a manuscript.</p>
+
+  <x-ocaml id="plaits">(* What the controls set. *)
+let across = ref 5 and down = ref 3 and colours = ref true and outline = ref false
+let construction = ref false and round = ref 0.7
+
+let plait () =
+  let g = square_grid !across !down in
+  let n = List.length (threads g (every Cross g)) in
+  draw ~round:!round ~outline:!outline ~colours:!colours ~construction:!construction g (every Cross g)
+  ^ caption (Printf.sprintf "%d by %d squares: %s." !across !down (plural n "thread"))
+
+let () =
+  interact plait
+    [ int_slider "across" ~min:1 ~max:12 across;
+      int_slider "down" ~min:1 ~max:12 down;
+      checkbox "a colour for each thread" colours;
+      checkbox "dark edges" outline;
+      checkbox "show the grid" construction;
+      float_slider "roundness" ~min:0. ~max:1. ~step:0.05 round ]</x-ocaml>
+
+  <p class="note">Some sizes give one thread and others give many: a 5 by 3
+    plait has two, and a 5 by 5 has six. Can you see the rule before
+    reading on?</p>
+
+  <p>A plait <i>w</i> squares across and <i>h</i> down has
+    gcd(<i>w</i> + 1, <i>h</i> + 1) threads. Here is a check of every size
+    up to 12 by 12:</p>
+
+  <x-ocaml id="gcd">let rec gcd a b = if b = 0 then a else gcd b (a mod b);;
+
+List.for_all
+  (fun (w, h) -&gt;
+    let g = square_grid w h in
+    List.length (threads g (every Cross g)) = gcd (w + 1) (h + 1))
+  (List.concat_map (fun w -&gt; List.init 12 (fun h -&gt; (w, h + 1))) (List.init 12 (fun w -&gt; w + 1)))</x-ocaml>
+
+  <h2>Breaks</h2>
+
+  <p>A plait is regular, and knotwork is made by breaking it. Click an
+    edge of the grid to turn its crossing into a wall along the edge, click
+    again for a wall across it, and a third time to make it a crossing
+    again. With the mirrors on, each click also changes the edges it
+    reflects to, which is how Celtic panels get their symmetry.</p>
+
+  <details>
+    <summary>The editor's workings: edges by name, mirrors, and breaks at random</summary>
+  <x-ocaml id="keys">(* The breaks on a grid, kept apart from its size: each edge is known by
+   its middle, doubled to make whole numbers, and only the edges that
+   are not crossings are written down. *)
+module Key = Map.Make (struct
+  type t = int * int
+
+  let compare = compare
+end)
+
+let key g e =
+  let x, y = mid g e in
+  (Float.to_int (Float.round (2. *. x)), Float.to_int (Float.round (2. *. y)))
+
+let kinds_of g breaks =
+  Array.init (Array.length g.edges) (fun e -&gt; Option.value ~default:Cross (Key.find_opt (key g e) breaks))
+
+let next = function Cross -&gt; Along | Along -&gt; Across | Across -&gt; Cross</x-ocaml>
+  <x-ocaml id="editor">let cols = ref 8
+let rows = ref 6
+let breaks = ref Key.empty
+let mirror_x = ref true
+let mirror_y = ref true
+
+(* The edges that the mirrors turned on send the edge at [(x, y)] to. *)
+let orbit (x, y) =
+  let w = 2 * !cols and h = 2 * !rows in
+  let xs = if !mirror_x then [ x; w - x ] else [ x ] in
+  let ys = if !mirror_y then [ y; h - y ] else [ y ] in
+  List.sort_uniq compare (List.concat_map (fun x -&gt; List.map (fun y -&gt; (x, y)) ys) xs)
+
+let set ks kind m = List.fold_left (fun m k -&gt; if kind = Cross then Key.remove k m else Key.add k kind m) m ks
+
+let click g e =
+  let k = key g e in
+  let now = Option.value ~default:Cross (Key.find_opt k !breaks) in
+  breaks := set (orbit k) (next now) !breaks
+
+(* Breaks at random, the same in every mirror. An edge on the border
+   gets no wall along it, which would only box the knot in. *)
+let scatter ~density g =
+  let w = 2 * !cols and h = 2 * !rows in
+  let border (x, y) = x = 0 || y = 0 || x = w || y = h in
+  Array.fold_left
+    (fun m e -&gt;
+      let k = key g e in
+      let ks = orbit k in
+      if k &lt;&gt; List.hd ks || Random.float 1. &gt;= density then m
+      else set ks (if border k || Random.bool () then Across else Along) m)
+    Key.empty
+    (Array.init (Array.length g.edges) Fun.id)
+
+(* Try again until the knot is a single thread, or give up after 400. *)
+let random ~density ~one () =
+  let g = square_grid !cols !rows in
+  let rec go n =
+    let m = scatter ~density g in
+    if (not one) || n = 0 || List.length (threads g (kinds_of g m)) = 1 then m else go (n - 1)
+  in
+  breaks := go 400</x-ocaml>
+  </details>
+
+  <x-ocaml id="editor-show">let colours = ref false and construction = ref true
+let density = ref 0.3 and one_thread = ref true
+
+(* An edge clicked, which redraws the knot once it is shown. *)
+let redraw = ref ignore
+let clicked = X_ocaml_lib.callback (fun e -&gt; click (square_grid !cols !rows) (int_of_string e); !redraw ())
+
+let knot () =
+  let g = square_grid !cols !rows in
+  let kinds = kinds_of g !breaks in
+  let n = List.length (threads g kinds) in
+  draw ~colours:!colours ~construction:!construction ~on_edge:clicked ~scale:64. g kinds
+  ^ caption ~badge:(if n = 1 then "good" else "info") (plural n "thread")
+
+let controls =
+  [ int_slider "across" ~min:1 ~max:14 cols;
+    int_slider "down" ~min:1 ~max:14 rows;
+    checkbox "mirror left and right" mirror_x;
+    checkbox "mirror top and bottom" mirror_y;
+    checkbox "show the grid" construction;
+    checkbox "a colour for each thread" colours;
+    float_slider "random breaks" ~min:0. ~max:0.8 ~step:0.05 density;
+    checkbox "only one thread" one_thread;
+    buttons
+      [ button ~primary:true "random" (fun () -&gt; random ~density:!density ~one:!one_thread ());
+        button "clear" (fun () -&gt; breaks := Key.empty) ] ]
+
+let () = interact ~title:"Breaks" ~redraw knot controls</x-ocaml>
+
+  <p class="note">Press <b>random</b> to scatter breaks at random,
+    symmetrically. With <b>only one thread</b> checked, it keeps trying
+    until the whole panel is one unbroken thread. Show the colours to see
+    how breaks join threads together and split them apart.</p>
+
+  <h2>Beyond the grid</h2>
+
+  <p>Nothing in the method needs a square grid: any graph drawn in the
+    plane gives a knot. A triangle's three edges give three crossings, and
+    one thread through them: the <em>triquetra</em>, or trefoil knot.</p>
+
+  <x-ocaml id="graphs">(* Other graphs. [polygon n] is a ring of [n] points; [wheel n] adds a
+   hub with a spoke to each; [triangles n] is a triangle cut into
+   triangles, [n] to a side. *)
+let ring n r = Array.init n (fun i -&gt; let a = (2. *. Float.pi *. float i /. float n) -. (Float.pi /. 2.) in (r *. cos a, r *. sin a))
+
+let polygon n =
+  { pos = ring n (0.7 /. sin (Float.pi /. float n)); edges = Array.init n (fun i -&gt; (i, (i + 1) mod n)) }
+
+let wheel n =
+  let r = Float.max 1.5 (0.7 /. sin (Float.pi /. float n)) in
+  { pos = Array.append [| (0., 0.) |] (ring n r);
+    edges = Array.concat [ Array.init n (fun i -&gt; (0, i + 1)); Array.init n (fun i -&gt; (i + 1, ((i + 1) mod n) + 1)) ] }
+
+let triangles n =
+  let pts = List.concat (List.init (n + 1) (fun j -&gt; List.init (n + 1 - j) (fun i -&gt; (i, j)))) in
+  let id = Hashtbl.create 16 in
+  List.iteri (fun k p -&gt; Hashtbl.add id p k) pts;
+  let pos = Array.of_list (List.map (fun (i, j) -&gt; (float i +. (0.5 *. float j), -.(sqrt 3. /. 2.) *. float j)) pts) in
+  let edges =
+    List.concat_map
+      (fun (i, j) -&gt;
+        if i + j + 1 &gt; n then []
+        else [ (Hashtbl.find id (i, j), Hashtbl.find id (i + 1, j));
+               (Hashtbl.find id (i, j), Hashtbl.find id (i, j + 1));
+               (Hashtbl.find id (i + 1, j), Hashtbl.find id (i, j + 1)) ])
+      pts
+  in
+  { pos; edges = Array.of_list edges }</x-ocaml>
+  <x-ocaml id="triquetra">let triangle = polygon 3
+let () = show (draw ~construction:true triangle (every Cross triangle))</x-ocaml>
+
+  <p>Put a point in the middle of the triangle and join it to the corners.
+    That is the graph of a tetrahedron, and its knot is the Borromean rings:
+    three loops, no two of them linked, which still can't be pulled
+    apart.</p>
+
+  <x-ocaml id="borromean">let k4 = wheel 3
+let () = show (draw ~colours:true ~construction:true ~width:0.3 k4 (every Cross k4))</x-ocaml>
+
+  <p>A ring of <i>n</i> points gives two threads twisted round each other
+    <i>n</i> times, which make one thread when <i>n</i> is odd. A wheel is
+    a ring with spokes, and a triangle can be cut into smaller triangles,
+    like a square into a grid.</p>
+
+  <x-ocaml id="explore">let shape = ref polygon and size = ref 5 and colours = ref true and construction = ref true
+
+let knot () =
+  let n = if !shape == triangles then !size else max 3 !size in
+  let g = !shape n in
+  let t = List.length (threads g (every Cross g)) in
+  draw ~colours:!colours ~construction:!construction ~width:(0.26 *. shortest g) ~scale:48. g (every Cross g)
+  ^ caption (plural t "thread" ^ ".")
+
+let () =
+  interact knot
+    [ choice "graph" [ ("polygon", polygon); ("wheel", wheel); ("triangles", triangles) ] shape;
+      int_slider "n" ~min:1 ~max:12 size;
+      checkbox "a colour for each thread" colours;
+      checkbox "show the graph" construction ]</x-ocaml>
+
+  <p class="note">Knot theorists use the same construction in reverse. An
+    alternating knot diagram gives a graph drawn in the plane, its
+    <em>Tait graph</em>, and the knot is drawn back from the graph exactly
+    as on this page.</p>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js" x-ocamlformat="disable"></script>
+</body>
+</html>
