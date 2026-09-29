@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the example braids.html</title>
+  <script src="lib.js"></script>
+  <script src="examples.js"></script>
+</head>
+<body>
+  <p>The braids example, examples/braids.html, run in a frame: every cell runs, and Artin's test tells braids apart as the page says.</p>
+  <script>
+    const answers = (frame, id) => [...frame.contentDocument.getElementById(id).shadowRoot.querySelectorAll('.caml_meta')]
+      .map((e) => (e.textContent.match(/- : bool = (\w+)/) || [])[1]).filter(Boolean);
+    example('/examples/braids.html', ['install', 'install-closure'], async (frame) => {
+      check('equal: the braid relation and far crossings hold, sigma_1 sigma_2 is not sigma_2 sigma_1',
+        answers(frame, 'equal').join(' ') === 'true true false true true');
+      check('the full twist is not the identity, and commutes where the half twist does not',
+        answers(frame, 'fullfacts').join(' ') === 'false' && answers(frame, 'garside').join(' ') === 'true true false');
+    });
+  </script>
+</body>
+</html>

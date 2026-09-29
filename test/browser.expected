@@ -59,3 +59,31 @@
   [PASS] HTMLElement's prototype is untouched
   [PASS] x-ocaml leaves no global behind
   [PASS] no errors on the page
+/test_example_braids.html
+  [PASS] every cell of /examples/braids.html runs
+  [PASS] and none fails
+  [PASS] equal: the braid relation and far crossings hold, sigma_1 sigma_2 is not sigma_2 sigma_1
+  [PASS] the full twist is not the identity, and commutes where the half twist does not
+  [PASS] no errors on the page
+/test_example_displays.html
+  [PASS] every cell of /examples/displays.html runs
+  [PASS] and none fails
+  [PASS] no errors on the page
+/test_example_invention.html
+  [PASS] every cell of /examples/invention.html runs
+  [PASS] and none fails
+  [PASS] the score as written has all 455 notes
+  [PASS] each passage and the whole piece is a score
+  [PASS] no errors on the page
+/test_example_knots.html
+  [PASS] every cell of /examples/knots.html runs
+  [PASS] and none fails
+  [PASS] each picture with controls is shown beside them
+  [PASS] the plait of 5 by 3 has two threads
+  [PASS] a slider redraws the plait: 5 by 5 has six threads
+  [PASS] a checkbox gives it dark edges
+  [PASS] the editor starts with no breaks
+  [PASS] clicking an edge breaks it, and its mirror images
+  [PASS] clear takes the breaks away again
+  [PASS] choosing the wheel draws a wheel of five, and its hub
+  [PASS] no errors on the page

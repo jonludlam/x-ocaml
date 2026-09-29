@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the example invention.html</title>
+  <script src="lib.js"></script>
+  <script src="examples.js"></script>
+</head>
+<body>
+  <p>The invention example, examples/invention.html, run in a frame: every cell runs, and the score written for abcjs has the program's notes.</p>
+  <script>
+    const text = (frame, id) => [...frame.contentDocument.getElementById(id).shadowRoot.querySelectorAll('.caml_stdout')]
+      .map((e) => e.textContent).join('');
+    example('/examples/invention.html', [], async (frame) => {
+      check('the score as written has all 455 notes', text(frame, 'written').includes("program's 455 notes"));
+      check('each passage and the whole piece is a score',
+        frame.contentDocument.querySelectorAll('x-score').length === 14);
+    });
+  </script>
+</body>
+</html>

@@ -4,6 +4,8 @@
 ; The pages' results are compared with browser.expected, as a cram test's
 ; output is: a change shows as a diff, and dune promote accepts it. So a
 ; test can record a bug as it is, and the fix change [FAIL] to [PASS].
+; The examples are pages to test too, each loaded in a frame by a
+; test_example_*.html.
 ; The results are written by a shell, where dune does not see them as a
 ; target: a target would be built by dune build too, running the pages.
 
@@ -12,7 +14,8 @@
  (deps
   %{project_root}/x-ocaml.js
   %{project_root}/x-ocaml.worker.js
-  (source_tree .))
+  (source_tree .)
+  (source_tree ../examples))
  (action
   (progn
    (system "node run_tests.js --transcript > browser.results")

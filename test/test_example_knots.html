@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the example knots.html</title>
+  <script src="lib.js"></script>
+  <script src="examples.js"></script>
+</head>
+<body>
+  <p>The knots example, examples/knots.html, run in a frame: every cell
+    runs, and its controls, HTML with data-callback tokens, call the cells
+    back and redraw the pictures.</p>
+  <script>
+    example('/examples/knots.html', [], async (frame) => {
+      const doc = frame.contentDocument;
+      const area = (id) => doc.querySelector(`#${id} + .x-ocaml-displays`);
+      const picture = (id) => area(id).querySelector('svg').outerHTML;
+      const caption = (id) => area(id).querySelector('.caption').textContent;
+      const input = (el, value) => {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      };
+      const redrawn = (id, before) => waitFor(() => picture(id) !== before, 10000);
+
+      check('each picture with controls is shown beside them',
+        ['plaits', 'editor-show', 'explore'].every((id) => area(id).children.length === 2
+          && area(id).querySelector('.panel')));
+      check('the plait of 5 by 3 has two threads', caption('plaits') === '5 by 3 squares: 2 threads.');
+
+      let before = picture('plaits');
+      input(area('plaits').querySelectorAll('input[type=range]')[1], '5');
+      check('a slider redraws the plait: 5 by 5 has six threads',
+        await redrawn('plaits', before) && caption('plaits') === '5 by 5 squares: 6 threads.');
+
+      before = picture('plaits');
+      area('plaits').querySelectorAll('input[type=checkbox]')[1].click();
+      check('a checkbox gives it dark edges',
+        await redrawn('plaits', before) && area('plaits').querySelectorAll('path[stroke="#2b211c"]').length > 0);
+
+      const walls = () => area('editor-show').querySelectorAll('line[stroke="#8a2f1c"]').length;
+      check('the editor starts with no breaks', walls() === 0 && caption('editor-show') === '1 thread');
+      before = picture('editor-show');
+      area('editor-show').querySelector('line.edge[data-payload="0"]')
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      check('clicking an edge breaks it, and its mirror images',
+        await redrawn('editor-show', before) && walls() === 4);
+
+      before = picture('editor-show');
+      [...area('editor-show').querySelectorAll('button')].find((b) => b.textContent === 'clear').click();
+      check('clear takes the breaks away again', await redrawn('editor-show', before) && walls() === 0);
+
+      before = picture('explore');
+      area('explore').querySelectorAll('.choice input')[1].click();
+      check('choosing the wheel draws a wheel of five, and its hub',
+        await redrawn('explore', before) && area('explore').querySelectorAll('circle').length === 6);
+    });
+  </script>
+</body>
+</html>
