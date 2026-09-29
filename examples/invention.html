@@ -23,6 +23,9 @@
     .note { border-left: 3px solid var(--rule); padding-left: 0.8rem; color: var(--muted); font-size: 0.95em; }
     .legend span { white-space: nowrap; margin-right: 1rem; font-size: 0.92em; }
     .legend b { font-size: 1.1em; }
+    details.plumbing { margin: 1rem 0 1.4rem; }
+    details.plumbing summary { cursor: pointer; color: var(--muted); }
+    details.plumbing[open] summary { margin-bottom: 0.3rem; }
     dl.notation dt { font-family: ui-monospace, Menlo, monospace; font-size: 0.9em; }
     dl.notation dd { margin: 0 0 0.4rem 1.5rem; }
   </style>
@@ -30,22 +33,16 @@
 <body>
   <nav><a href="index.html">examples</a></nav>
   <h1>Bach's invention, as a program</h1>
-  <p>The Invention No. 1 in C major, BWV 772, rebuilt from its two motives.</p>
+  <p>The Invention No. 1 in C major, BWV 772, rebuilt from its two motifs.</p>
 
-  <p>Bach wrote the fifteen two-part inventions for his son Wilhelm
-    Friedemann, and for "those desirous of learning", to show them how to
-    have good ideas and how to develop them well. The first is 22 bars
-    long and has about 450 notes, yet it all grows from one bar. That bar
-    has two ideas in it: a run of semiquavers, and some quavers that leap
-    and turn. Bach moves them up and down the scale, turns them upside
-    down, hands them from one hand to the other and takes them through
-    four keys.</p>
-
-  <p>So the piece compresses well. This page writes it as a short program:
-    a small language for the score, the two motives, a few things done to
-    them, and some bars that are simply written out. The cells below are
-    OCaml, running in your browser. Each draws the music it has just made,
-    and you can play it. Change any cell and run it again.</p>
+  <p>Although I usually prefer the late romantics when it comes to music,
+    I've always had a bit of a soft spot for Bach. His music manages to
+    be very beautiful despite, or perhaps because of, being very mathematical.
+    We're going to show off some of the mathematical bits in this doc by
+    recreating one of Bach's two part inventions programatically.
+  
+  <p>So here we are, we're going to be recreating BWV 772 using OCaml code
+    and rendered, visually and aurally, by a mix of OCaml and javascript</p>
 
   <p class="legend">The notes are coloured by where they come from:
     <span><b style="color:#c0392b">■</b> the run</span>
@@ -70,7 +67,7 @@
   <x-ocaml id="notes">(* A pitch is a step of the scale: a letter name in an octave, counted
    up from C0, so that middle C, C4, is 28. Sharps and flats are left to
    the key, or to a patch on the note. *)
-type ornament = Mordent | Prall
+type ornament = Mordent | Prall (* inverted mordent! *)
 
 (* Where a note came from, to colour it by in the score. *)
 type origin = A | A_inv | B | Counter | Counter_inv | Thirds | Held | Free
@@ -129,7 +126,24 @@ let a_minor_rising = { name = "A minor, rising"; alts = [ ('f', 1); ('g', 1) ] }
 let alt_in key step =
   Option.value ~default:0 (List.assoc_opt letters.[step mod 7] key.alts)</x-ocaml>
 
-  <x-ocaml id="plumbing" mode="hidden">(* Written-out music: [notes "8 c4 b3 f#3 16 d5 8. c5!m"]. *)
+  <p>The cell folded away below holds the plumbing. It turns the lines into events
+    (times, MIDI notes and lengths), writes them as <a
+    href="https://abcnotation.com/">ABC notation</a>, and hands that to a
+    small element that draws it with <a
+    href="https://www.abcjs.net/">abcjs</a>. It also reads written-out
+    music, in a notation borrowed from Humdrum, such as
+    <code>notes "8 a4 d4 8. c5!p 16 d5"</code>:</p>
+
+  <dl class="notation">
+    <dt>8, 16, 4., 2+16</dt><dd>a length, which lasts until the next: a quaver, a semiquaver, a dotted crotchet, a minim tied to a semiquaver;</dd>
+    <dt>c4, f#3, bb4, gn3</dt><dd>a pitch, with its octave, and a sharp, flat or natural when the key would not give it;</dd>
+    <dt>r</dt><dd>a rest;</dd>
+    <dt>c5!m, c5!p</dt><dd>a note with a mordent, down to the next note of the scale and back, or a prall, up to it and back.</dd>
+  </dl>
+
+  <details class="plumbing">
+    <summary>The plumbing: reading written-out music, performing, writing ABC</summary>
+  <x-ocaml id="plumbing">(* Written-out music: [notes "8 c4 b3 f#3 16 d5 8. c5!m"]. *)
 let notes s =
   let dur_of tok =
     let one t =
@@ -435,28 +449,14 @@ let draw ?title ?bars_per_line ?clefs hands =
 
 (* [show lines] draws lines of music at once, from the start, in a key. *)
 let show ?(key = c_major) lines = draw (List.map (perform ~keys:[ ((1, 0), key) ]) lines)</x-ocaml>
-
-  <p>A hidden cell holds the plumbing. It turns the lines into events
-    (times, MIDI notes and lengths), writes them as <a
-    href="https://abcnotation.com/">ABC notation</a>, and hands that to a
-    small element that draws it with <a
-    href="https://www.abcjs.net/">abcjs</a>. It also reads written-out
-    music, in a notation borrowed from Humdrum, such as
-    <code>notes "8 a4 d4 8. c5!p 16 d5"</code>:</p>
-
-  <dl class="notation">
-    <dt>8, 16, 4., 2+16</dt><dd>a length, which lasts until the next: a quaver, a semiquaver, a dotted crotchet, a minim tied to a semiquaver;</dd>
-    <dt>c4, f#3, bb4, gn3</dt><dd>a pitch, with its octave, and a sharp, flat or natural when the key would not give it;</dd>
-    <dt>r</dt><dd>a rest;</dd>
-    <dt>c5!m, c5!p</dt><dd>a note with a mordent, down to the next note of the scale and back, or a prall, up to it and back.</dd>
-  </dl>
+  </details>
 
   <p>The ornaments are played written out, with the next note in the
     scale of the key the music is in. Left to itself, abcjs plays every
     ornament a whole tone away, but the prall in bar 1, on B, goes up a
     semitone to C.</p>
 
-  <h2>The two motives</h2>
+  <h2>The two motifs</h2>
 
   <p>Here is the whole of the first bar in the right hand: a semiquaver
     rest, then <em>the run</em>, seven semiquavers up four notes and back,
@@ -464,7 +464,7 @@ let show ?(key = c_major) lines = draw (List.map (perform ~keys:[ ((1, 0), key) 
     step and back up. Both are written as steps above the note the run
     starts on.</p>
 
-  <x-ocaml id="motives">(* A figure: its lengths and its steps above the note it starts from. *)
+  <x-ocaml id="motifs">(* A figure: its lengths and its steps above the note it starts from. *)
 let shape origin dur offsets start = List.map (fun k -&gt; note ~origin dur (start + k)) offsets
 
 (* The run: seven semiquavers, up four notes and back. *)
@@ -485,7 +485,7 @@ let () = show [ subject (p "c4") ]</x-ocaml>
 
   <h2>Moving them</h2>
 
-  <p>Nearly everything Bach does to the motives is one of a few
+  <p>Nearly everything Bach does to the motifs is one of a few
     operations: move it up or down the scale, turn it upside down, take
     part of it, and now and then alter one note. Every alteration is a
     patch, done where it is needed, so it is plain what is not
@@ -529,7 +529,7 @@ let () = show [ List.concat_map (fun k -&gt; a_inv (p "c5" - k)) [ 0; 1; 2; 3 ] 
 
   <h2>Figures</h2>
 
-  <p>A few figures made from the motives come back more than once. The
+  <p>A few figures made from the motifs come back more than once. The
     most important is <code>descent</code>: the inverted run, falling
     through a sequence of thirds. It first appears in bar 3, over quavers
     in the left hand that go on to have a life of their own.</p>
@@ -728,7 +728,7 @@ let () =
   if heard &lt;&gt; read then failwith "the score as written is not the program's"
   else Printf.printf "The score as written has the program's %d notes.\n" (List.length read)</x-ocaml>
 
-  <p>How much of it comes from the motives:</p>
+  <p>How much of it comes from the motifs:</p>
 
   <x-ocaml id="count">let names =
   [ (A, "the run"); (A_inv, "the run, upside down"); (B, "the leap"); (Counter, "the quavers");
@@ -768,7 +768,7 @@ let () =
     formulas that close a phrase, with the line of bar 14 and the last
     bars.</p>
 
-  <p class="note">This counting is a little generous to the motives. The
+  <p class="note">This counting is a little generous to the motifs. The
     note before each run, a rest in bar 1, is sometimes a note chosen to
     lead into the run, and it is counted as part of it. And a note with a
     patch, a sharp or a natural or an ornament, still counts as part of
