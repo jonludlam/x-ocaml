@@ -105,9 +105,12 @@ let pp_line ppf l =
 #install_printer pp_line</x-ocaml>
 
   <p>A key says which letter names it sharpens or flattens. The piece
-    goes through G major, D minor and A minor. In a minor key, a line
-    going up sharpens more notes than one coming down, so those keys come
-    in two forms.</p>
+    goes through G major, D minor and A minor, and a minor key comes in
+    two forms. The <em>harmonic</em> minor raises the seventh note of the
+    scale, the leading note: G sharp in A minor. The <em>melodic</em>
+    minor, for a line going up, raises the sixth as well: F sharp and G
+    sharp. Bach uses both, and in bars 11 and 12 one in each hand at
+    once.</p>
 
   <x-ocaml id="keys">(* A key says how it alters each letter name. *)
 type key = { name : string; alts : (char * int) list }
@@ -115,13 +118,13 @@ type key = { name : string; alts : (char * int) list }
 let c_major = { name = "C major"; alts = [] }
 let g_major = { name = "G major"; alts = [ ('f', 1) ] }
 let f_major = { name = "F major"; alts = [ ('b', -1) ] }
-let d_minor = { name = "D minor"; alts = [ ('b', -1); ('c', 1) ] }
-let a_minor = { name = "A minor"; alts = [ ('g', 1) ] }
+let d_harmonic_minor = { name = "D harmonic minor"; alts = [ ('b', -1); ('c', 1) ] }
+let a_harmonic_minor = { name = "A harmonic minor"; alts = [ ('g', 1) ] }
 
-(* Minor keys going up raise the sixth as well as the seventh, and
-   Bach's D minor, going up, takes the B natural. *)
-let d_minor_rising = { name = "D minor, rising"; alts = [ ('c', 1) ] }
-let a_minor_rising = { name = "A minor, rising"; alts = [ ('f', 1); ('g', 1) ] }
+(* The melodic minor raises the sixth as well as the seventh: in D minor,
+   B natural and C sharp. *)
+let d_melodic_minor = { name = "D melodic minor"; alts = [ ('c', 1) ] }
+let a_melodic_minor = { name = "A melodic minor"; alts = [ ('f', 1); ('g', 1) ] }
 
 let alt_in key step =
   Option.value ~default:0 (List.assoc_opt letters.[step mod 7] key.alts)</x-ocaml>
@@ -567,13 +570,13 @@ let () = show ~keys:[ ((1, 0), c_major); ((2, 0), g_major) ] [ descent (p "a5") 
 
   <x-ocaml id="plan">(* The keys each hand is in, from which bar and semiquaver. *)
 let right_keys =
-  [ ((1, 0), c_major); ((4, 0), g_major); ((9, 0), c_major); ((11, 0), d_minor_rising);
-    ((12, 0), a_minor_rising); ((14, 0), a_minor); ((15, 0), c_major);
+  [ ((1, 0), c_major); ((4, 0), g_major); ((9, 0), c_major); ((11, 0), d_melodic_minor);
+    ((12, 0), a_melodic_minor); ((14, 0), a_harmonic_minor); ((15, 0), c_major);
     ((21, 0), f_major); ((21, 8), c_major) ]
 
 let left_keys =
-  [ ((1, 0), c_major); ((3, 0), g_major); ((9, 0), c_major); ((11, 0), d_minor);
-    ((12, 0), a_minor); ((13, 0), a_minor_rising); ((14, 0), a_minor);
+  [ ((1, 0), c_major); ((3, 0), g_major); ((9, 0), c_major); ((11, 0), d_harmonic_minor);
+    ((12, 0), a_harmonic_minor); ((13, 0), a_melodic_minor); ((14, 0), a_harmonic_minor);
     ((15, 0), c_major); ((18, 0), f_major); ((20, 0), c_major) ]</x-ocaml>
 
   <h2>The invention, a passage at a time</h2>
