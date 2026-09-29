@@ -4,27 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>x-ocaml displays</title>
+  <link rel="stylesheet" href="style.css">
   <style>
-    :root { color-scheme: light dark; --ink: #222; --muted: #666; --paper: #fdfcf9; --code: #f0eee8; --rule: #d8d4ca; --accent: #9b2d20; }
-    @media (prefers-color-scheme: dark) {
-      :root { --ink: #e6e3dc; --muted: #a09c93; --paper: #1b1b1d; --code: #2b2b2f; --rule: #3a3a3f; --accent: #e3876f; }
-    }
-    body { font-family: Georgia, 'Iowan Old Style', serif; font-size: 1.08rem; line-height: 1.6;
-      max-width: 44rem; margin: 2.5rem auto 5rem; padding: 0 1rem; color: var(--ink); background: var(--paper); }
-    h1 { font-weight: 400; font-size: 2.4rem; margin-bottom: 0.2rem; }
-    h1 + p { color: var(--muted); margin-top: 0; font-style: italic; }
-    h2 { font-weight: 400; font-size: 1.45rem; margin-top: 2.4rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.2rem; }
-    code { font-family: ui-monospace, Menlo, monospace; font-size: 0.88em; background: var(--code); padding: 0 0.25em; border-radius: 3px; }
-    a { color: var(--accent); }
-    ul.demos { list-style: none; padding: 0; }
-    ul.demos li { margin: 0 0 1rem; }
-    ul.demos a { font-size: 1.15rem; }
-    .api li { margin-bottom: 0.3rem; }
+    ul.demos li { margin-bottom: 0.6rem; }
   </style>
 </head>
 <body>
   <h1>x-ocaml displays</h1>
-  <p>Cells that draw, update what they drew, and hear back from it.</p>
 
   <p>x-ocaml puts OCaml cells in a web page. Each cell's code runs in an
     OCaml toplevel in a Web Worker, and until now it could show only what
@@ -39,7 +25,7 @@
     and go when it runs again.</p>
 
   <p>It is all in <code>X_ocaml_lib</code>:</p>
-  <ul class="api">
+  <ul>
     <li><code>display ~tag data</code> shows a <code>&lt;tag&gt;</code>
       element under the cell, <code>update d data</code> gives it new data,
       and <code>remove d</code> takes it away; <code>html</code> is a

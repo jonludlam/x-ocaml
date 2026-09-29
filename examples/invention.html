@@ -4,30 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bach's invention, as a program</title>
+  <link rel="stylesheet" href="style.css">
   <style>
-    :root { color-scheme: light dark; --ink: #1f2328; --muted: #5f6770; --paper: #f8f7f4; --code: #eceae4; --rule: #d9d5cc; --accent: #9b2d20; }
-    @media (prefers-color-scheme: dark) {
-      :root { --ink: #e7e4dd; --muted: #a39f97; --paper: #1a1a1c; --code: #2b2b2e; --rule: #3b3a3d; --accent: #e3876f; }
-    }
-    body { font-family: Georgia, 'Iowan Old Style', serif; font-size: 1.08rem; line-height: 1.6;
-      max-width: 52rem; margin: 2.5rem auto 5rem; padding: 0 1rem; color: var(--ink); background: var(--paper); }
-    nav { font-size: 0.9rem; margin-bottom: 1.5rem; }
-    a { color: var(--accent); }
-    h1 { font-weight: 400; font-size: 2.4rem; margin-bottom: 0.2rem; }
-    h1 + p { color: var(--muted); margin-top: 0; font-style: italic; }
-    h2 { font-weight: 400; font-size: 1.45rem; margin-top: 2.8rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.2rem; }
-    code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; background: var(--code); padding: 0 0.25em; border-radius: 3px; }
-    /* The cells keep x-ocaml's own light look, as cards, whatever the page's theme. */
-    x-ocaml { font-size: 0.82rem; margin: 0.9rem 0 1.3rem; background: #fff; color: #222; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
-    x-score { margin: 0.4rem 0 0.8rem; }
-    .note { border-left: 3px solid var(--rule); padding-left: 0.8rem; color: var(--muted); font-size: 0.95em; }
-    .legend span { white-space: nowrap; margin-right: 1rem; font-size: 0.92em; }
-    .legend b { font-size: 1.1em; }
-    details.plumbing { margin: 1rem 0 1.4rem; }
-    details.plumbing summary { cursor: pointer; color: var(--muted); }
-    details.plumbing[open] summary { margin-bottom: 0.3rem; }
-    dl.notation dt { font-family: ui-monospace, Menlo, monospace; font-size: 0.9em; }
-    dl.notation dd { margin: 0 0 0.4rem 1.5rem; }
+    .legend span { white-space: nowrap; margin-right: 1rem; }
   </style>
 </head>
 <body>
@@ -148,14 +127,14 @@ let alt_in key step =
     music, in a notation borrowed from Humdrum, such as
     <code>notes "8 a4 d4 8. c5!p 16 d5"</code>:</p>
 
-  <dl class="notation">
+  <dl>
     <dt>8, 16, 4., 2+16</dt><dd>a length, which lasts until the next: a quaver, a semiquaver, a dotted crotchet, a minim tied to a semiquaver;</dd>
     <dt>c4, f#3, bb4, gn3</dt><dd>a pitch, with its octave, and a sharp, flat or natural when the key would not give it;</dd>
     <dt>r</dt><dd>a rest;</dd>
     <dt>c5!m, c5!p</dt><dd>a note with a mordent, down to the next note of the scale and back, or a prall, up to it and back.</dd>
   </dl>
 
-  <details class="plumbing">
+  <details>
     <summary>The plumbing: reading written-out music, performing, writing ABC</summary>
   <x-ocaml id="plumbing">(* Written-out music: [notes "8 c4 b3 f#3 16 d5 8. c5!m"]. *)
 let notes s =

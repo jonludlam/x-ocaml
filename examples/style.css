@@ -1,0 +1,17 @@
+/* The one stylesheet the demos share: plain on purpose. A page adds only
+   what its own displays need. */
+body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 52rem; margin: 2rem auto 4rem; padding: 0 1rem; color: #222; background: #fff; }
+nav { font-size: 0.9em; margin-bottom: 1rem; }
+h2 { margin-top: 2.4rem; }
+h2 small { font-weight: 400; color: #777; font-size: 0.8em; margin-left: 0.3rem; }
+code { background: #f2f4f8; padding: 0 0.25em; border-radius: 3px; }
+.note { border-left: 3px solid #bbb; padding-left: 0.8rem; color: #555; }
+details { margin: 1rem 0; }
+summary { cursor: pointer; color: #555; }
+dt { font-family: ui-monospace, Menlo, monospace; font-size: 0.9em; }
+dd { margin: 0 0 0.4rem 1.5rem; }
+
+/* What a cell shows after itself. */
+.x-ocaml-displays { margin: 0.4rem 0 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.x-ocaml-displays button { font: inherit; padding: 0.25rem 0.8rem; margin-right: 0.3rem; }
+.x-ocaml-displays label { margin-right: 1.2rem; }
