@@ -73,7 +73,7 @@ type ornament = Mordent | Prall (* inverted mordent! *)
 type origin = A | A_inv | B | Counter | Counter_inv | Thirds | Held | Free
 
 type note = {
-  steps : int list; (* none for a rest, several for a chord *)
+  pitches : int list; (* steps of the scale: none for a rest, several for a chord *)
   alt : int option; (* semitones up, or None to leave it to the key *)
   dur : int; (* in demisemiquavers *)
   orn : ornament option;
@@ -93,13 +93,13 @@ let p s =
   | Some i when String.length s = 2 -&gt; (7 * (Char.code s.[1] - Char.code '0')) + i
   | _ -&gt; invalid_arg ("p: " ^ s)
 
-let note ?(origin = Free) dur step = { steps = [ step ]; alt = None; dur; orn = None; origin }
-let rest dur = { steps = []; alt = None; dur; orn = None; origin = Free }
-let chord dur names = { (rest dur) with steps = List.map p names }
+let note ?(origin = Free) dur step = { pitches = [ step ]; alt = None; dur; orn = None; origin }
+let rest dur = { pitches = []; alt = None; dur; orn = None; origin = Free }
+let chord dur names = { (rest dur) with pitches = List.map p names }
 
 (* A line prints as its size. *)
 let pp_line ppf l =
-  let n = List.length (List.filter (fun x -&gt; x.steps &lt;&gt; []) l) in
+  let n = List.length (List.filter (fun x -&gt; x.pitches &lt;&gt; []) l) in
   Format.fprintf ppf "&lt;%d notes, %g bars&gt;" n (float (length l) /. float semibreve);;
 
 #install_printer pp_line</x-ocaml>
@@ -215,13 +215,13 @@ let perform ?(keys = []) ?(from = 0) line =
       let key = key_at keys !at in
       let alt s = match x.alt with Some a -&gt; a | None -&gt; alt_in key s in
       let aux =
-        match (x.orn, x.steps) with
+        match (x.orn, x.pitches) with
         | Some Prall, s :: _ -&gt; Some (midi_of (s + 1) (alt_in key (s + 1)))
         | Some Mordent, s :: _ -&gt; Some (midi_of (s - 1) (alt_in key (s - 1)))
         | _ -&gt; None
       in
       let e =
-        { at = !at; midi = List.map (fun s -&gt; midi_of s (alt s)) x.steps; len = x.dur;
+        { at = !at; midi = List.map (fun s -&gt; midi_of s (alt s)) x.pitches; len = x.dur;
           ornament = x.orn; aux; from = x.origin }
       in
       at := !at + x.dur;
@@ -495,21 +495,21 @@ let () = show [ subject (p "c4") ]</x-ocaml>
     patch, done where it is needed, so it is plain what is not
     systematic.</p>
 
-  <x-ocaml id="transformations">let map_steps f l = List.map (fun x -&gt; { x with steps = List.map f x.steps; alt = None }) l
+  <x-ocaml id="transformations">let map_pitches f l = List.map (fun x -&gt; { x with pitches = List.map f x.pitches; alt = None }) l
 
 (* Up [k] steps of the scale. *)
-let transpose k l = map_steps (fun s -&gt; s + k) l
+let transpose k l = map_pitches (fun s -&gt; s + k) l
 
 let inverse = function
   | A -&gt; A_inv | A_inv -&gt; A | Counter -&gt; Counter_inv | Counter_inv -&gt; Counter | o -&gt; o
 
 (* Upside down, about its first note. *)
 let invert l =
-  let axis = match List.find_opt (fun x -&gt; x.steps &lt;&gt; []) l with
-    | Some { steps = s :: _; _ } -&gt; s
+  let axis = match List.find_opt (fun x -&gt; x.pitches &lt;&gt; []) l with
+    | Some { pitches = s :: _; _ } -&gt; s
     | _ -&gt; invalid_arg "invert: only rests"
   in
-  List.map (fun x -&gt; { x with origin = inverse x.origin }) (map_steps (fun s -&gt; (2 * axis) - s) l)
+  List.map (fun x -&gt; { x with origin = inverse x.origin }) (map_pitches (fun s -&gt; (2 * axis) - s) l)
 
 let take n l = List.filteri (fun i _ -&gt; i &lt; n) l
 let tagged origin l = List.map (fun x -&gt; { x with origin }) l
@@ -519,7 +519,7 @@ let patch i f l = List.mapi (fun j x -&gt; if i = j then f x else x) l
 let sharp i = patch i (fun x -&gt; { x with alt = Some 1 })
 let natural i = patch i (fun x -&gt; { x with alt = Some 0 })
 let ornament i o = patch i (fun x -&gt; { x with orn = Some o })
-let replace i step = patch i (fun x -&gt; { x with steps = [ step ]; alt = None })
+let replace i step = patch i (fun x -&gt; { x with pitches = [ step ]; alt = None })
 
 let a_inv start = invert (a start)</x-ocaml>
 
