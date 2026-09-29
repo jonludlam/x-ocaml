@@ -39,8 +39,8 @@
     I've always had a bit of a soft spot for Bach. His music manages to
     be very beautiful despite, or perhaps because of, being very mathematical.
     We're going to show off some of the mathematical bits in this doc by
-    recreating one of Bach's two part inventions programatically.
-  
+    recreating one of Bach's two part inventions programmatically.</p>
+
   <p>So here we are, we're going to be recreating BWV 772 using OCaml code
     and rendered, visually and aurally, by a mix of OCaml and javascript</p>
 
@@ -447,8 +447,9 @@ let draw ?title ?bars_per_line ?clefs hands =
   in
   ignore (X_ocaml_lib.display ~tag:"x-score" json)
 
-(* [show lines] draws lines of music at once, from the start, in a key. *)
-let show ?(key = c_major) lines = draw (List.map (perform ~keys:[ ((1, 0), key) ]) lines)</x-ocaml>
+(* [show lines] draws lines of music at once, from the start, in the
+   keys given from which bar and semiquaver on, or in C. *)
+let show ?(keys = [ ((1, 0), c_major) ]) lines = draw (List.map (perform ~keys) lines)</x-ocaml>
   </details>
 
   <p>The ornaments are played written out, with the next note in the
@@ -555,7 +556,8 @@ let echo step figure = [ note quaver step; rest quaver; rest crotchet ] ++ r16 +
 let counter =
   tagged Counter (notes "8 c4 b3 c4 d4 e4 g3 a3 b3 | c4 e3 f3 g3 a3 b3 4+16 c4")
 
-let () = show ~key:g_major [ descent (p "a5") 4; counter ]</x-ocaml>
+(* As in bars 3 and 4: in C, and in G from the second bar. *)
+let () = show ~keys:[ ((1, 0), c_major); ((2, 0), g_major) ] [ descent (p "a5") 4; counter ]</x-ocaml>
 
   <h2>The key plan</h2>
 
