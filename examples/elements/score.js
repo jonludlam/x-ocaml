@@ -9,7 +9,7 @@ const abcjsLoaded = new Promise((resolve) => {
   js.onload = resolve;
   document.head.append(js);
 });
-// Quarter notes a minute: a little quicker than Schiff's 59.
+// Crotchets a minute: a little quicker than Schiff's 59.
 const QPM = 66;
 customElements.define('x-score', class extends HTMLElement {
   set data(s) {
