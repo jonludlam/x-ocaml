@@ -230,9 +230,12 @@ alternates (square_grid 7 5) (every Cross (square_grid 7 5))</x-ocaml>
 
     <p>The only geometry is at the middles and in the corners. A thread
       leaves the middle of an edge at an angle to it, 45 degrees on a
-      square grid. It rounds each corner as one cubic Bézier curve, whose
-      handles lengthen with how far it turns. Where the thread goes under
-      another, it stops a little short on each side.</p>
+      square grid. It rounds each corner the way the old draughtsmen did,
+      with a straight run, an arc of a circle, and another straight run.
+      The circle has to touch both straight lines. Of all the circles that
+      do, <code>round</code> chooses how big, from a sharp corner (0) to
+      the largest that fits (1). Where the thread goes under another, it
+      stops a little short on each side, always on a straight run.</p>
 
   <x-ocaml id="geometry">(* Where the threads go. [mid] is an edge's middle, [half] half its
    length. *)
@@ -276,37 +279,120 @@ let heading g rot p =
 
 (* A thread passing a middle, from [p] to [q]: a point, and the way it
    goes. Crossing, it goes over the middle itself; turned back by a wall,
-   a little way off it, on its own side. *)
+   it passes a little way off it, on its own side: on a square grid, a
+   quarter of an edge off, so that a thread passing wall after wall runs
+   straight past them. *)
 let waypoint g rot (p, q) =
   let hp = heading g rot p and hq = heading g rot q in
-  let at = if p.ccw = q.ccw then mid g p.e else mid g p.e +: ((0.22 *. half g p.e) *: (hp +: hq)) in
+  let at = if p.ccw = q.ccw then mid g p.e else mid g p.e +: ((0.3536 *. half g p.e) *: (hp +: hq)) in
   (at, unit (hq -: hp))</x-ocaml>
-  <x-ocaml id="curves">(* Round each corner with one cubic, bent like an arc of a circle: the
-   handles are a third of the way across when it goes straight, and grow
-   as it turns. Rounding the outside of a point, it turns right round, and
-   the handles reach out to take it there. *)
+  <x-ocaml id="curves">(* Round each corner as the old draughtsmen did: straight, then an arc of
+   a circle, then straight again. Everything is drawn as cubics; a line
+   is a cubic with its handles on it, and an arc is cut into quarter
+   turns, each close to a cubic. *)
 type cubic = (float * float) * (float * float) * (float * float) * (float * float)
 
-let bend (a, ta) (b, tb) ~turn ~reach : cubic =
-  let k = norm (b -: a) /. (3. *. (cos (Float.min 3. (Float.abs turn) /. 4.) ** 2.)) in
-  let k = if Float.abs turn &gt; Float.pi /. 2. then Float.max k reach else k in
-  (a, a +: (k *: ta), b -: (k *: tb), b)
+let line a b : cubic = (a, a +: ((1. /. 3.) *: (b -: a)), a +: ((2. /. 3.) *: (b -: a)), b)
 
-(* A thread as a list of cubics, each saying whether it starts, or ends,
-   going under a crossing. *)
-type piece = { curve : cubic; from_under : bool; to_under : bool }
+let cross (a, b) (c, d) = (a *. d) -. (b *. c)
+
+(* The arc about [c] of radius [r], from angle [a0], turning [sweep]
+   (anticlockwise if positive). *)
+let arc c r a0 sweep =
+  let n = max 1 (Float.to_int (Float.ceil (Float.abs sweep /. (Float.pi /. 2.) -. 1e-6))) in
+  let d = sweep /. float n in
+  let k = 4. /. 3. *. tan (d /. 4.) *. r in
+  let at a = c +: (r *: (cos a, sin a)) and tangent a = (-.sin a, cos a) in
+  List.init n (fun i -&gt;
+      let a = a0 +. (d *. float i) and b = a0 +. (d *. float (i + 1)) in
+      ((at a, at a +: (k *: tangent a), at b -: (k *: tangent b), at b) : cubic))
+
+(* From [a] heading [ta] to [b] heading [tb], turning through [turn]
+   (anticlockwise if positive): go straight a distance [s], round a
+   circle of radius [r], and straight a distance [u] into [b]. The centre
+   is [r] to the turning side of both lines, so
+
+     s ta + u tb = (b - a) + r (n2 - n1)
+
+   and [s] and [u] grow or shrink steadily with [r]. They must be at
+   least [s_min] and [u_min], so that a ribbon cut short near a crossing
+   is cut on a straight. Turning less than half a turn, the circles that fit run
+   from nothing up to one that leaves the least straight at one end, and
+   [round] is how far along to go; turning more, the smallest circle that
+   fits is taken. *)
+let fillet ~round ?(s_min = 0.) ?(u_min = 0.) (a, ta) (b, tb) turn =
+  let side v = if turn &gt; 0. then left v else right v in
+  let n1 = side ta and n2 = side tb in
+  let det = cross ta tb in
+  let arc_from t1 r =
+    let c = t1 +: (r *: n1) in
+    let t2 = c -: (r *: n2) in
+    (line a t1 :: arc c r (angle (t1 -: c)) turn) @ [ line t2 b ]
+  in
+  if Float.abs det &lt; 0.02 then
+    if dot ta tb &gt; 0. then None
+    else
+      (* A U-turn between parallel lines: the circle has to fit between
+         them, and only the difference of the straights is fixed. *)
+      let r = Float.abs (dot (b -: a) n1) /. 2. in
+      let along = dot (b -: a) ta in
+      Some (arc_from (a +: (Float.max s_min (along +. u_min) *: ta)) r)
+  else
+    let solve d = (cross d tb /. det, cross ta d /. det) in
+    let s0, u0 = solve (b -: a) and s1, u1 = solve (n2 -: n1) in
+    (* The radii that leave both straights at least zero long. *)
+    let lo = ref 0. and hi = ref infinity in
+    List.iter
+      (fun (x0, x1) -&gt;
+        if x1 &gt; 1e-9 then lo := Float.max !lo (-.x0 /. x1)
+        else if x1 &lt; -1e-9 then hi := Float.min !hi (-.x0 /. x1)
+        else if x0 &lt; -1e-9 then hi := -1.)
+      [ (s0 -. s_min, s1); (u0 -. u_min, u1) ];
+    if !hi &lt; !lo then None
+    else
+      let r = if !hi = infinity then !lo else !lo +. (round *. (!hi -. !lo)) in
+      if r &lt;= 1e-9 then None else Some (arc_from (a +: ((s0 +. (r *. s1)) *: ta)) r)
+
+(* When there is no such circle, one cubic will do. *)
+let bend ~round ?s_min ?u_min ((a, ta) as from) ((b, tb) as to_) ~turn ~reach =
+  match fillet ~round ?s_min ?u_min from to_ turn with
+  | Some cs -&gt; cs
+  | None -&gt; (
+      match fillet ~round from to_ turn with
+      | Some cs -&gt; cs
+      | None -&gt;
+      let k = norm (b -: a) /. (3. *. (cos (Float.min 3. (Float.abs turn) /. 4.) ** 2.)) in
+      let k = if Float.abs turn &gt; Float.pi /. 2. then Float.max k reach else k in
+      [ (a, a +: (k *: ta), b -: (k *: tb), b) ])
+
+(* A thread as its corners, each a list of cubics, and whether it starts,
+   or ends, going under a crossing. *)
+type piece = { curves : cubic list; from_under : bool; to_under : bool }
 
 let under kinds ((p, _) as j) = kinds.(p.e) = Cross &amp;&amp; not (over j)
 
-let pieces g rot kinds thread =
+(* How far a thread turns rounding a corner: the angle between the ways
+   it leaves and arrives, plus as many whole turns as it takes to be
+   nearest [estimate]. Rounding a corner anticlockwise about its point
+   (when the corner is on the anticlockwise side of the edge it leaves),
+   a thread turns about as much as the corner is wide, less the slants. *)
+let turning ta tb estimate =
+  let exact = atan2 (cross ta tb) (dot ta tb) in
+  exact +. (2. *. Float.pi *. Float.round ((estimate -. exact) /. (2. *. Float.pi)))
+
+let pieces ?(round = 0.7) ?(straight = 0.) g rot kinds thread =
   let js = Array.of_list thread in
   let n = Array.length js in
   List.init n (fun i -&gt;
       let ((_, q) as j) = js.(i) and ((r, _) as j') = js.((i + 1) mod n) in
-      let turn = corner_angle g rot q +. slant g rot q +. slant g rot r -. Float.pi in
-      let reach = 0.6 *. turn *. Float.min (half g q.e) (half g r.e) in
-      { curve = bend (waypoint g rot j) (waypoint g rot j') ~turn ~reach;
-        from_under = under kinds j; to_under = under kinds j' })</x-ocaml>
+      let estimate = corner_angle g rot q +. slant g rot q +. slant g rot r -. Float.pi in
+      let ((_, ta) as from) = waypoint g rot j and ((_, tb) as to_) = waypoint g rot j' in
+      let turn = turning ta tb (if q.ccw then estimate else -.estimate) in
+      let reach = 0.6 *. Float.abs turn *. Float.min (half g q.e) (half g r.e) in
+      (* Straights at least [straight] long out of crossings. *)
+      let at_crossing (p, _) = kinds.(p.e) = Cross in
+      let s_min = if at_crossing j then straight else 0. and u_min = if at_crossing j' then straight else 0. in
+      { curves = bend ~round ~s_min ~u_min from to_ ~turn ~reach; from_under = under kinds j; to_under = under kinds j' })</x-ocaml>
   <x-ocaml id="ribbons">(* Cut the threads into ribbons, stopping [gap] short of each crossing
    they go under. *)
 let point_on ((p0, p1, p2, p3) : cubic) t =
@@ -325,12 +411,20 @@ let split ((p0, p1, p2, p3) : cubic) t : cubic * cubic =
   let m = mix d e in
   ((p0, a, d, m), (m, e, c, p3))
 
+(* Drop the first [d] of a list of cubics, or with [rev] the last. *)
+let reverse ((p0, p1, p2, p3) : cubic) : cubic = (p3, p2, p1, p0)
+
+let rec drop d = function
+  | c :: rest when d &gt; 0. -&gt;
+      let l = length c in
+      if d &gt;= l &amp;&amp; rest &lt;&gt; [] then drop (d -. l) rest else snd (split c (Float.min 0.99 (d /. l))) :: rest
+  | cs -&gt; cs
+
 let trim ~gap pc =
-  let l = length pc.curve in
-  let t0 = if pc.from_under then Float.min 0.45 (gap /. l) else 0. in
-  let t1 = if pc.to_under then Float.max 0.55 (1. -. (gap /. l)) else 1. in
-  let _, c = split pc.curve t0 in
-  fst (split c ((t1 -. t0) /. (1. -. t0)))
+  let total = List.fold_left (fun l c -&gt; l +. length c) 0. pc.curves in
+  let gap = Float.min gap (0.45 *. total) in
+  let cs = if pc.from_under then drop gap pc.curves else pc.curves in
+  if pc.to_under then List.rev_map reverse (drop gap (List.rev_map reverse cs)) else cs
 
 (* A thread's ribbons, from one gap to the next; a thread that never
    goes under is one closed loop. *)
@@ -348,7 +442,7 @@ let ribbons pcs =
 let pt (x, y) = Printf.sprintf "%.3f,%.3f" x y
 
 let path ~gap (closed, pcs) =
-  let cs = List.map (trim ~gap) pcs in
+  let cs = List.concat_map (trim ~gap) pcs in
   let p0, _, _, _ = List.hd cs in
   String.concat ""
     (("M" ^ pt p0)
@@ -372,16 +466,16 @@ let palette = [| "#c0492f"; "#2f6f9f"; "#4a8f4f"; "#d9a441"; "#7d5199"; "#1f8a86
 
 let shortest g = Array.fold_left Float.min infinity (Array.init (Array.length g.edges) (fun e -&gt; 2. *. half g e))
 
-let draw ?width ?(colours = false) ?(construction = false) ?on_edge ?(scale = 56.) g kinds =
+let draw ?width ?round ?(colours = false) ?(construction = false) ?on_edge ?(scale = 56.) g kinds =
   (* Ribbons a third as wide as the shortest edge, unless told. *)
   let width = match width with Some w -&gt; w | None -&gt; 0.34 *. shortest g in
   let scale = scale /. shortest g in
   let rot = around g in
-  let ts = List.map (pieces g rot kinds) (threads g kinds) in
+  let ts = List.map (pieces ?round ~straight:(0.9 *. width) g rot kinds) (threads g kinds) in
   (* The box around it all, with room for the ribbons' width. *)
   let pts =
     Array.to_list g.pos
-    @ List.concat_map (List.concat_map (fun pc -&gt; List.init 9 (fun i -&gt; point_on pc.curve (float i /. 8.)))) ts
+    @ List.concat_map (List.concat_map (fun pc -&gt; List.concat_map (fun c -&gt; List.init 5 (fun i -&gt; point_on c (float i /. 4.))) pc.curves)) ts
   in
   let lo f = List.fold_left (fun m p -&gt; Float.min m (f p)) infinity pts -. width -. 0.1 in
   let hi f = List.fold_left (fun m p -&gt; Float.max m (f p)) neg_infinity pts +. width +. 0.1 in
@@ -458,7 +552,8 @@ let draw ?width ?(colours = false) ?(construction = false) ?on_edge ?(scale = 56
 
   <p>With no breaks, a square grid gives a plait. The threads run
     diagonally and turn back at the border. Change the size and watch how
-    many threads there are.</p>
+    many threads there are, and try <b>roundness</b> to see how the turns
+    are made.</p>
 
   <x-ocaml id="plaits">let () =
   let open Ui in
@@ -467,11 +562,12 @@ let draw ?width ?(colours = false) ?(construction = false) ?on_edge ?(scale = 56
        (let+ w = Interact.int "across" ~min:1 ~max:12 5
         and+ h = Interact.int "down" ~min:1 ~max:12 3
         and+ colours = Interact.bool "a colour for each thread" true
-        and+ construction = Interact.bool "show the grid" false in
+        and+ construction = Interact.bool "show the grid" false
+        and+ round = Interact.float "roundness" ~min:0. ~max:1. ~step:0.05 0.7 in
         let g = square_grid w h in
         let n = List.length (threads g (every Cross g)) in
         vbox
-          [ draw ~colours ~construction g (every Cross g);
+          [ draw ~round ~colours ~construction g (every Cross g);
             text (Printf.sprintf "%d by %d squares: %d thread%s." w h n (if n = 1 then "" else "s")) ]))</x-ocaml>
 
   <p class="note">Some sizes give one thread and others give many: a 5 by 3
