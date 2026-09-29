@@ -33,4 +33,5 @@ exports.EXAMPLES = [
   ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
   ['/examples/ui.html', 'A widget toolkit: controls, linking, interact, plots, tables'],
   ['/examples/ui-demos.html', 'Things made with widgets: Life, Mandelbrot, curve fitting, Snake, a kaleidoscope'],
+  ['/examples/knots.html', 'Celtic knots: threads followed round a graph, plaits and breaks'],
 ];
