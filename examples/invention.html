@@ -35,14 +35,23 @@
   <h1>Bach's invention, as a program</h1>
   <p>The Invention No. 1 in C major, BWV 772, rebuilt from its two motifs.</p>
 
-  <p>Although I usually prefer the late romantics when it comes to music,
-    I've always had a bit of a soft spot for Bach. His music manages to
-    be very beautiful despite, or perhaps because of, being very mathematical.
-    We're going to show off some of the mathematical bits in this doc by
-    recreating one of Bach's two part inventions programmatically.</p>
+  <p>My taste in music usually runs to the late Romantics, but I've
+    always had a soft spot for Bach. His music is very beautiful and very
+    mathematical, and I suspect the one has a lot to do with the
+    other.</p>
 
-  <p>So here we are, we're going to be recreating BWV 772 using OCaml code
-    and rendered, visually and aurally, by a mix of OCaml and javascript</p>
+  <p>The first of his two-part inventions shows this off well. It is 22
+    bars long, some 450 notes, and nearly all of it grows from two small
+    ideas heard together in its first bar: a run of semiquavers, and a
+    few quavers that leap and turn. Bach moves them up and down the
+    scale, turns them upside down, passes them from hand to hand, and
+    takes them through several keys.</p>
+
+  <p>So the piece makes a good program. This page rebuilds BWV 772 in
+    OCaml from those two motifs and a handful of things done to them,
+    and draws and plays each part as it goes, with a little help from
+    JavaScript. The code runs in your browser: change any cell and run it
+    again.</p>
 
   <p class="legend">The notes are coloured by where they come from:
     <span><b style="color:#c0392b">■</b> the run</span>
@@ -56,8 +65,10 @@
 
   <h2>Notes</h2>
 
-  <p>The important choice is how to write a pitch. Bach moves his figures
-    up and down the <em>scale</em>. The run from C, C–D–E–F, becomes
+  <p>The important choice is how to write a pitch. Rather than thinking
+    in terms of tones and semitones, we'll instead think in terms of
+    scales, as the transforms we'll be doing will be easier that way.
+    The run from C, C–D–E–F, becomes
     D–E–F–G when it starts on D, which is a different pattern of tones and
     semitones but the same figure. So a pitch here is a step of the scale:
     a letter name in an octave, with no sharp or flat. The sharps and
