@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bach's invention, as a program</title>
+  <style>
+    :root { color-scheme: light dark; --ink: #1f2328; --muted: #5f6770; --paper: #f8f7f4; --code: #eceae4; --rule: #d9d5cc; --accent: #9b2d20; }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #e7e4dd; --muted: #a39f97; --paper: #1a1a1c; --code: #2b2b2e; --rule: #3b3a3d; --accent: #e3876f; }
+    }
+    body { font-family: Georgia, 'Iowan Old Style', serif; font-size: 1.08rem; line-height: 1.6;
+      max-width: 52rem; margin: 2.5rem auto 5rem; padding: 0 1rem; color: var(--ink); background: var(--paper); }
+    nav { font-size: 0.9rem; margin-bottom: 1.5rem; }
+    a { color: var(--accent); }
+    h1 { font-weight: 400; font-size: 2.4rem; margin-bottom: 0.2rem; }
+    h1 + p { color: var(--muted); margin-top: 0; font-style: italic; }
+    h2 { font-weight: 400; font-size: 1.45rem; margin-top: 2.8rem; border-bottom: 1px solid var(--rule); padding-bottom: 0.2rem; }
+    code { font-family: ui-monospace, Menlo, monospace; font-size: 0.86em; background: var(--code); padding: 0 0.25em; border-radius: 3px; }
+    /* The cells keep x-ocaml's own light look, as cards, whatever the page's theme. */
+    x-ocaml { font-size: 0.82rem; margin: 0.9rem 0 1.3rem; background: #fff; color: #222; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+    x-score { margin: 0.4rem 0 0.8rem; }
+    .note { border-left: 3px solid var(--rule); padding-left: 0.8rem; color: var(--muted); font-size: 0.95em; }
+    .legend span { white-space: nowrap; margin-right: 1rem; font-size: 0.92em; }
+    .legend b { font-size: 1.1em; }
+    dl.notation dt { font-family: ui-monospace, Menlo, monospace; font-size: 0.9em; }
+    dl.notation dd { margin: 0 0 0.4rem 1.5rem; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Bach's invention, as a program</h1>
+  <p>The Invention No. 1 in C major, BWV 772, rebuilt from its two motives.</p>
+
+  <p>Bach wrote the fifteen two-part inventions for his son Wilhelm
+    Friedemann, and for "those desirous of learning", to show them how to
+    have good ideas and how to develop them well. The first is 22 bars
+    long and has about 450 notes, yet it all grows from one bar. That bar
+    has two ideas in it: a run of sixteenths, and some eighths that leap
+    and turn. Bach moves them up and down the scale, turns them upside
+    down, hands them from one hand to the other and takes them through
+    four keys.</p>
+
+  <p>So the piece compresses well. This page writes it as a short program:
+    a small language for the score, the two motives, a few things done to
+    them, and some bars that are simply written out. The cells below are
+    OCaml, running in your browser. Each draws the music it has just made,
+    and you can play it. Change any cell and run it again.</p>
+
+  <p class="legend">The notes are coloured by where they come from:
+    <span><b style="color:#c0392b">■</b> the run</span>
+    <span><b style="color:#2471a3">■</b> the run, upside down</span>
+    <span><b style="color:#d68910">■</b> the leap</span>
+    <span><b style="color:#1e8449">■</b> the left hand's eighths</span>
+    <span><b style="color:#8e44ad">■</b> the eighths, upside down</span>
+    <span><b style="color:#16a085">■</b> thirds</span>
+    <span><b style="color:#8c8c8c">■</b> held notes</span>
+    <span><b style="color:#222">■</b> written out</span></p>
+
+  <h2>Notes</h2>
+
+  <p>The important choice is how to write a pitch. Bach moves his figures
+    up and down the <em>scale</em>. The run from C, C–D–E–F, becomes
+    D–E–F–G when it starts on D, which is a different pattern of tones and
+    semitones but the same figure. So a pitch here is a step of the scale:
+    a letter name in an octave, with no sharp or flat. The sharps and
+    flats come from the key the music is in, or from a patch on a single
+    note.</p>
+
+  <x-ocaml id="notes">(* A pitch is a step of the scale: a letter name in an octave, counted
+   up from C0, so that middle C, C4, is 28. Sharps and flats are left to
+   the key, or to a patch on the note. *)
+type ornament = Mordent | Prall
+
+(* Where a note came from, to colour it by in the score. *)
+type origin = A | A_inv | B | Counter | Counter_inv | Thirds | Held | Free
+
+type note = {
+  steps : int list; (* none for a rest, several for a chord *)
+  alt : int option; (* semitones up, or None to leave it to the key *)
+  dur : int; (* in thirty-seconds *)
+  orn : ornament option;
+  origin : origin;
+}
+
+type line = note list
+
+let thirty_second = 1 and sixteenth = 2 and eighth = 4
+let quarter = 8 and half = 16 and whole = 32
+let length l = List.fold_left (fun n x -&gt; n + x.dur) 0 l
+let letters = "cdefgab"
+
+(* [p "g4"] is the G above middle C. *)
+let p s =
+  match String.index_opt letters s.[0] with
+  | Some i when String.length s = 2 -&gt; (7 * (Char.code s.[1] - Char.code '0')) + i
+  | _ -&gt; invalid_arg ("p: " ^ s)
+
+let note ?(origin = Free) dur step = { steps = [ step ]; alt = None; dur; orn = None; origin }
+let rest dur = { steps = []; alt = None; dur; orn = None; origin = Free }
+let chord dur names = { (rest dur) with steps = List.map p names }
+
+(* A line prints as its size. *)
+let pp_line ppf l =
+  let n = List.length (List.filter (fun x -&gt; x.steps &lt;&gt; []) l) in
+  Format.fprintf ppf "&lt;%d notes, %g bars&gt;" n (float (length l) /. float whole);;
+
+#install_printer pp_line</x-ocaml>
+
+  <p>A key says which letter names it sharpens or flattens. The piece
+    goes through G major, D minor and A minor. In a minor key, a line
+    going up sharpens more notes than one coming down, so those keys come
+    in two forms.</p>
+
+  <x-ocaml id="keys">(* A key says how it alters each letter name. *)
+type key = { name : string; alts : (char * int) list }
+
+let c_major = { name = "C major"; alts = [] }
+let g_major = { name = "G major"; alts = [ ('f', 1) ] }
+let f_major = { name = "F major"; alts = [ ('b', -1) ] }
+let d_minor = { name = "D minor"; alts = [ ('b', -1); ('c', 1) ] }
+let a_minor = { name = "A minor"; alts = [ ('g', 1) ] }
+
+(* Minor keys going up raise the sixth as well as the seventh, and
+   Bach's D minor, going up, takes the B natural. *)
+let d_minor_rising = { name = "D minor, rising"; alts = [ ('c', 1) ] }
+let a_minor_rising = { name = "A minor, rising"; alts = [ ('f', 1); ('g', 1) ] }
+
+let alt_in key step =
+  Option.value ~default:0 (List.assoc_opt letters.[step mod 7] key.alts)</x-ocaml>
+
+  <x-ocaml id="plumbing" mode="hidden">(* Written-out music: [notes "8 c4 b3 f#3 16 d5 8. c5!m"]. *)
+let notes s =
+  let dur_of tok =
+    let one t =
+      let dotted = String.ends_with ~suffix:"." t in
+      let t = if dotted then String.sub t 0 (String.length t - 1) else t in
+      let d = 32 / int_of_string t in
+      if dotted then d + (d / 2) else d
+    in
+    List.fold_left (fun n t -&gt; n + one t) 0 (String.split_on_char '+' tok)
+  in
+  let pitch tok =
+    let tok, orn =
+      match String.index_opt tok '!' with
+      | None -&gt; (tok, None)
+      | Some i -&gt;
+          ( String.sub tok 0 i,
+            match String.sub tok (i + 1) (String.length tok - i - 1) with
+            | "m" -&gt; Some Mordent
+            | "p" -&gt; Some Prall
+            | o -&gt; invalid_arg ("notes: an ornament " ^ o) )
+    in
+    match String.length tok with
+    | 2 -&gt; (p tok, None, orn)
+    | 3 -&gt;
+        let alt =
+          match tok.[1] with
+          | '#' -&gt; 1 | 'b' -&gt; -1 | 'n' -&gt; 0
+          | _ -&gt; invalid_arg ("notes: " ^ tok)
+        in
+        (p (String.make 1 tok.[0] ^ String.make 1 tok.[2]), Some alt, orn)
+    | _ -&gt; invalid_arg ("notes: " ^ tok)
+  in
+  let dur = ref quarter in
+  String.split_on_char ' ' s
+  |&gt; List.filter (fun t -&gt; t &lt;&gt; "" &amp;&amp; t &lt;&gt; "|")
+  |&gt; List.filter_map (fun tok -&gt;
+         if tok.[0] &gt;= '0' &amp;&amp; tok.[0] &lt;= '9' then (dur := dur_of tok; None)
+         else if tok = "r" then Some (rest !dur)
+         else
+           let step, alt, orn = pitch tok in
+           Some { (note !dur step) with alt; orn })
+
+(* Performing: each note of a hand, from a time on, in the keys that the
+   hand is in, from which bar and sixteenth, becomes an event. *)
+type event = {
+  at : int;
+  midi : int list;
+  len : int;
+  ornament : ornament option;
+  aux : int option; (* the note an ornament turns to, the next in the scale *)
+  from : origin;
+}
+
+let semitones = [| 0; 2; 4; 5; 7; 9; 11 |]
+let midi_of step alt = (12 * ((step / 7) + 1)) + semitones.(step mod 7) + alt
+
+let key_at keys at =
+  List.fold_left
+    (fun k ((bar, six), key) -&gt; if ((bar - 1) * whole) + (six * sixteenth) &lt;= at then key else k)
+    c_major keys
+
+let perform ?(keys = []) ?(from = 0) line =
+  let at = ref from in
+  List.map
+    (fun x -&gt;
+      let key = key_at keys !at in
+      let alt s = match x.alt with Some a -&gt; a | None -&gt; alt_in key s in
+      let aux =
+        match (x.orn, x.steps) with
+        | Some Prall, s :: _ -&gt; Some (midi_of (s + 1) (alt_in key (s + 1)))
+        | Some Mordent, s :: _ -&gt; Some (midi_of (s - 1) (alt_in key (s - 1)))
+        | _ -&gt; None
+      in
+      let e =
+        { at = !at; midi = List.map (fun s -&gt; midi_of s (alt s)) x.steps; len = x.dur;
+          ornament = x.orn; aux; from = x.origin }
+      in
+      at := !at + x.dur;
+      e)
+    line
+
+(* The colour of each origin. *)
+let colour = function
+  | A -&gt; "#c0392b" | A_inv -&gt; "#2471a3" | B -&gt; "#d68910" | Counter -&gt; "#1e8449"
+  | Counter_inv -&gt; "#8e44ad" | Thirds -&gt; "#16a085" | Held -&gt; "#8c8c8c" | Free -&gt; "#222222"
+
+(* Writing hands out as ABC notation, for abcjs. Notes held over a bar
+   line are split and tied, a gap before or after a hand's music is an
+   invisible rest, and accidentals are written as the bar requires. Each
+   note's place in the text is kept with its colour. *)
+let abc_pitch step =
+  let letter = String.make 1 letters.[step mod 7] and oct = step / 7 in
+  if oct &gt;= 5 then letter ^ String.make (oct - 5) '\''
+  else String.uppercase_ascii letter ^ String.make (4 - oct) ','
+
+let abc_length d = match d with 1 -&gt; "/2" | 2 -&gt; "" | 3 -&gt; "3/2" | d -&gt; string_of_int (d / 2)
+let writable d = List.mem d [ 1; 2; 3; 4; 6; 8; 12; 16; 24; 32 ]
+
+(* A stretch of time in pieces: none crosses a bar line, each has a
+   written length. *)
+let rec cut at len =
+  if len = 0 then []
+  else
+    let to_bar = whole - (at mod whole) in
+    let n = min len to_bar in
+    let n = if writable n then n else quarter - (at mod quarter) in
+    (at, n) :: cut (at + n) (len - n)
+
+let step_and_alt midi =
+  let letter, alt =
+    [| (0, 0); (0, 1); (1, 0); (2, -1); (2, 0); (3, 0); (3, 1); (4, 0); (4, 1); (5, 0); (6, -1); (6, 0) |].(midi mod 12)
+  in
+  ((7 * ((midi / 12) - 1)) + letter, alt)
+
+(* A hand's pieces, from bar [first] to [last]: (bar, text, colour). *)
+let abc_hand ~first ~last events =
+  let accidentals = Hashtbl.create 8 and bar = ref (-1) in
+  let piece ?(tied = false) ?(deco = "") ?colour at len body =
+    if at / whole &lt;&gt; !bar then (bar := at / whole; Hashtbl.reset accidentals);
+    let body = body () in
+    let space = if at mod quarter = 0 &amp;&amp; at mod whole &lt;&gt; 0 then " " else "" in
+    (at / whole, space, deco ^ body ^ abc_length len ^ (if tied then "-" else ""), colour)
+  in
+  let pitch midi =
+    let step, alt = step_and_alt midi in
+    let now = Option.value ~default:0 (Hashtbl.find_opt accidentals step) in
+    Hashtbl.replace accidentals step alt;
+    (if alt = now then "" else match alt with 1 -&gt; "^" | -1 -&gt; "_" | _ -&gt; "=") ^ abc_pitch step
+  in
+  let gap from until = List.map (fun (at, len) -&gt; piece at len (fun () -&gt; "x")) (cut from (until - from)) in
+  let start = first * whole and stop = (last + 1) * whole in
+  let rec go at = function
+    | [] -&gt; gap at stop
+    | e :: es -&gt;
+        let ps = cut e.at e.len in
+        let n = List.length ps in
+        gap at e.at
+        @ List.mapi
+            (fun i (at, len) -&gt;
+              let deco =
+                match (i, e.ornament) with
+                | 0, Some Mordent -&gt; "!mordent!" | 0, Some Prall -&gt; "!pralltriller!" | _ -&gt; ""
+              in
+              let colour = if e.midi = [] then None else Some (colour e.from) in
+              piece ~tied:(i &lt; n - 1 &amp;&amp; e.midi &lt;&gt; []) ~deco ?colour at len (fun () -&gt;
+                  match e.midi with
+                  | [] -&gt; "z"
+                  | [ m ] -&gt; pitch m
+                  | ms -&gt; "[" ^ String.concat "" (List.map pitch ms) ^ "]"))
+            ps
+        @ go (e.at + e.len) es
+  in
+  go start events
+
+(* For playing, the ornaments written out: the note, the next up the
+   scale for a prall or down for a mordent, then the note again. abcjs
+   would play its own a whole tone away, whatever the key. *)
+let written_out events =
+  List.concat_map
+    (fun e -&gt;
+      match (e.aux, e.midi) with
+      | Some aux, [ _ ] -&gt;
+          let plain = { e with ornament = None; aux = None } in
+          [ { plain with len = 1 }; { plain with at = e.at + 1; midi = [ aux ]; len = 1 };
+            { plain with at = e.at + 2; len = e.len - 2 } ]
+      | _ -&gt; [ e ])
+    events
+
+let clef events =
+  let steps = List.concat_map (fun e -&gt; List.map (fun m -&gt; fst (step_and_alt m)) e.midi) events in
+  if steps &lt;&gt; [] &amp;&amp; List.fold_left ( + ) 0 steps / List.length steps &lt; p "c4" then "bass" else "treble"
+
+let abc ?(title = "") ?(bars_per_line = 4) ?clefs ?(performance = false) hands =
+  let hands = if performance then List.map written_out hands else hands in
+  let clefs = match clefs with Some cs -&gt; cs | None -&gt; List.map clef hands in
+  let events = List.concat hands in
+  let first = List.fold_left (fun n e -&gt; min n (e.at / whole)) max_int events in
+  let last = List.fold_left (fun n e -&gt; max n ((e.at + e.len - 1) / whole)) 0 events in
+  let buf = Buffer.create 4096 and marks = ref [] in
+  let add = Buffer.add_string buf in
+  add "X:1\nM:4/4\nL:1/16\n%%barnumbers 1\n";
+  if title &lt;&gt; "" then add ("T:" ^ title ^ "\nC:J. S. Bach, BWV 772\n");
+  if List.length hands &gt; 1 then
+    add ("%%staves {" ^ String.concat " " (List.mapi (fun i _ -&gt; string_of_int (i + 1)) hands) ^ "}\n");
+  add "K:C\n";
+  List.iteri (fun i c -&gt; add (Printf.sprintf "V:%d clef=%s\n" (i + 1) c)) clefs;
+  add (Printf.sprintf "%%%%setbarnb %d\n" (first + 1));
+  let pieces = List.map (abc_hand ~first ~last) hands in
+  let line = ref first in
+  while !line &lt;= last do
+    let upto = min last (!line + bars_per_line - 1) in
+    List.iteri
+      (fun v ps -&gt;
+        add (Printf.sprintf "[V:%d] " (v + 1));
+        for b = !line to upto do
+          List.iter
+            (fun (pb, space, text, colour) -&gt;
+              if pb = b then begin
+                add space;
+                Option.iter (fun c -&gt; marks := (Buffer.length buf, c) :: !marks) colour;
+                add text
+              end)
+            ps;
+          add (if b = last then " |]" else " | ")
+        done;
+        add "\n")
+      pieces;
+    line := upto + 1
+  done;
+  (Buffer.contents buf, List.rev !marks, last - first + 1)
+
+let () = X_ocaml_lib.require ~tag:"x-score" ~src:"examples/elements/score.js"
+
+(* [draw hands] shows performed hands as a score, which can be played.
+   Each hand has the clef that suits it, unless it is given. *)
+let draw ?title ?bars_per_line ?clefs hands =
+  let text, marks, bars = abc ?title ?bars_per_line ?clefs hands in
+  let play, _, _ = abc ?clefs ~performance:true hands in
+  let bars = match bars_per_line with Some n -&gt; min n bars | None -&gt; min 4 bars in
+  let json =
+    Printf.sprintf {|{"abc":%S,"play":%S,"width":%d,"marks":[%s]}|} text play
+      (160 + (250 * bars))
+      (String.concat "," (List.map (fun (at, c) -&gt; Printf.sprintf "[%d,%S]" at c) marks))
+  in
+  ignore (X_ocaml_lib.display ~tag:"x-score" json)
+
+(* [show lines] draws lines of music at once, from the start, in a key. *)
+let show ?(key = c_major) lines = draw (List.map (perform ~keys:[ ((1, 0), key) ]) lines)</x-ocaml>
+
+  <p>A hidden cell holds the plumbing. It turns the lines into events
+    (times, MIDI notes and lengths), writes them as <a
+    href="https://abcnotation.com/">ABC notation</a>, and hands that to a
+    small element that draws it with <a
+    href="https://www.abcjs.net/">abcjs</a>. It also reads written-out
+    music, in a notation borrowed from Humdrum, such as
+    <code>notes "8 a4 d4 8. c5!p 16 d5"</code>:</p>
+
+  <dl class="notation">
+    <dt>8, 16, 4., 2+16</dt><dd>a length, which lasts until the next: an eighth, a sixteenth, a dotted quarter, a half tied to a sixteenth;</dd>
+    <dt>c4, f#3, bb4, gn3</dt><dd>a pitch, with its octave, and a sharp, flat or natural when the key would not give it;</dd>
+    <dt>r</dt><dd>a rest;</dd>
+    <dt>c5!m, c5!p</dt><dd>a note with a mordent, down to the next note of the scale and back, or a prall, up to it and back.</dd>
+  </dl>
+
+  <p>The ornaments are played written out, with the next note in the
+    scale of the key the music is in. Left to itself, abcjs plays every
+    ornament a whole tone away, but the prall in bar 1, on B, goes up a
+    semitone to C.</p>
+
+  <h2>The two motives</h2>
+
+  <p>Here is the whole of the first bar in the right hand: a sixteenth
+    rest, then <em>the run</em>, seven sixteenths up four notes and back,
+    then <em>the leap</em>, four eighths up a fifth, an octave, down a
+    step and back up. Both are written as steps above the note the run
+    starts on. They are kept in references so that, at the end of the
+    page, you can change them.</p>
+
+  <x-ocaml id="motives">(* A figure: its lengths and its steps above the note it starts from. *)
+let shape origin dur offsets start = List.map (fun k -&gt; note ~origin dur (start + k)) offsets
+
+(* The run: seven sixteenths, up four notes and back. *)
+let run = ref [ 0; 1; 2; 3; 1; 2; 0 ]
+let a start = shape A sixteenth !run start
+
+(* The leap: four eighths, measured from the same note as the run. *)
+let leap = ref [ 4; 7; 6; 7 ]
+let b start = shape B eighth !leap start
+
+(* Each run starts on the second sixteenth of its half bar. The first is
+   a rest, or a note joining the run to what went before. *)
+let r16 = [ rest sixteenth ]
+let pickup step = [ note ~origin:A sixteenth step ]
+
+let ( ++ ) = ( @ )
+let subject start = r16 ++ a start ++ b start
+
+let () = show [ subject (p "c4") ]</x-ocaml>
+
+  <h2>Moving them</h2>
+
+  <p>Nearly everything Bach does to the motives is one of a few
+    operations: move it up or down the scale, turn it upside down, take
+    part of it, and now and then alter one note. Every alteration is a
+    patch, done where it is needed, so it is plain what is not
+    systematic.</p>
+
+  <x-ocaml id="transformations">let map_steps f l = List.map (fun x -&gt; { x with steps = List.map f x.steps; alt = None }) l
+
+(* Up [k] steps of the scale. *)
+let transpose k l = map_steps (fun s -&gt; s + k) l
+
+let inverse = function
+  | A -&gt; A_inv | A_inv -&gt; A | Counter -&gt; Counter_inv | Counter_inv -&gt; Counter | o -&gt; o
+
+(* Upside down, about its first note. *)
+let invert l =
+  let axis = match List.find_opt (fun x -&gt; x.steps &lt;&gt; []) l with
+    | Some { steps = s :: _; _ } -&gt; s
+    | _ -&gt; invalid_arg "invert: only rests"
+  in
+  List.map (fun x -&gt; { x with origin = inverse x.origin }) (map_steps (fun s -&gt; (2 * axis) - s) l)
+
+let take n l = List.filteri (fun i _ -&gt; i &lt; n) l
+let tagged origin l = List.map (fun x -&gt; { x with origin }) l
+
+(* Patches, on the [i]th note of a line, counting from 0. *)
+let patch i f l = List.mapi (fun j x -&gt; if i = j then f x else x) l
+let sharp i = patch i (fun x -&gt; { x with alt = Some 1 })
+let natural i = patch i (fun x -&gt; { x with alt = Some 0 })
+let ornament i o = patch i (fun x -&gt; { x with orn = Some o })
+let replace i step = patch i (fun x -&gt; { x with steps = [ step ]; alt = None })
+
+let a_inv start = invert (a start)</x-ocaml>
+
+  <p>Moved up the scale a step at a time, the run keeps its shape but
+    changes its tones and semitones. Turned upside down, it falls and
+    comes back up.</p>
+
+  <x-ocaml id="steps">(* The run from each note of the scale, and upside down. *)
+let () = show [ List.concat_map (fun k -&gt; a (p "c4" + k)) [ 0; 1; 2; 3 ] ]
+let () = show [ List.concat_map (fun k -&gt; a_inv (p "c5" - k)) [ 0; 1; 2; 3 ] ]</x-ocaml>
+
+  <h2>Figures</h2>
+
+  <p>A few figures made from the motives come back more than once. The
+    most important is <code>descent</code>: the inverted run, falling
+    through a sequence of thirds. It first appears in bar 3, over eighths
+    in the left hand that go on to have a life of their own.</p>
+
+  <x-ocaml id="figures">(* A note held over a half bar, into the next. *)
+let held step = [ note ~origin:Held (half + sixteenth) step ]
+
+(* The inverted run, falling in thirds, each picked up from the step
+   above, the first from further off. *)
+let descent start n =
+  List.concat
+    (List.init n (fun i -&gt;
+         let s = start - (2 * i) in
+         pickup (if i = 0 then s - 3 else s + 1) ++ a_inv s))
+
+(* The end of the inverted run, as a figure of its own. *)
+let thirds start = shape Thirds sixteenth [ 0; 2; 1; 3 ] start
+
+(* A hand's first note of a bar, then silence until its run. *)
+let echo step figure = [ note eighth step; rest eighth; rest quarter ] ++ r16 ++ figure
+
+(* The left hand's eighths under the first descent. *)
+let counter =
+  tagged Counter (notes "8 c4 b3 c4 d4 e4 g3 a3 b3 | c4 e3 f3 g3 a3 b3 4+16 c4")
+
+let () = show ~key:g_major [ descent (p "a5") 4; counter ]</x-ocaml>
+
+  <h2>The key plan</h2>
+
+  <p>The piece moves to G major by bar 7 and to A minor by bar 14, and
+    comes home through F major. The hands change key at different times,
+    so each has its own plan.</p>
+
+  <x-ocaml id="plan">(* The keys each hand is in, from which bar and sixteenth. *)
+let right_keys =
+  [ ((1, 0), c_major); ((4, 0), g_major); ((9, 0), c_major); ((11, 0), d_minor_rising);
+    ((12, 0), a_minor_rising); ((14, 0), a_minor); ((15, 0), c_major);
+    ((21, 0), f_major); ((21, 8), c_major) ]
+
+let left_keys =
+  [ ((1, 0), c_major); ((3, 0), g_major); ((9, 0), c_major); ((11, 0), d_minor);
+    ((12, 0), a_minor); ((13, 0), a_minor_rising); ((14, 0), a_minor);
+    ((15, 0), c_major); ((18, 0), f_major); ((20, 0), c_major) ]</x-ocaml>
+
+  <h2>The invention, a passage at a time</h2>
+
+  <x-ocaml id="passages">(* The invention is a list of passages, each the two hands over the same
+   stretch, though a note held over the join may be on either side. A
+   passage is a function, so that it is made again from the motives as
+   they are when the whole piece is. *)
+let passages : (string * (unit -&gt; line * line)) list ref = ref []
+
+let starts name =
+  let rec go r l = function
+    | [] -&gt; (r, l)
+    | (n, _) :: _ when n = name -&gt; (r, l)
+    | (_, m) :: ps -&gt; let right, left = m () in go (r + length right) (l + length left) ps
+  in
+  go 0 0 !passages
+
+(* [passage name music] adds it, or puts it in the place of the passage
+   of that name, and draws it where it falls in the piece. *)
+let passage name music =
+  passages :=
+    (if List.mem_assoc name !passages then
+       List.map (fun (n, m) -&gt; if n = name then (n, music) else (n, m)) !passages
+     else !passages @ [ (name, music) ]);
+  let r, l = starts name in
+  let right, left = music () in
+  draw ~clefs:[ "treble"; "bass" ] [ perform ~keys:right_keys ~from:r right; perform ~keys:left_keys ~from:l left ]</x-ocaml>
+
+  <p><b>Bars 1 and 2.</b> The right hand plays the subject. The left
+    answers with the run an octave lower, then drops from G to low G
+    while the right hand plays the subject again, on G. There, the note
+    before the run is a D rather than a rest.</p>
+
+  <x-ocaml id="exposition">let opening () =
+  (subject (p "c4") |&gt; ornament 10 Prall)
+  ++ (pickup (p "d5") ++ a (p "g4") ++ b (p "g4") |&gt; ornament 10 Prall)
+
+let () =
+  passage "exposition" (fun () -&gt;
+      ( opening (),
+        [ rest half ] ++ r16 ++ a (p "c3") ++ notes "8 g3 g2 4 r" ++ r16 ++ a (p "g3") ))</x-ocaml>
+
+  <p><b>Bars 3 to 5.</b> The inverted run falls through four thirds in the
+    right hand, over the left hand's eighths, and the passage ends on a
+    half close in G.</p>
+
+  <x-ocaml id="descent">let descending () = (descent (p "a5") 4 ++ notes "8 a4 d4 8. c5!m 16 d5", counter ++ a (p "d3"))
+
+let () = passage "first descent" descending</x-ocaml>
+
+  <p><b>Bars 5 and 6.</b> One more inverted run, and a cadence in G made
+    from its last four notes.</p>
+
+  <x-ocaml id="to_g">let () =
+  passage "to G" (fun () -&gt;
+      ( pickup (p "b4") ++ a_inv (p "a4") ++ thirds (p "g4") ++ thirds (p "b4")
+        ++ notes "16 d5 32 b4 c5 16 d5 g5 8 b4!p 16 a4 g4",
+        notes "8 g3 b2 c3 d3 | e3 f3 g3 e3 8. b2 16 c3 8 d3 d2" ))</x-ocaml>
+
+  <p><b>Bars 7 and 8.</b> The opening again in G, with the hands
+    swapped. The left hand plays what the right hand played in bars 1 and
+    2, a twelfth lower, note for note.</p>
+
+  <x-ocaml id="in_g">let () =
+  passage "the exposition in G, hands swapped" (fun () -&gt;
+      ( echo (p "g4") (a (p "g4")) ++ (echo (p "f4") (a (p "a4")) |&gt; ornament 0 Prall),
+        (* the right hand's first two bars, a twelfth lower *)
+        transpose (-10) (opening ()) |&gt; List.map (fun x -&gt; { x with orn = None }) ))</x-ocaml>
+
+  <p><b>Bars 9 and 10.</b> Both hands have the run upside down. Bar 10 is
+    bar 9 one step higher, apart from one note. A C sharp points the way
+    to D minor.</p>
+
+  <x-ocaml id="inverted">let () =
+  passage "upside down" (fun () -&gt;
+      let bar_9 = pickup (p "g3") ++ a_inv (p "g4") ++ notes "8 f4 e4 f4 d4" in
+      ( echo (p "b4") (a_inv (p "d5")) ++ echo (p "c5") (a_inv (p "e5") |&gt; sharp 5),
+        bar_9 ++ (transpose 1 bar_9 |&gt; replace 0 (p "e4")) ))</x-ocaml>
+
+  <p><b>Bars 11 to 13.</b> Bars 3 to 5 again, with the hands swapped. The
+    left hand's eighths go up a ninth into the right hand, and the
+    right hand's descent goes down a seventh into the left, in D minor
+    and then A minor. This is invertible counterpoint: two lines that
+    make good harmony either way up.</p>
+
+  <x-ocaml id="swapped">let () =
+  passage "the descent again, hands swapped" (fun () -&gt;
+      let right, left = descending () in
+      ( transpose 8 left ++ notes "16 e5 d5 c5 e5 d5 c5 b4 d5",
+        transpose (-6) right ++ (pickup (p "c4") ++ a_inv (p "b3") |&gt; natural 3) ))</x-ocaml>
+
+  <p><b>Bar 14.</b> The cadence in A minor. The left hand has the thirds
+    of bar 6, but the right hand's line is new, and written out.</p>
+
+  <x-ocaml id="to_a">let () =
+  passage "to A minor" (fun () -&gt;
+      ( notes "16 c5 a5 g5 b5 a5 e5 f5 d5 g4 f5 e5 d5 8 c5 16 b4 a4",
+        thirds (p "a3") ++ thirds (p "c4") ++ notes "8 e4 a3 e4 e3" ))</x-ocaml>
+
+  <p><b>Bars 15 to 19.</b> Each hand in turn holds a note while the other
+    plays the run. Two bars of this come round again a step lower,
+    changed only at their ends.</p>
+
+  <x-ocaml id="sequence">let () =
+  passage "over held notes" (fun () -&gt;
+      let right k = transpose k (held (p "g5") ++ a (p "e5") ++ held (p "f5")) in
+      let left k = transpose k (a_inv (p "e4") ++ held (p "d4") ++ a (p "a3")) in
+      ( pickup (p "a4") ++ a_inv (p "a5") ++ right 0 ++ a_inv (p "g5") ++ right (-1) ++ a (p "c5"),
+        notes "8 a3 a2 4 r" ++ r16 ++ (left 0 |&gt; sharp 5) ++ held (p "b3") ++ left (-1) ))</x-ocaml>
+
+  <p><b>Bars 19 to 22.</b> The run climbs back to C over the left hand's
+    eighths from bar 3, now upside down, and the piece ends on a chord of
+    C major.</p>
+
+  <x-ocaml id="home">let () =
+  passage "home" (fun () -&gt;
+      ( pickup (p "d5") ++ a (p "e5") ++ pickup (p "f5") ++ a (p "g5")
+        ++ notes "8 c6 g5 e5 16 d5 c5" ++ pickup (p "c5") ++ a_inv (p "b4")
+        ++ notes "16 a4 bn4 c5 e4 d4 c5 f4 b4" ++ [ chord whole [ "e4"; "g4"; "c5" ] ],
+        (* the left hand's eighths from bars 3 and 4, upside down *)
+        transpose (-2) (invert (take 12 counter))
+        ++ pickup (p "e4") ++ a (p "d3")
+        ++ notes "8 e3 c3 d3 e3 16 f3 d3 e3 f3 8 g3 g2"
+        ++ [ chord whole [ "c2"; "c3" ] ] ))</x-ocaml>
+
+  <h2>The whole invention</h2>
+
+  <p>Every passage, one after the other. The notes, their times, lengths
+    and ornaments are the same as in David Huron's Humdrum edition of the
+    piece, all 455 of them, with its ornaments read as the
+    Bach-Gesellschaft edition prints them.</p>
+
+  <x-ocaml id="whole">(* The two hands of the whole piece, performed. *)
+let invention () =
+  let music = List.map (fun (_, m) -&gt; m ()) !passages in
+  let right = List.concat_map fst music and left = List.concat_map snd music in
+  if length right &lt;&gt; length left then
+    failwith (Printf.sprintf "the right hand lasts %d thirty-seconds, the left %d"
+                (length right) (length left));
+  (perform ~keys:right_keys right, perform ~keys:left_keys left)
+
+let () =
+  let right, left = invention () in
+  draw ~title:"Invention No. 1" ~bars_per_line:4 [ right; left ]</x-ocaml>
+
+  <p>How much of it comes from the motives:</p>
+
+  <x-ocaml id="count">let names =
+  [ (A, "the run"); (A_inv, "the run, upside down"); (B, "the leap"); (Counter, "the eighths");
+    (Counter_inv, "the eighths, upside down"); (Thirds, "thirds"); (Held, "held notes");
+    (Free, "written out") ]
+
+let counts =
+  let right, left = invention () in
+  let sounding = List.filter (fun e -&gt; e.midi &lt;&gt; []) (right @ left) in
+  List.map (fun (o, name) -&gt; (name, List.length (List.filter (fun e -&gt; e.from = o) sounding))) names
+
+(* As a bar of colours, one for each origin, as wide as its count. *)
+let () =
+  let total = List.fold_left (fun n (_, c) -&gt; n + c) 0 counts in
+  let cell (o, _) (name, c) =
+    Printf.sprintf
+      {|&lt;div title="%s: %d" style="flex:%d;background:%s;color:#fff;padding:0.3rem 0.4rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"&gt;%d&lt;/div&gt;|}
+      name c c (colour o) c
+  in
+  let key (o, _) (name, c) =
+    Printf.sprintf {|&lt;span style="margin-right:1rem;white-space:nowrap"&gt;&lt;b style="color:%s"&gt;■&lt;/b&gt; %s, %d&lt;/span&gt;|}
+      (colour o) name c
+  in
+  ignore
+    (X_ocaml_lib.html
+       (Printf.sprintf
+          {|&lt;div style="display:flex;border-radius:4px;overflow:hidden;font-size:0.85rem"&gt;%s&lt;/div&gt;
+            &lt;div style="margin-top:0.5rem;font-size:0.9rem"&gt;%s&lt;/div&gt;
+            &lt;p style="margin:0.5rem 0 0"&gt;%d notes in all.&lt;/p&gt;|}
+          (String.concat "" (List.map2 cell names counts))
+          (String.concat " " (List.map2 key names counts))
+          total))</x-ocaml>
+
+  <p>So Bach's two ideas, handled in a few ways, give four notes in every
+    five. Three in every five are the run itself, one way up or the
+    other. The notes written out are mostly cadences, the stock
+    formulas that close a phrase, with the line of bar 14 and the last
+    bars.</p>
+
+  <p class="note">This counting is a little generous to the motives. The
+    note before each run, a rest in bar 1, is sometimes a note chosen to
+    lead into the run, and it is counted as part of it. And a note with a
+    patch, a sharp or a natural or an ornament, still counts as part of
+    the figure it was patched in.</p>
+
+  <h2>Another invention</h2>
+
+  <p>The passages are made from the motives each time the piece is, so
+    changing the motives changes the whole invention. Here is a run that
+    zigzags and a leap that turns around, with everything else as Bach
+    wrote it. Try your own: keep seven notes in the run and four in the
+    leap, or the hands will not end together.</p>
+
+  <x-ocaml id="play">(* Another run and another leap. Keep seven notes and four. *)
+let () =
+  let old_run = !run and old_leap = !leap in
+  Fun.protect ~finally:(fun () -&gt; run := old_run; leap := old_leap) (fun () -&gt;
+      run := [ 0; 2; 1; 3; 2; 1; 0 ];
+      leap := [ 4; 2; 5; 4 ];
+      let right, left = invention () in
+      draw ~bars_per_line:4 [ right; left ])</x-ocaml>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js" x-ocamlformat="disable"></script>
+</body>
+</html>
