@@ -100,14 +100,17 @@ let register t this =
   in
   Displays.add_cell t.displays (List.length t.cells)
     (Webcomponent.as_target this);
+  (* A cell whose fold or highlight attribute names its lines runs as
+     written: reformatting would move the lines. *)
+  let verbatim = attr "fold" <> None || attr "highlight" <> None in
   let cell =
     Cell.init ~id:(List.length t.cells) ~mode ~run_on
       ~merlin:(attr "data-merlin" <> Some "false")
       ?cell_id:(attr "data-id") ?extra_style:t.extra_style
       ?inline_style:t.inline_style
       ~eval_fn:(fun ~id ~line_number code ->
-        Client.eval ~id ~line_number t.worker code)
-      ~fmt_fn:(fun ~id code -> Client.fmt ~id t.worker code)
+        Client.eval ~verbatim ~id ~line_number t.worker code)
+      ~fmt_fn:(fun ~id code -> if not verbatim then Client.fmt ~id t.worker code)
       ~post_fn:(Client.post t.worker) this
   in
   Cell.set_stop cell (fun () -> stop_all t);

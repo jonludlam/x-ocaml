@@ -52,5 +52,8 @@ let restart t =
   t.worker <- Worker.create t.script;
   listen t
 
-let eval ~id ~line_number t code = post t (Eval (id, line_number, code))
+let eval ?(verbatim = false) ~id ~line_number t code =
+  post t
+    (if verbatim then Eval_verbatim (id, line_number, code)
+     else Eval (id, line_number, code))
 let fmt ~id t code = post t (Format (id, code))

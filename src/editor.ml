@@ -11,6 +11,7 @@ type t = {
   mutable previous_lines : int;
   mutable current_doc : string;
   mutable messages : (int * Brr.El.t list) list;
+  folds : (int * int) list ref;  (* line ranges the page asks to fold *)
 }
 
 let find_line_ends at doc =
@@ -48,6 +49,31 @@ let messages_field =
         (RangeSet.map decos (ChangeSet.desc (Transaction.changes tr)))
         (Transaction.effects tr))
     ~provide:(fun field -> Facet.from EditorView.decorations field)
+
+(* Lines the page marks, as line decorations: the same kind of state field. *)
+let set_marked_effect = StateEffectType.define decorations
+
+let marked_field =
+  StateField.define decorations
+    ~create:(fun _ -> Decoration.none)
+    ~update:(fun decos tr ->
+      List.fold_left
+        (fun decos e ->
+          Option.value ~default:decos (StateEffect.value e set_marked_effect))
+        (RangeSet.map decos (ChangeSet.desc (Transaction.changes tr)))
+        (Transaction.effects tr))
+    ~provide:(fun field -> Facet.from EditorView.decorations field)
+
+(* The page's fold ranges, offered wherever their first line is: the code
+   is OCaml in a legacy mode, with no syntax tree for CodeMirror to fold. *)
+let fold_ranges folds =
+  Facet.of_ Language.fold_service (fun state ~line_start ~line_end ->
+      let doc = EditorState.doc state in
+      let first = Line.number (Text.line_at doc line_start) in
+      match List.assoc_opt first !folds with
+      | Some last when last > first && last <= Text.lines doc ->
+          Some (line_end, Line.to_ (Text.line doc last))
+      | _ -> None)
 
 let render_messages cm =
   let doc = cm.current_doc in
@@ -133,6 +159,7 @@ let make ?(read_only = false) parent =
   let lines = Compartment.make () in
   let merlin = Compartment.make () in
   let empty = Extension.of_list [] in
+  let folds = ref [] in
   let extensions =
     Extension.of_list
       [
@@ -140,6 +167,8 @@ let make ?(read_only = false) parent =
         EditorView.line_wrapping_extension;
         Compartment.of_ lines empty;
         StateField.extension messages_field;
+        StateField.extension marked_field;
+        fold_ranges folds;
         Compartment.of_ changes empty;
         Compartment.of_ merlin empty;
         Facet.of_ EditorState.read_only_facet read_only;
@@ -160,6 +189,7 @@ let make ?(read_only = false) parent =
     merlin_comp = merlin;
     merlin_extension = (fun () -> []);
     changes;
+    folds;
   }
 
 let set_current_doc t new_doc =
@@ -224,3 +254,32 @@ let set_source t doc =
        ~changes:(ChangeSpec.replace ~from:0 ~to_:len ~insert:doc ())
        ~effects:[ StateEffectType.of_ set_messages_effect Decoration.none ]
        ())
+
+(* [set_layout t ~fold ~mark]: fold each range of lines [(first, last)]
+   behind its first line, and mark each line in [mark]'s ranges, as the
+   page's [fold] and [highlight] attributes ask. Lines count from 1, in this
+   cell; ranges that don't fit the source are left out. *)
+let set_layout t ~fold ~mark =
+  let doc = EditorState.doc (EditorView.state t.view) in
+  let n = Text.lines doc in
+  let fits (a, b) = 1 <= a && a <= b && b <= n in
+  let fold = List.filter (fun (a, b) -> fits (a, b) && a < b) fold in
+  t.folds := fold;
+  let fold_effects =
+    List.map (fun (a, b) ->
+        StateEffectType.of_ Language.fold_effect
+          (Line.to_ (Text.line doc a), Line.to_ (Text.line doc b)))
+      fold
+  in
+  let marked =
+    List.concat_map
+      (fun (a, b) -> if fits (a, b) then List.init (b - a + 1) (fun i -> a + i) else [])
+      mark
+    |> List.sort_uniq Int.compare
+    |> List.map (fun l ->
+           Decoration.range ~from:(Line.from (Text.line doc l))
+             (Decoration.line ~class_:"xo-marked" ()))
+  in
+  dispatch_effects t
+    (StateEffectType.of_ set_marked_effect (RangeSet.of_ Decoration.conv marked)
+    :: fold_effects)

@@ -18,6 +18,7 @@ exports.TESTS = [
   ['/sub/test_worker_absolute.html', 'A page below the root: its worker named /x-ocaml.worker.js'],
   ['/test_elements.html', 'Other custom elements on the page'],
   ['/test_big_module.html', 'A module of many definitions'],
+  ['/test_fold.html', 'Folded and marked lines: the fold and highlight attributes'],
   ['/test_displays.html', 'Displays and callbacks: what cells show on the page'],
   ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],

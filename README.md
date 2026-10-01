@@ -63,6 +63,22 @@ KaTeX, Mermaid and sound, each with an element of a few dozen lines at most.
 [`doc/displays.mld`](doc/displays.mld) (`dune build @doc` renders it) shows
 how the page and the worker work together to do it.
 
+## Folded and marked lines
+
+A cell can fold ranges of its lines, and mark others, so that a page can show
+a long module and draw the eye to a few lines of it:
+
+```html
+<x-ocaml fold="2-40,52-90" highlight="41-51">module Cpu = struct
+  ...
+</x-ocaml>
+```
+
+Lines count from 1 within the cell, and a range folds behind its first line;
+the reader opens a fold by clicking it. A cell with either attribute runs its
+code as written, without OCamlformat, since reformatting would move the lines
+the attributes name.
+
 ## Compilation
 
 To avoid relying on a public CDN and host your own copy of the `x-ocaml` scripts, you can reproduce the javascript files with:

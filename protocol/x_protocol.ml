@@ -11,6 +11,9 @@ type request =
   | Callback of int * string
       (** [Callback (token, payload)]: an element on the page calls a function
           that code in the worker registered (see X_ocaml_lib). *)
+  | Eval_verbatim of id * int * string
+      (** As [Eval], but the code runs as written, without OCamlformat: the
+          page names lines of it (a cell's fold and highlight attributes). *)
 
 type output =
   | Stdout of string

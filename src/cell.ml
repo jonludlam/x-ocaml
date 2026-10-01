@@ -182,6 +182,20 @@ let save_later t =
                show_reset t)))
     t.saved_as
 
+(* Line ranges as attributes give them: "3-20,25,30-31". *)
+let parse_ranges = function
+  | None -> []
+  | Some s ->
+      String.split_on_char ',' s
+      |> List.filter_map (fun r ->
+             match String.split_on_char '-' (String.trim r) with
+             | [ a ] -> Option.map (fun a -> (a, a)) (int_of_string_opt a)
+             | [ a; b ] -> (
+                 match (int_of_string_opt a, int_of_string_opt b) with
+                 | Some a, Some b -> Some (a, b)
+                 | _ -> None)
+             | _ -> None)
+
 (* When the page later replaces the element's text, that is the page
    speaking, so it wins over a version the reader kept, which it forgets. *)
 let set_source_from_html ~initial editor this =
@@ -199,6 +213,9 @@ let set_source_from_html ~initial editor this =
           show_reset editor
       | None ->
           Editor.set_source cm doc;
+          let attr = Webcomponent.get_attribute this in
+          let fold = parse_ranges (attr "fold") and mark = parse_ranges (attr "highlight") in
+          Editor.set_layout cm ~fold ~mark;
           invalidate_from ~editor;
           show_reset editor;
           editor.sent <- doc;

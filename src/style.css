@@ -164,3 +164,6 @@ table, tr, td, th {
 .xo-comment { color: var(--xo-syntax-comment, #940); }
 .xo-meta { color: var(--xo-syntax-meta, #404740); }
 .xo-invalid { color: var(--xo-syntax-invalid, #f00); }
+/* Lines a page marks (its highlight attribute), and folded code. */
+.cm-line.xo-marked { background: var(--xo-marked-bg, rgba(255, 176, 0, 0.10)); box-shadow: inset 3px 0 0 var(--xo-marked-bar, #e8a200); }
+.cm-foldPlaceholder { background: var(--xo-fold-bg, #eee) !important; border: 1px solid var(--xo-fold-border, #ddd) !important; color: var(--xo-fold-text, #888) !important; padding: 0 0.4em !important; border-radius: 3px; cursor: pointer; }
