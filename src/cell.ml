@@ -116,7 +116,10 @@ let rec nb_lines t =
   | Some cm, _ -> Editor.nb_lines cm
   | None, prev ->
       let before = match prev with Some p -> nb_lines p | None -> 0 in
-      if t.group <> None then before + Editor.count_lines t.hidden_source
+      if t.group <> None then
+        (* Every member is at least a line of the group's code. *)
+        before + 1
+        + String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 t.hidden_source
       else before
 
 let previous_lines t =
@@ -264,7 +267,9 @@ let parse_ranges = function
    speaking, so it wins over a version the reader kept, which it forgets. *)
 let set_source_from_html ~initial editor this =
   let doc = Webcomponent.text_content this in
-  let doc = String.trim doc in
+  (* A member of a group is a piece of a program, exactly as written: its
+     leading spaces and blank lines are part of it. *)
+  let doc = if editor.group <> None then doc else String.trim doc in
   editor.original <- doc;
   if not initial then Option.iter Saved.forget editor.saved_as;
   match editor.cm with

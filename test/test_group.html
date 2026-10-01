@@ -37,6 +37,15 @@ end</x-ocaml>
     <h2>A member changes, and its Run button runs the group (uses G1's cells)</h2>
   </section>
 
+  <section class="case" data-case="G6">
+    <h2>Members keep their indentation, and a blank hidden member is a line</h2>
+    <x-ocaml id="g6a" group="ws">module W = struct
+  let a = 1</x-ocaml>
+    <x-ocaml id="g6b" group="ws" mode="hidden"></x-ocaml>
+    <x-ocaml id="g6c" group="ws">  let b = "a" ^ 1
+end</x-ocaml>
+  </section>
+
   <section class="case" data-case="G3">
     <h2>A hidden member: its code runs, and line numbers count it</h2>
     <x-ocaml id="g3a" group="h" mode="hidden">module H = struct
@@ -53,7 +62,7 @@ end</x-ocaml>
     const lineNumbers = (id) => [...shadow(id).querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
       .map((e) => e.textContent).filter((t) => /^\d+$/.test(t));
     async function run() {
-      await waitFor(() => output('g3-use').includes('val g3'), 30000);
+      await waitFor(() => output('g3-use').includes('val g3') && output('g6c') !== '', 30000);
 
       check('G1: the module is defined, in its last cell', output('g1d').includes('module M'));
       check('G1: the members before it show nothing of their own', output('g1a') === '' && output('g1b') === '' && output('g1c') === '');
@@ -67,11 +76,16 @@ end</x-ocaml>
       // The gutter's first element only sizes it; the line numbers follow.
       const nums = lineNumbers('g3b').slice(1);
       check('G3: the next member\'s lines count the hidden ones (three of them)',
-        nums[0] === String(+lineNumbers('g2c').slice(-1)[0] + 3 + 1));
+        nums[0] === String(+lineNumbers('g6c').slice(-1)[0] + 3 + 1));
 
       await sleep(2500);
       check('G4: merlin flags nothing in a member mid-module', shadow('g1b').querySelector('.cm-lintRange-error') === null
         && shadow('g1c').querySelector('.cm-lintRange-error') === null);
+
+      check('G6: a member keeps its leading spaces', code('g6c').startsWith('  let b'));
+      check('G6: the error after a blank hidden member is still in its member', output('g6c').includes('Error'));
+      const g6 = lineNumbers('g6c').slice(1), g6a = lineNumbers('g6a').slice(1);
+      check('G6: and its lines count the blank one', +g6[0] === +g6a[g6a.length - 1] + 2);
 
       // G5: change a member and run it from its own button: the group runs.
       cell('g1b').textContent = '  let x = 1';
