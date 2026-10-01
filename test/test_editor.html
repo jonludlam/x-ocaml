@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: the editor</title>
+  <script src="lib.js"></script>
+</head>
+<body>
+  <p>What the editor does with merlin and the outputs: a mistake is underlined,
+    typing offers completions, hovering shows a type, each phrase's output
+    shows under it, line numbers carry on from cell to cell, and Run runs
+    what was typed.</p>
+  <x-ocaml id="phrases">let one = 1
+let two = one + 1</x-ocaml>
+  <x-ocaml id="wrong">let oops = two + "one"</x-ocaml>
+  <x-ocaml id="typing">let x = 3</x-ocaml>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    // The CodeMirror view of a cell, from its shadow root.
+    const view = (id) =>
+      window.__CM__view.findFromDOM(shadow(id).querySelector('.cm-editor'));
+    const typeAtEnd = (id, text) => {
+      const v = view(id);
+      const end = v.state.doc.length;
+      v.dispatch({
+        changes: { from: end, insert: text },
+        selection: { anchor: end + text.length },
+        userEvent: 'input.type',
+      });
+    };
+
+    (async () => {
+      await waitFor(() => ['phrases', 'wrong', 'typing']
+        .every((id) => output(id) !== ''), 30000);
+
+      // Outputs: one block widget per phrase, each under its own phrase.
+      const content = shadow('phrases').querySelector('.cm-content');
+      const order = [...content.children].map((e) =>
+        e.classList.contains('cm-line') ? 'line' : e.textContent.includes('val one') ?
+          'one' : e.textContent.includes('val two') ? 'two' : 'other');
+      check('each phrase\'s output shows under it',
+        order.join(' ') === 'line one line two');
+
+      check('a mistake is underlined',
+        await waitFor(() =>
+          shadow('wrong').querySelector('.cm-lintRange-error') !== null, 30000));
+
+      const numbers = (id) =>
+        [...shadow(id).querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
+          .filter((e) => e.style.visibility !== 'hidden')
+          .map((e) => e.textContent);
+      check('line numbers carry on from the cell before',
+        numbers('phrases').join(' ') === '1 2' && numbers('wrong').join(' ') === '3');
+
+      typeAtEnd('typing', '\nlet y = List.fil');
+      check('typing offers completions',
+        await waitFor(() =>
+          [...shadow('typing').querySelectorAll('.cm-tooltip-autocomplete li')]
+            .some((e) => e.textContent.includes('filter')), 30000));
+      check('and an edit takes away the cell\'s output',
+        output('typing') === '');
+
+      // Hover over "one" in the second line of the first cell.
+      const v = view('phrases');
+      const pos = v.state.doc.line(2).from + 'let two = '.length + 1;
+      const c = v.coordsAtPos(pos);
+      const target = v.contentDOM.querySelectorAll('.cm-line')[1];
+      for (const dx of [0, 1]) {
+        target.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true, clientX: c.left + dx, clientY: (c.top + c.bottom) / 2,
+        }));
+      }
+      check('hovering shows a type',
+        await waitFor(() => {
+          const t = shadow('phrases').querySelector('.cm-tooltip-hover');
+          return t !== null && t.textContent.includes('int');
+        }, 30000));
+
+      // Run what was typed.
+      typeAtEnd('typing', 'ter (fun x -> x > 1) [x; 0]');
+      shadow('typing').querySelector('.run_btn button').click();
+      check('Run runs what was typed',
+        await waitFor(() =>
+          output('typing').includes('val y : int list = [3]'), 30000));
+
+      done();
+    })();
+  </script>
+</body>
+</html>

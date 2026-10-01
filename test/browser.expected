@@ -52,6 +52,15 @@
   [PASS] a callback that raises, or none at all, leaves the worker answering
   [PASS] the callback of a cell's earlier run is forgotten (calling it did nothing)
   [PASS] no errors on the page
+/test_editor.html
+  [PASS] each phrase's output shows under it
+  [PASS] a mistake is underlined
+  [PASS] line numbers carry on from the cell before
+  [PASS] typing offers completions
+  [PASS] and an edit takes away the cell's output
+  [PASS] hovering shows a type
+  [PASS] Run runs what was typed
+  [PASS] no errors on the page
 /test_elements.html
   [PASS] cells still run
   [PASS] an element defined before x-ocaml is not made a cell
