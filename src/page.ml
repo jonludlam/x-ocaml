@@ -8,6 +8,7 @@ type t = {
   mutable tests : (Cell.t * Cell.t list) list; (* exercise, its tests *)
   setup : X_protocol.request list; (* what every new worker is sent first *)
   displays : Displays.t;
+  mutable groups : (string * Cell.group) list;
 }
 
 let find_by_id t id = List.find (fun c -> Cell.id c = id) t.cells
@@ -40,6 +41,7 @@ let create ~worker ~worker_url ?extra_style ?inline_style
         :: Option.to_list
              (Option.map (fun c -> X_protocol.Format_config c) format_config);
       displays = Displays.create ~post:(Client.post worker) ~worker_url ();
+      groups = [];
     }
   in
   Client.on_message worker (route t);
@@ -102,12 +104,41 @@ let register t this =
     (Webcomponent.as_target this);
   (* A cell whose fold or highlight attribute names its lines runs as
      written: reformatting would move the lines. *)
-  let verbatim = attr "fold" <> None || attr "highlight" <> None in
+  let verbatim =
+    attr "fold" <> None || attr "highlight" <> None || attr "group" <> None
+  in
+  (* A cell of a group: the page is parsed by now, so the group's members
+     are all there to count, and this cell's place among them to find. *)
+  let group =
+    Option.map
+      (fun name ->
+        let els =
+          List.rev
+            (Brr.El.fold_find_by_selector List.cons
+               (Jstr.v ("[group=\"" ^ name ^ "\"]"))
+               [])
+        in
+        let me = Brr.El.to_jv (Webcomponent.as_target this) in
+        let rec index i = function
+          | [] -> 0
+          | e :: rest -> if Jv.strict_equal (Brr.El.to_jv e) me then i else index (i + 1) rest
+        in
+        let g =
+          match List.assoc_opt name t.groups with
+          | Some g -> g
+          | None ->
+              let g = Cell.make_group ~size:(List.length els) in
+              t.groups <- (name, g) :: t.groups;
+              g
+        in
+        (g, index 0 els))
+      (attr "group")
+  in
   let cell =
     Cell.init ~id:(List.length t.cells) ~mode ~run_on
       ~merlin:(attr "data-merlin" <> Some "false")
       ?cell_id:(attr "data-id") ?extra_style:t.extra_style
-      ?inline_style:t.inline_style
+      ?inline_style:t.inline_style ?group
       ~eval_fn:(fun ~id ~line_number code ->
         Client.eval ~verbatim ~id ~line_number t.worker code)
       ~fmt_fn:(fun ~id code -> if not verbatim then Client.fmt ~id t.worker code)

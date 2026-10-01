@@ -13,6 +13,7 @@ type status = Not_run | Running | Run_ok | Request_run
 type t = {
   id : int;
   mode : mode;
+  group : (group * int) option;  (* its group, and its place in it *)
   mutable prev : t option;
   mutable next : t option;
   mutable status : status;
@@ -40,6 +41,26 @@ type t = {
   (* The source last sent to the worker, to be formatted or run. *)
   mutable sent : string;
 }
+
+(* Cells with the same group attribute are one program, in page order: a
+   module, say, with prose between its parts. The last member runs them all
+   together; the others have nothing of their own to send. *)
+and group = {
+  size : int;  (* the members on the page *)
+  mutable members : t list;  (* those registered so far, in page order *)
+  mutable first_line : int;  (* the line number its code was last run from *)
+}
+
+let make_group ~size = { size; members = []; first_line = 1 }
+
+let leader t =
+  match t.group with
+  | Some (g, _) when List.length g.members = g.size ->
+      Some (List.nth g.members (g.size - 1))
+  | _ -> None
+
+let is_leader t =
+  match t.group with None -> true | Some (g, i) -> i = g.size - 1
 
 let id t = t.id
 let mode t = t.mode
@@ -76,13 +97,27 @@ let set_verdict t v =
 let source t =
   match t.cm with Some cm -> Editor.source cm | None -> t.hidden_source
 
+(* A group's code is its members' joined by newlines: each member's start
+   in it, and the whole. *)
+let group_code g =
+  let starts, _ =
+    List.fold_left
+      (fun (acc, at) m -> ((m, at) :: acc, at + String.length (source m) + 1))
+      ([], 0) g.members
+  in
+  (List.rev starts, String.concat "\n" (List.map source g.members))
+
 (* The number of the last line shown up to and including this cell. A
-   hidden cell's lines are not shown, so it passes on its predecessor's. *)
+   hidden cell's lines are not shown, so it passes on its predecessor's;
+   but a hidden member of a group is part of the code the group runs, and
+   the line numbers after it count its lines, as the toplevel will. *)
 let rec nb_lines t =
   match (t.cm, t.prev) with
   | Some cm, _ -> Editor.nb_lines cm
-  | None, Some p -> nb_lines p
-  | None, None -> 0
+  | None, prev ->
+      let before = match prev with Some p -> nb_lines p | None -> 0 in
+      if t.group <> None then before + Editor.count_lines t.hidden_source
+      else before
 
 let previous_lines t =
   match t.cm with Some cm -> Editor.get_previous_lines cm | None -> 0
@@ -95,6 +130,19 @@ let pre_source t =
   in
   let s = go [] t in
   if s = "" then s else s ^ " ;;\n"
+
+(* What Merlin sees around a cell: the cells before it, and for a member of
+   a group, the members before and after it, so that it sees the whole
+   program the cell is part of. *)
+let merlin_context t =
+  match t.group with
+  | None -> (pre_source t, "")
+  | Some (g, i) ->
+      let before = List.filteri (fun j _ -> j < i) g.members
+      and after = List.filteri (fun j _ -> j > i) g.members in
+      let first = match g.members with m :: _ -> m | [] -> t in
+      let pre = pre_source first ^ String.concat "" (List.map (fun m -> source m ^ "\n") before) in
+      (pre, String.concat "" (List.map (fun m -> "\n" ^ source m) after))
 
 let abandon t = if t.status = Running then t.abandoned <- t.abandoned + 1
 
@@ -139,12 +187,28 @@ let rec run editor =
     with_cm editor Editor.clear_messages;
     match editor.prev with
     | Some e when e.status <> Run_ok -> run e
-    | _ ->
+    | _ when not (is_leader editor) ->
+        (* The group's last member runs its code: this one is done. *)
+        editor.status <- Run_ok;
+        show_running editor false;
+        (match editor.next with Some e when e.status = Request_run -> run e | _ -> ())
+    | _ -> (
         editor.status <- Running;
         show_running editor true;
-        let line_number = 1 + previous_lines editor in
         editor.sent <- source editor;
-        editor.eval_fn ~id:editor.id ~line_number editor.sent)
+        match editor.group with
+        | None ->
+            let line_number = 1 + previous_lines editor in
+            editor.eval_fn ~id:editor.id ~line_number editor.sent
+        | Some (g, _) ->
+            List.iter (fun m -> with_cm m Editor.clear_messages) g.members;
+            let first = List.hd g.members in
+            let line_number = 1 + (match first.prev with Some p -> nb_lines p | None -> 0) in
+            g.first_line <- line_number;
+            editor.eval_fn ~id:editor.id ~line_number (snd (group_code g))))
+
+(* A member's Run runs the group, from its last member. *)
+let run_group editor = run (Option.value ~default:editor (leader editor))
 
 let set_prev ~prev t =
   let () = match t.prev with None -> () | Some prev -> prev.next <- None in
@@ -294,7 +358,7 @@ type ui = {
 }
 
 let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
-    ~eval_fn ~fmt_fn ~post_fn this =
+    ?group ~eval_fn ~fmt_fn ~post_fn this =
   let saved_as = if mode = Exercise then cell_id else None in
   let shadow = Webcomponent.attach_shadow this in
   let ui =
@@ -326,6 +390,7 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
     {
       id;
       mode;
+      group;
       status = Not_run;
       cm = Option.map (fun ui -> ui.ui_cm) ui;
       hidden_source = "";
@@ -370,7 +435,7 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
         ui.ui_reset_btn;
       Option.iter
         (fun (m, w) ->
-          Merlin_ext.set_context m (fun () -> pre_source editor);
+          Merlin_ext.set_context m (fun () -> merlin_context editor);
           Editor.configure_merlin cm (fun () -> Merlin_ext.extensions w))
         ui.ui_merlin;
       let _ : Ev.listener =
@@ -378,11 +443,12 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
           (fun _ev ->
             match editor.status with
             | Running | Request_run -> editor.stop ()
-            | Not_run | Run_ok -> run editor)
+            | Not_run | Run_ok -> run_group editor)
           (El.as_target ui.ui_run_btn)
       in
       ())
     ui;
+  Option.iter (fun (g, _) -> g.members <- g.members @ [ editor ]) group;
   set_source_from_html ~initial:true editor this;
   let () =
     Mutation_observer.observe ~target:(Webcomponent.as_target this)
@@ -449,10 +515,62 @@ let show_verdict t =
         else if t.run_exception then ("test-fail", "\u{2717}")
         else ("test-error", "!")))
 
+(* The line a compiler message is about: "Line 9, characters 13-16: ...". *)
+let message_line msgs =
+  List.find_map
+    (function
+      | X_protocol.Meta s | Stderr s ->
+          let s = String.trim s in
+          let prefix p = String.length s > String.length p && String.sub s 0 (String.length p) = p in
+          let digits from =
+            let rec go i = if i < String.length s && s.[i] >= '0' && s.[i] <= '9' then go (i + 1) else i in
+            int_of_string_opt (String.sub s from (go from - from))
+          in
+          if prefix "Lines " then digits 6 else if prefix "Line " then digits 5 else None
+      | _ -> None)
+    msgs
+
+(* The offset of the end of line [n] (from 1) of [code]. *)
+let offset_of_line code n =
+  let rec go i line =
+    if i >= String.length code then String.length code
+    else if code.[i] = '\n' then if line >= n then i else go (i + 1) (line + 1)
+    else go (i + 1) line
+  in
+  go 0 1
+
 let add_message t loc msg =
   if t.abandoned = 0 then begin
     track_outputs t msg;
-    with_cm t (fun cm ->
+    (* For a group, [loc] is in the group's code: the message goes to the
+       member it is in, or if that one is hidden, the last visible one
+       before it, or else the group's last member. *)
+    let target, loc =
+      match t.group with
+      | None -> (t, loc)
+      | Some (g, _) -> (
+          let starts, _ = group_code g in
+          (* The last visible member starting at or before [at]. *)
+          let member at =
+            let rec find best = function
+              | (m, start) :: rest when start <= at ->
+                  find (if m.cm <> None then Some (m, start) else best) rest
+              | _ -> best
+            in
+            find None starts
+          in
+          match (message_line msg, member loc) with
+          | Some line, _ -> (
+              (* An error names its line: after that line, in its member. *)
+              let code = snd (group_code g) in
+              let at = offset_of_line code (line - g.first_line + 1) in
+              match member at with
+              | Some (m, start) -> (m, min (at - start) (String.length (source m)))
+              | None -> (t, String.length (source t)))
+          | None, Some (m, start) -> (m, min (loc - start) (String.length (source m)))
+          | None, None -> (t, String.length (source t)))
+    in
+    with_cm target (fun cm ->
         Editor.add_message cm loc (List.map render_message msg))
   end
 
@@ -460,7 +578,11 @@ let completed_run ed msg =
   if ed.abandoned > 0 then ed.abandoned <- ed.abandoned - 1
   else begin
     (if msg <> [] then
-       let loc = String.length (source ed) in
+       let loc =
+         match ed.group with
+         | Some (g, _) -> String.length (snd (group_code g))
+         | None -> String.length (source ed)
+       in
        add_message ed loc msg);
     ed.status <- Run_ok;
     show_running ed false;
@@ -473,7 +595,7 @@ let receive_merlin t msg =
   Option.iter
     (fun w ->
       Merlin_ext.Client.on_message w
-        (Merlin_ext.fix_answer ~pre:(pre_source t) ~doc:(source t) msg))
+        (Merlin_ext.fix_answer ~pre:(fst (merlin_context t)) ~doc:(source t) msg))
     t.merlin_worker
 
 let loadable t = t.run_on = `Load

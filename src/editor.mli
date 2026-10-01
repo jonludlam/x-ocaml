@@ -5,6 +5,7 @@ val source : t -> string
 val set_source : t -> string -> unit
 val clear : t -> unit
 val nb_lines : t -> int
+val count_lines : string -> int
 val get_previous_lines : t -> int
 val set_previous_lines : t -> int -> unit
 val clear_messages : t -> unit

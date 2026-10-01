@@ -1,6 +1,6 @@
 type t = {
   id : int;
-  mutable context : unit -> string;
+  mutable context : unit -> string * string;  (* code before, and after *)
   post : X_protocol.request -> unit;
 }
 
@@ -20,18 +20,20 @@ let fix_loc pre_len ({ loc_start; loc_end; _ } as loc : Protocol.Location.t) =
     loc_end = { loc_end with pos_cnum = loc_end.pos_cnum - pre_len };
   }
 
+(* The cell's code goes between what comes before it and after it (a cell
+   in a group has both); answers are about the cell's code alone. *)
 let fix_request t msg =
-  let pre = t.context () in
+  let pre, post = t.context () in
   let pre_len = String.length pre in
   match msg with
   | Protocol.Complete_prefix (src, position, filename) ->
       let position = fix_position pre_len position in
-      Protocol.Complete_prefix (pre ^ src, position, filename)
+      Protocol.Complete_prefix (pre ^ src ^ post, position, filename)
   | Protocol.Type_enclosing (src, position, filename) ->
       let position = fix_position pre_len position in
-      Protocol.Type_enclosing (pre ^ src, position, filename)
+      Protocol.Type_enclosing (pre ^ src ^ post, position, filename)
   | Protocol.All_errors (src, filename) ->
-      Protocol.All_errors (pre ^ src, filename)
+      Protocol.All_errors (pre ^ src ^ post, filename)
   | Protocol.Add_cmis _ as other -> other
 
 let fix_answer ~pre ~doc msg =

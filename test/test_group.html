@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: groups of cells</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">Cells with the same group attribute are one program: a
+    module, say, shown a few lines at a time with prose between. They run
+    together, in page order, when the last of them runs.</p>
+
+  <section class="case" data-case="G1">
+    <h2>A module in four cells, then a cell that uses it</h2>
+    <x-ocaml id="g1a" group="m">module M = struct</x-ocaml>
+    <p>Some prose about the first definition.</p>
+    <x-ocaml id="g1b" group="m">  let x = 20</x-ocaml>
+    <p>And the next.</p>
+    <x-ocaml id="g1c" group="m">  let y = x * 2</x-ocaml>
+    <x-ocaml id="g1d" group="m">  let z = y + 2
+end</x-ocaml>
+    <x-ocaml id="g1-use">let g1 = M.z</x-ocaml>
+  </section>
+
+  <section class="case" data-case="G2">
+    <h2>An error goes to the member it is in</h2>
+    <x-ocaml id="g2a" group="bad">module B = struct
+  let ok = 1</x-ocaml>
+    <x-ocaml id="g2b" group="bad">  let broken = "a" + 1</x-ocaml>
+    <x-ocaml id="g2c" group="bad">  let fine = 2
+end</x-ocaml>
+  </section>
+
+  <section class="case" data-case="G5">
+    <h2>A member changes, and its Run button runs the group (uses G1's cells)</h2>
+  </section>
+
+  <section class="case" data-case="G3">
+    <h2>A hidden member: its code runs, and line numbers count it</h2>
+    <x-ocaml id="g3a" group="h" mode="hidden">module H = struct
+  let secret = 7
+  let other = 8</x-ocaml>
+    <x-ocaml id="g3b" group="h">  let shown = secret * 6
+end</x-ocaml>
+    <x-ocaml id="g3-use">let g3 = H.shown</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    const lineNumbers = (id) => [...shadow(id).querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
+      .map((e) => e.textContent).filter((t) => /^\d+$/.test(t));
+    async function run() {
+      await waitFor(() => output('g3-use').includes('val g3'), 30000);
+
+      check('G1: the module is defined, in its last cell', output('g1d').includes('module M'));
+      check('G1: the members before it show nothing of their own', output('g1a') === '' && output('g1b') === '' && output('g1c') === '');
+      check('G1: a later cell uses it', output('g1-use').includes('val g1 : int = 42'));
+      check('G1: no run button spins', [...document.querySelectorAll('x-ocaml')].every((c) => !c.shadowRoot.querySelector('.run_btn button.running')));
+
+      check('G2: the error is under the member that has it', output('g2b').includes('Error'));
+      check('G2: and not under the others', !output('g2a').includes('Error') && !output('g2c').includes('Error'));
+
+      check('G3: a hidden member\'s code runs', output('g3-use').includes('val g3 : int = 42'));
+      // The gutter's first element only sizes it; the line numbers follow.
+      const nums = lineNumbers('g3b').slice(1);
+      check('G3: the next member\'s lines count the hidden ones (three of them)',
+        nums[0] === String(+lineNumbers('g2c').slice(-1)[0] + 3 + 1));
+
+      await sleep(2500);
+      check('G4: merlin flags nothing in a member mid-module', shadow('g1b').querySelector('.cm-lintRange-error') === null
+        && shadow('g1c').querySelector('.cm-lintRange-error') === null);
+
+      // G5: change a member and run it from its own button: the group runs.
+      cell('g1b').textContent = '  let x = 1';
+      await sleep(200);
+      button('g1b').click();
+      await waitFor(() => output('g1d').includes('module M'), 10000);
+      button('g1-use').click();
+      await waitFor(() => output('g1-use').includes('val g1'), 10000);
+      check('G5: a member\'s Run runs the group, with the change', output('g1-use').includes('val g1 : int = 4'));
+
+      done();
+    }
+    run();
+  </script>
+</body>
+</html>

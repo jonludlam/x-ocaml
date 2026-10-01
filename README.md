@@ -79,6 +79,26 @@ the reader opens a fold by clicking it. A cell with either attribute runs its
 code as written, without OCamlformat, since reformatting would move the lines
 the attributes name.
 
+## Groups of cells
+
+Cells with the same `group` attribute are one program, in page order: a
+module shown a few lines at a time, with prose between its parts.
+
+```html
+<x-ocaml group="pins">module Pins = struct</x-ocaml>
+<p>The address bus is the bottom sixteen bits:</p>
+<x-ocaml group="pins">  let addr p = p land 0xFFFF</x-ocaml>
+<p>and the data bus the eight above it:</p>
+<x-ocaml group="pins">  let data p = (p lsr 16) land 0xFF
+end</x-ocaml>
+```
+
+The group runs when its last member runs, all its code at once; a member's
+Run button runs the group. What the toplevel says goes to the member it is
+about: an error under the member with the line it names. Merlin sees each
+member among the others. A hidden member's code runs with the rest, and the
+line numbers after it count its lines.
+
 ## Compilation
 
 To avoid relying on a public CDN and host your own copy of the `x-ocaml` scripts, you can reproduce the javascript files with:

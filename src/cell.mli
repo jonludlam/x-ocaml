@@ -12,6 +12,14 @@ val mode_of_string : string -> mode
 
 type t
 
+type group
+(** Cells that are one program (a [group] attribute): their code runs
+    together, joined in page order, when the last of them runs; messages go
+    to the member whose code they are about. *)
+
+val make_group : size:int -> group
+(** A group of [size] cells, as many as the page has with that name. *)
+
 val init :
   id:int ->
   mode:mode ->
@@ -20,6 +28,7 @@ val init :
   ?cell_id:string ->
   ?extra_style:Jstr.t ->
   ?inline_style:Jstr.t ->
+  ?group:group * int ->
   eval_fn:(id:int -> line_number:int -> string -> unit) ->
   fmt_fn:(id:int -> string -> unit) ->
   post_fn:(X_protocol.request -> unit) ->
