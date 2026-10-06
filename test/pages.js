@@ -20,6 +20,7 @@ exports.TESTS = [
   ['/test_big_module.html', 'A module of many definitions'],
   ['/test_fold.html', 'Folded and marked lines: the fold and highlight attributes'],
   ['/test_group.html', 'Groups: cells that are one program'],
+  ['/test_stale.html', 'Stale displays: code above changes'],
   ['/test_displays.html', 'Displays and callbacks: what cells show on the page'],
   ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],

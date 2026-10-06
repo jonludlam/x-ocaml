@@ -180,12 +180,54 @@ let remove t display =
         (fun _ a ->
           if
             El.to_jv a == parent
-            && Jv.to_int (Jv.get (El.to_jv a) "childElementCount") = 0
+            && Jv.to_int (Jv.get (El.to_jv a) "childElementCount")
+               = (if Jv.is_none (Jv.get (El.to_jv a) "xOcamlStale") then 0 else 1)
           then (
             El.remove a;
             None)
           else Some a)
         t.areas
+
+(* Styles for stale display areas, added to the page once. *)
+let stale_style = lazy (
+  let css =
+    ".x-ocaml-displays.x-ocaml-stale > :not(.x-ocaml-stale-notice) {\
+       opacity: var(--xo-stale-opacity, 0.35); filter: grayscale(1);\
+       pointer-events: none; }\
+     .x-ocaml-stale-notice { font: var(--xo-stale-font, 0.85em sans-serif);\
+       color: var(--xo-stale-text, inherit); padding: 0.45em 0.8em;\
+       margin-bottom: 0.4em; border-left: 3px solid var(--xo-stale-bar, #e8a200);\
+       background: var(--xo-stale-bg, rgba(232, 162, 0, 0.12)); }"
+  in
+  El.append_children (Document.head G.document)
+    [ El.v (Jstr.v "style") [ El.txt' css ] ])
+
+(* A cell whose code, or code before it, has changed since it last ran: its
+   displays show what that run made, from code that is no longer there. So
+   they dim and take no clicks, under a notice that says why, until the cell
+   runs again. *)
+let set_stale t cell stale =
+  match Hashtbl.find_opt t.areas cell with
+  | None -> ()
+  | Some a ->
+      let jv = El.to_jv a in
+      let notice = Jv.get jv "xOcamlStale" in
+      if stale && Jv.is_none notice then begin
+        Lazy.force stale_style;
+        let n =
+          El.div
+            ~at:[ At.class' (Jstr.v "x-ocaml-stale-notice") ]
+            [ El.txt' "This comes from code that has changed since it ran. Run the cell above to bring it up to date." ]
+        in
+        ignore (Jv.call jv "prepend" [| El.to_jv n |]);
+        Jv.set jv "xOcamlStale" (El.to_jv n);
+        El.set_class (Jstr.v "x-ocaml-stale") true a
+      end
+      else if (not stale) && not (Jv.is_none notice) then begin
+        ignore (Jv.call notice "remove" [||]);
+        Jv.delete jv "xOcamlStale";
+        El.set_class (Jstr.v "x-ocaml-stale") false a
+      end
 
 (* The worker is replaced, and forgets them without saying so. *)
 let clear_all t =

@@ -40,6 +40,9 @@ type t = {
   mutable abandoned : int;
   (* The source last sent to the worker, to be formatted or run. *)
   mutable sent : string;
+  (* Told when what this cell's displays show goes out of date, and when
+     it runs again. *)
+  mutable on_stale : bool -> unit;
 }
 
 (* Cells with the same group attribute are one program, in page order: a
@@ -67,6 +70,7 @@ let mode t = t.mode
 let has_completed t = t.status = Run_ok
 let set_on_completed t f = t.on_completed <- f
 let set_stop t f = t.stop <- f
+let set_on_stale t f = t.on_stale <- f
 
 (* While its cell runs, the button stops it instead. *)
 let set_btn btn ~running =
@@ -151,6 +155,7 @@ let abandon t = if t.status = Running then t.abandoned <- t.abandoned + 1
 
 let rec invalidate_from ~editor =
   abandon editor;
+  editor.on_stale true;
   editor.status <- Not_run;
   show_running editor false;
   with_cm editor Editor.clear;
@@ -163,6 +168,7 @@ let rec invalidate_from ~editor =
 
 let invalidate_after ~editor =
   abandon editor;
+  editor.on_stale true;
   editor.status <- Not_run;
   show_running editor false;
   match editor.next with
@@ -197,6 +203,7 @@ let rec run editor =
         (match editor.next with Some e when e.status = Request_run -> run e | _ -> ())
     | _ -> (
         editor.status <- Running;
+        editor.on_stale false;
         show_running editor true;
         editor.sent <- source editor;
         match editor.group with
@@ -417,6 +424,7 @@ let init ~id ~mode ~run_on ?(merlin = true) ?cell_id ?extra_style ?inline_style
       stop = ignore;
       abandoned = 0;
       sent = "";
+      on_stale = ignore;
     }
   in
   Option.iter
@@ -553,6 +561,63 @@ let offset_of_line code n =
   in
   go 0 1
 
+(* Lines in a group's code are numbered from where the group starts, but
+   each member's gutter numbers its lines among all the cells on the page,
+   and others may sit between the members. A message's leading "Line N" or
+   "Lines A-B" is renumbered as the gutters number those lines. *)
+let renumber g msgs =
+  let lines_of m = 1 + String.fold_left (fun n c -> if c = '\n' then n + 1 else n) 0 (source m) in
+  (* Each member's first line, counted in the group's code. *)
+  let starts =
+    List.rev (fst (List.fold_left (fun (acc, l) m -> ((m, l) :: acc, l + lines_of m)) ([], 1) g.members))
+  in
+  let shown line =
+    let rel = line - g.first_line + 1 in
+    let rec find = function
+      | (m, start) :: rest ->
+          if rel >= start && (match rest with (_, next) :: _ -> rel < next | [] -> true) then
+            match m.cm with
+            | Some cm -> Some (Editor.get_previous_lines cm + 1 + (rel - start))
+            | None -> None
+          else find rest
+      | [] -> None
+    in
+    find starts
+  in
+  let digits s from =
+    let rec go i = if i < String.length s && s.[i] >= '0' && s.[i] <= '9' then go (i + 1) else i in
+    let stop = go from in
+    (int_of_string_opt (String.sub s from (stop - from)), stop)
+  in
+  let fix s =
+    let prefix p = String.length s > String.length p && String.sub s 0 (String.length p) = p in
+    let swap from rest =
+      match digits s from with
+      | Some n, stop -> (
+          match shown n with
+          | Some n' -> Some (String.sub s 0 from ^ string_of_int n' ^ rest stop)
+          | None -> None)
+      | None, _ -> None
+    in
+    let tail stop = String.sub s stop (String.length s - stop) in
+    let fixed =
+      if prefix "Lines " then
+        swap 6 (fun stop ->
+            if stop < String.length s && s.[stop] = '-' then
+              match digits s (stop + 1) with
+              | Some b, stop' -> (
+                  match shown b with
+                  | Some b' -> "-" ^ string_of_int b' ^ tail stop'
+                  | None -> tail stop)
+              | None, _ -> tail stop
+            else tail stop)
+      else if prefix "Line " then swap 5 tail
+      else None
+    in
+    Option.value ~default:s fixed
+  in
+  List.map (function X_protocol.Meta s -> X_protocol.Meta (fix s) | m -> m) msgs
+
 let add_message t loc msg =
   if t.abandoned = 0 then begin
     track_outputs t msg;
@@ -588,6 +653,7 @@ let add_message t loc msg =
           | None, Some (m, start) -> (m, max 0 (min (loc - start) (String.length (source m))))
           | None, None -> (t, String.length (source t)))
     in
+    let msg = match t.group with Some (g, _) -> renumber g msg | None -> msg in
     with_cm target (fun cm ->
         Editor.add_message cm loc (List.map render_message msg))
   end

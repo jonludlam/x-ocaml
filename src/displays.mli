@@ -26,5 +26,11 @@ val update : t -> int -> string -> unit
 val remove : t -> int -> unit
 val require : t -> tag:string -> src:string -> unit
 
+val set_stale : t -> int -> bool -> unit
+(** [set_stale t cell true]: cell [cell]'s code, or code before it, has
+    changed since it ran, so its displays come from code that is gone: they
+    dim, take no clicks, and say so, until [set_stale t cell false] when it
+    runs again. *)
+
 val clear_all : t -> unit
 (** The toplevel restarts: every display goes. *)

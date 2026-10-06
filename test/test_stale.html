@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: stale displays</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">A display shows what its cell's last run made. When code
+    above the cell changes, that run's code is gone, so the display says it
+    is out of date, and takes no clicks, until the cell runs again.</p>
+
+  <section class="case" data-case="S1">
+    <h2>An edit above a cell makes its display stale; running it again makes it fresh</h2>
+    <x-ocaml id="s1a">let greeting = "hello"</x-ocaml>
+    <x-ocaml id="s1b">let shown = X_ocaml_lib.html ("<b id=greet>" ^ greeting ^ "</b>")</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    const area = () => cell('s1b').nextElementSibling;
+    const stale = () => area() && area().classList.contains('x-ocaml-stale');
+    const notice = () => area() && area().querySelector('.x-ocaml-stale-notice');
+    async function run() {
+      await waitFor(() => area() && area().textContent.includes('hello'), 30000);
+      check('S1: the display shows, fresh', !stale() && !notice());
+
+      cell('s1a').textContent = 'let greeting = "bonjour"';
+      await sleep(300);
+      check('S1: after an edit above, the display is stale', stale());
+      check('S1: and says so', notice() && /changed/.test(notice().textContent));
+      const shownEl = area().querySelector('x-ocaml-html');
+      check('S1: and takes no clicks', shownEl && getComputedStyle(shownEl).pointerEvents === 'none');
+
+      button('s1b').click();
+      await waitFor(() => area() && area().textContent.includes('bonjour'), 10000);
+      check('S1: run again, it is fresh', !stale() && !notice());
+
+      done();
+    }
+    run();
+  </script>
+</body>
+</html>

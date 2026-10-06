@@ -70,6 +70,16 @@ end = struct</x-ocaml>
     <x-ocaml id="g8b" group="sig2">  let x = 1
 end</x-ocaml>
   </section>
+  <section class="case" data-case="G9">
+    <h2>With another cell between members, messages number lines as the gutters do</h2>
+    <x-ocaml id="g9a" group="il">module I = struct
+  let one = 1</x-ocaml>
+    <x-ocaml id="g9mid">let between = 1
+let and_more = 2
+let lines = 3</x-ocaml>
+    <x-ocaml id="g9b" group="il">  let two = "two" + 1
+end</x-ocaml>
+  </section>
 </main>
 
   <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
@@ -77,7 +87,7 @@ end</x-ocaml>
     const lineNumbers = (id) => [...shadow(id).querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
       .map((e) => e.textContent).filter((t) => /^\d+$/.test(t));
     async function run() {
-      await waitFor(() => output('g3-use').includes('val g3') && output('g6c') !== '' && output('g7b') !== '' && output('g8b') !== '', 30000);
+      await waitFor(() => output('g3-use').includes('val g3') && output('g6c') !== '' && output('g7b') !== '' && output('g8b') !== '' && output('g9b') !== '', 30000);
 
       check('G1: the module is defined, in its last cell', output('g1d').includes('module M'));
       check('G1: the members before it show nothing of their own', output('g1a') === '' && output('g1b') === '' && output('g1c') === '');
@@ -105,6 +115,10 @@ end</x-ocaml>
       check('G7: a signature mismatch, reported on the hidden first line, shows in the visible member', output('g7b').includes('Error'));
 
       check('G8: a signature mismatch shows under the body, where the module ends', output('g8b').includes('Error') && !output('g8a').includes('Error'));
+
+      const g9nums = lineNumbers('g9b').slice(1);
+      const g9msg = (output('g9b').match(/Line (\d+)/) || [])[1];
+      check('G9: the error says the line the gutter shows', g9msg && g9msg === g9nums[0]);
 
       // G5: change a member and run it from its own button: the group runs.
       cell('g1b').textContent = '  let x = 1';

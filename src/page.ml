@@ -145,6 +145,7 @@ let register t this =
       ~post_fn:(Client.post t.worker) this
   in
   Cell.set_stop cell (fun () -> stop_all t);
+  Cell.set_on_stale cell (Displays.set_stale t.displays (Cell.id cell));
   if mode = Cell.Test then link_test t cell ~cell_for:(attr "data-for");
   Option.iter
     (fun name ->

@@ -45,6 +45,11 @@ val set_on_completed : t -> (t -> unit) -> unit
 (** [set_on_completed cell f]: [f] runs each time [cell] finishes running, in
     place of any function set before. *)
 
+val set_on_stale : t -> (bool -> unit) -> unit
+(** [set_on_stale cell f]: [f true] when the cell's code, or code before
+    it, changes after it has run, so that what it showed is out of date;
+    [f false] when it runs again. *)
+
 val set_stop : t -> (unit -> unit) -> unit
 (** [set_stop cell f]: [f] runs when the reader stops [cell] while it runs; it
     replaces any function set before. *)
