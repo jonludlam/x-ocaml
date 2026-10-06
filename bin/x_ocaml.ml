@@ -145,7 +145,7 @@ let output_string output str =
 
 let main effects targets ppxs output =
   let effects =
-    if effects then Cmd.(v "--effects=cps" % "--enable=effect") else Cmd.empty
+    if effects then Cmd.(v "--effects=cps" % "--enable=effects") else Cmd.empty
   in
   let targets =
     match ppxs with
