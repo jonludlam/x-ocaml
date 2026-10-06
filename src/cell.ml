@@ -520,7 +520,10 @@ let show_verdict t =
         else if t.run_exception then ("test-fail", "\u{2717}")
         else ("test-error", "!")))
 
-(* The line a compiler message is about: "Line 9, characters 13-16: ...". *)
+(* The line a compiler message is about: "Line 9, characters 13-16: ...".
+   For a range, "Lines 135-148, ...", the last: the end of the construct
+   it is about (a whole module, for a signature mismatch), which is where
+   the reader looking for it will be. *)
 let message_line msgs =
   List.find_map
     (function
@@ -531,7 +534,13 @@ let message_line msgs =
             let rec go i = if i < String.length s && s.[i] >= '0' && s.[i] <= '9' then go (i + 1) else i in
             int_of_string_opt (String.sub s from (go from - from))
           in
-          if prefix "Lines " then digits 6 else if prefix "Line " then digits 5 else None
+          if prefix "Lines " then
+            (* "Lines A-B": B. *)
+            match String.index_from_opt s 6 '-' with
+            | Some dash -> digits (dash + 1)
+            | None -> digits 6
+          else if prefix "Line " then digits 5
+          else None
       | _ -> None)
     msgs
 
