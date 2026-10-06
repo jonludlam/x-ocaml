@@ -93,6 +93,12 @@ module Toplevel_setup = struct
 
   let run () =
     JsooTop.initialize ();
+    (* Register the exceptions the compiler raises itself (Match_failure,
+       Assert_failure, ...) in the global symbol table. A release build gets
+       them from js_of_ocaml's whole-program link; a dev build, compiled
+       separately, does not, and then any partial match or [assert] fails
+       with "Reference to undefined predefined exception". *)
+    Symtable.init ();
     Sys.interactive := false;
     Environment.init ();
     List.iter (fun f -> f ()) directives
