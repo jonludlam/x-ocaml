@@ -555,14 +555,18 @@ let add_message t loc msg =
       | None -> (t, loc)
       | Some (g, _) -> (
           let starts, _ = group_code g in
-          (* The last visible member starting at or before [at]. *)
+          (* The last visible member starting at or before [at]; failing
+             that, the first visible one after it. A message about hidden
+             code must still be seen. *)
           let member at =
             let rec find best = function
               | (m, start) :: rest when start <= at ->
                   find (if m.cm <> None then Some (m, start) else best) rest
               | _ -> best
             in
-            find None starts
+            match find None starts with
+            | Some _ as found -> found
+            | None -> List.find_opt (fun (m, _) -> m.cm <> None) starts
           in
           match (message_line msg, member loc) with
           | Some line, _ -> (
@@ -570,9 +574,9 @@ let add_message t loc msg =
               let code = snd (group_code g) in
               let at = offset_of_line code (line - g.first_line + 1) in
               match member at with
-              | Some (m, start) -> (m, min (at - start) (String.length (source m)))
+              | Some (m, start) -> (m, max 0 (min (at - start) (String.length (source m))))
               | None -> (t, String.length (source t)))
-          | None, Some (m, start) -> (m, min (loc - start) (String.length (source m)))
+          | None, Some (m, start) -> (m, max 0 (min (loc - start) (String.length (source m))))
           | None, None -> (t, String.length (source t)))
     in
     with_cm target (fun cm ->

@@ -55,6 +55,13 @@ end</x-ocaml>
 end</x-ocaml>
     <x-ocaml id="g3-use">let g3 = H.shown</x-ocaml>
   </section>
+  <section class="case" data-case="G7">
+    <h2>An error about hidden code goes to a visible member</h2>
+    <x-ocaml id="g7a" group="sig" mode="hidden">module S : sig val x_ : int end = struct</x-ocaml>
+    <x-ocaml id="g7b" group="sig">  let x = 1</x-ocaml>
+    <x-ocaml id="g7c" group="sig" mode="hidden">end</x-ocaml>
+  </section>
+
 </main>
 
   <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
@@ -62,7 +69,7 @@ end</x-ocaml>
     const lineNumbers = (id) => [...shadow(id).querySelectorAll('.cm-lineNumbers .cm-gutterElement')]
       .map((e) => e.textContent).filter((t) => /^\d+$/.test(t));
     async function run() {
-      await waitFor(() => output('g3-use').includes('val g3') && output('g6c') !== '', 30000);
+      await waitFor(() => output('g3-use').includes('val g3') && output('g6c') !== '' && output('g7b') !== '', 30000);
 
       check('G1: the module is defined, in its last cell', output('g1d').includes('module M'));
       check('G1: the members before it show nothing of their own', output('g1a') === '' && output('g1b') === '' && output('g1c') === '');
@@ -86,6 +93,8 @@ end</x-ocaml>
       check('G6: the error after a blank hidden member is still in its member', output('g6c').includes('Error'));
       const g6 = lineNumbers('g6c').slice(1), g6a = lineNumbers('g6a').slice(1);
       check('G6: and its lines count the blank one', +g6[0] === +g6a[g6a.length - 1] + 2);
+
+      check('G7: a signature mismatch, reported on the hidden first line, shows in the visible member', output('g7b').includes('Error'));
 
       // G5: change a member and run it from its own button: the group runs.
       cell('g1b').textContent = '  let x = 1';
