@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: an exercise in a worker of its own</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">A second script, with another element name, makes a
+    second set of cells with a worker of its own: code there that never
+    ends can be stopped without the page's other cells losing what they
+    defined.</p>
+
+  <section class="case" data-case="O1">
+    <h2>The page's cells, on the first worker</h2>
+    <x-ocaml id="main">let defined_here = 42</x-ocaml>
+  </section>
+
+  <section class="case" data-case="O2">
+    <h2>An exercise on its own worker, that never ends</h2>
+    <x-solo id="solo-def">let rec change coins amount = if amount = 0 then [] else change coins amount</x-solo>
+    <x-solo id="solo" run-on="click">let r = change [ 0 ] 5</x-solo>
+  </section>
+
+  <section class="case" data-case="O3">
+    <h2>After stopping it, the first worker's cells still have their definitions</h2>
+    <x-ocaml id="after" run-on="click">let still = defined_here + 1</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js" elt-name="x-solo"></script>
+  <script>
+    (async () => {
+      await waitFor(() => output('main').includes('val defined_here') && output('solo-def').includes('val change'), 60000);
+      check('O1: the first worker runs', output('main').includes('val defined_here'));
+      check('O2: the second does too', output('solo-def').includes('val change'));
+      button('solo').click();
+      await sleep(1500);
+      check('O2: the exercise is running', button('solo').getAttribute('aria-label') === 'Stop');
+      button('solo').click();   // stops it: its worker is replaced
+      check('O2: and is stopped', await waitFor(() => button('solo').getAttribute('aria-label') === 'Run', 5000));
+      button('after').click();
+      check('O3: the first worker kept its definitions',
+        await waitFor(() => output('after').includes('val still : int = 43'), 20000));
+      done();
+    })();
+  </script>
+</body>
+</html>

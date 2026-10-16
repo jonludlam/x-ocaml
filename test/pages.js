@@ -28,6 +28,7 @@ exports.TESTS = [
   ['/test_check.html?worker=effects', 'Reading and loading an exercise\'s code, on the effects worker'],
   ['/test_focs_check.html', 'Checking tail calls, work and uses, on the plain worker'],
   ['/test_focs_check.html?worker=effects', 'Checking tail calls, work and uses, on the effects worker'],
+  ['/test_own_worker.html', 'An exercise in a worker of its own, stopped without the others'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],
 ];
 
