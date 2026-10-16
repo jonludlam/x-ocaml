@@ -20,6 +20,13 @@ type rule =
   | Forbid of construct
   | Require of construct
   | Require_value of string
+  | Forbid_library of string list
+      (** No value from a module of the standard library ([Stdlib.List],
+          [Stdlib.Array], ...), however it is reached, except from the
+          modules listed (["Stdlib.Printf"]); what is open by default
+          ([+], [=], [@], [failwith], [raise]) stays allowed, unless written
+          [Stdlib.]. As if the library's modules and [Stdlib] were shadowed
+          by empty ones. *)
 
 type violation = { rule : rule; loc : Location.t; message : string }
 

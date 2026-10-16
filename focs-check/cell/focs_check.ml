@@ -170,6 +170,7 @@ type rule =
   | Forbid of construct
   | Require of construct
   | Require_value of string
+  | Forbid_library of string list
 
 let construct : construct -> Ban.construct = function
   | While -> While
@@ -186,6 +187,7 @@ let rule : rule -> Ban.rule = function
   | Forbid c -> Forbid (construct c)
   | Require c -> Require (construct c)
   | Require_value v -> Require_value v
+  | Forbid_library allowed -> Forbid_library allowed
 
 let typed ?(line = 1) code =
   let fail ds =

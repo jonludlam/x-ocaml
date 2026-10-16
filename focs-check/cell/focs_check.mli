@@ -126,6 +126,11 @@ type rule =
   | Forbid of construct
   | Require of construct
   | Require_value of string
+  | Forbid_library of string list
+      (** No value from the standard library's modules however reached
+          (aliases, [open], [Stdlib.List.fold_left]), except from those
+          listed (["Stdlib.Printf"]); what is open by default ([+], [@],
+          [failwith]) stays allowed, unless written [Stdlib.]. *)
 
 val check_uses : rule list -> string -> (int * string) list
 (** [check_uses rules name]: the rules the cell [name]'s code breaks, each

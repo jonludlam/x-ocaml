@@ -250,6 +250,20 @@ let () =
   check "ban: map2 without map, one recursive function (8.3)"
     (violations [ Ban.Forbid_value "Stdlib.List.map" ] map2 = 0
     && Ban.recursive_functions (typed map2) = [ "map2" ]);
-  check "ban: mutation" (violations [ Ban.Forbid Ban.Mutation ] loop >= 1)
+  check "ban: mutation" (violations [ Ban.Forbid Ban.Mutation ] loop >= 1);
+  (* D8: the library banned, as exercises/harness.ml's uses_library does. *)
+  let lib = [ Ban.Forbid_library [] ] in
+  let sum = "let rec sum = function [] -> 0 | x :: xs -> x + sum xs\n" in
+  check "ban library: wheat, with + @ failwith raise = allowed"
+    (violations lib (sum ^ "let isum xs = let rec go acc = function [] -> acc | x :: xs -> go (acc + x) xs in go 0 xs\nlet f l = if l = [] then failwith \"e\" else l @ l\nlet g () = raise Not_found") = 0);
+  check "ban library: 3.1 chaff fold-left"
+    (violations lib (sum ^ "let isum xs = List.fold_left ( + ) 0 xs") = 1);
+  check "ban library: 3.1 chaff stdlib-qualified"
+    (violations lib (sum ^ "let isum xs = Stdlib.List.fold_left ( + ) 0 xs") = 1);
+  check "ban library: through an alias" (violations lib "module L = Stdlib.List let f = L.length" = 1);
+  check "ban library: through open" (violations lib "open List let f = length" = 1);
+  check "ban library: Stdlib.failwith, written so" (violations lib "let f () = Stdlib.failwith \"x\"" = 1);
+  check "ban library: allowed modules"
+    (violations [ Ban.Forbid_library [ "Stdlib.Printf" ] ] "let f = Printf.sprintf \"%d\" 1" = 0)
 
 let () = if !failures > 0 then (Printf.printf "%d failed\n" !failures; exit 1)
