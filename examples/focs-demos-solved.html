@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>FoCS checked exercises</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .try { border-left: 3px solid var(--rule, #ccc); padding: 0.2rem 0 0.2rem 0.8rem; margin: 0.6rem 0; color: var(--muted, #555); }
+    .try code { white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>FoCS: exercises that check more than answers</h1>
+
+  <p>Each exercise below runs in the browser, and its test cell checks it
+    there too: whether the answers are right, and also whether the function
+    is <em>tail recursive</em>, how its work <em>grows</em>, and whether it
+    sidesteps the exercise with a library function. Edit an exercise (and press &#9654; or Ctrl-Enter) and its
+    test runs again: <strong>unfold &ldquo;Tests&rdquo;</strong> under it
+    to see what the checks found. The checks load a copy of your code, rewritten as each
+    check needs; the code you see runs as written.</p>
+
+  <!-- ===================================================== 1 -->
+  <h2>1. Make it tail recursive</h2>
+  <p>Notes, exercise 3.1: <q>code an iterative version</q> of the sum of a
+    list. This version is correct but not iterative: the addition waits for
+    the recursive call to return. The test asks the compiler which recursive
+    calls are tail calls.</p>
+
+  <x-ocaml mode="exercise" data-id="isum-ex">let rec go acc = function
+  | [] -&gt; acc
+  | x :: xs -&gt; go (acc + x) xs
+let isum xs = go 0 xs</x-ocaml>
+  <x-ocaml mode="test" data-for="isum-ex">let () =
+  let t = Focs_check.tailcheck "isum-ex" in
+  Focs_check.print_tail t;
+  if not (Focs_check.is_tail_recursive t) then failwith "isum is not iterative yet"
+let () = ignore (Focs_check.load ~as_:"I" "isum-ex")
+;;
+let () =
+  if not (I.isum [] = 0 &amp;&amp; I.isum [1; 2; 3; 4] = 10 &amp;&amp; I.isum [3; -5; 2] = 0)
+  then failwith "isum gives a wrong answer";
+  print_endline "isum is right, and iterative"
+</x-ocaml>
+
+  <p class="try">Try: an accumulator, <code>let rec go acc = function [] -&gt; acc | x :: xs -&gt; go (acc + x) xs</code>
+    and <code>let isum xs = go 0 xs</code>. Then put the recursive call
+    inside a <code>try … with</code> and see it flagged again.</p>
+
+  <!-- ===================================================== 2 -->
+  <h2>2. Fix the complexity</h2>
+  <p>Lecture 3: this <code>rev</code> is correct, but each <code>@</code>
+    copies the list built so far. The test runs a counting copy of your code
+    on lists of growing length and fits how the work grows.</p>
+
+  <x-ocaml mode="exercise" data-id="rev-ex">let rec rev_app xs acc = match xs with [] -&gt; acc | x :: xs -&gt; rev_app xs (x :: acc)
+let rev xs = rev_app xs []</x-ocaml>
+  <x-ocaml mode="test" data-for="rev-ex">let () = ignore (Focs_check.load_counting ~as_:"R" "rev-ex")
+;;
+let () =
+  if R.rev [1; 2; 3] &lt;&gt; [3; 2; 1] then failwith "rev gives a wrong answer";
+  let g =
+    Focs_check.growth
+      (Focs_check.measure ~as_:"R" ~input:"fun n -&gt; List.init n Fun.id" ~call:"R.rev"
+         [ 64; 128; 256; 512; 1024 ])
+  in
+  Focs_check.print_growth g;
+  if g.model &lt;&gt; "O(n)" then failwith ("rev should be O(n), not " ^ g.model)</x-ocaml>
+
+  <p class="try">Try: an accumulator, as in the lecture's <code>rev_app</code>.
+    The table's ratios fall from about 4 to about 2 as the input doubles.
+    <code>List.rev</code> would pass too: library functions are counted,
+    not free.</p>
+
+  <!-- ===================================================== 3 -->
+  <h2>3. No library functions</h2>
+  <p>Decision D8: in exercise 3.1 the point is the accumulator pattern, so
+    library functions are not allowed. This answer is correct, and tail
+    recursive, but it uses <code>List.fold_left</code>. The check reads the
+    <em>typed</em> code, so renaming the module does not get round it.</p>
+
+  <x-ocaml mode="exercise" data-id="fold-ex">let rec go acc = function [] -&gt; acc | x :: xs -&gt; go (acc + x) xs
+let isum xs = go 0 xs</x-ocaml>
+  <x-ocaml mode="test" data-for="fold-ex">let () =
+  let broken = Focs_check.check_uses [ Focs_check.Forbid_library [] ] "fold-ex" in
+  List.iter (fun (line, msg) -&gt; Printf.printf "line %d: %s\n" line msg) broken;
+  if broken &lt;&gt; [] then failwith "library functions are not allowed here";
+  let t = Focs_check.tailcheck "fold-ex" in
+  Focs_check.print_tail t;
+  if not (Focs_check.is_tail_recursive t) then failwith "isum is not iterative";
+  print_endline "no library functions, and iterative"</x-ocaml>
+
+  <p class="try">Try: <code>module L = List let isum xs = L.fold_left ( + ) 0 xs</code>,
+    or <code>Stdlib.List.fold_left</code>, or <code>open List</code>. All
+    are caught. <code>+</code>, <code>@</code> and <code>failwith</code>
+    stay allowed.</p>
+
+  <!-- ===================================================== 4 -->
+  <h2>4. Find an input that breaks it</h2>
+  <p>Notes, exercise 4.3: two versions of <code>zip</code> differ. Rather
+    than describe the difference, give an input on which they disagree.
+    (Both are hidden; one is the notes' version, the other leaves out the
+    wildcard case.)</p>
+
+  <x-ocaml mode="hidden">let rec zip1 xs ys =
+  match xs, ys with
+  | (x :: xs, y :: ys) -&gt; (x, y) :: zip1 xs ys
+  | _ -&gt; []
+let rec zip2 xs ys =
+  match xs, ys with
+  | (x :: xs, y :: ys) -&gt; (x, y) :: zip2 xs ys
+  | ([], []) -&gt; []
+  | _ -&gt; raise (Match_failure ("zip2", 0, 0))
+let disagree (xs, ys) =
+  match zip2 xs ys with
+  | r -&gt; r &lt;&gt; zip1 xs ys
+  | exception Match_failure _ -&gt; true</x-ocaml>
+
+  <x-ocaml mode="exercise" data-id="zip-ex">let breaking : int list * int list = ([1; 2], [3])</x-ocaml>
+  <x-ocaml mode="test" data-for="zip-ex">let () =
+  Printf.printf "zip1 gives %d pairs; zip2 %s\n"
+    (List.length (zip1 (fst breaking) (snd breaking)))
+    (match zip2 (fst breaking) (snd breaking) with
+     | r -&gt; Printf.sprintf "gives %d pairs" (List.length r)
+     | exception Match_failure _ -&gt; "fails with Match_failure")
+let () =
+  if not (disagree breaking) then failwith "they agree on this input: try another"
+  else print_endline "found it: they disagree"</x-ocaml>
+
+  <!-- ===================================================== more -->
+  <h2>More demos</h2>
+  <ul>
+    <li><a href="examplar.html">Examples first</a>: write examples for
+      <code>last</code>, <code>butlast</code> and <code>nth</code>; they are
+      checked against hidden correct versions and against tick 2's wrong
+      ones (<q>Caught N of M</q>).</li>
+    <li><a href="predict.html">Predict the next step</a>: <code>rev</code>
+      with an accumulator, and the three traversals, choosing each next
+      state before it is shown.</li>
+    <li><a href="/test_own_worker.html">An exercise in a worker of its
+      own</a>: <code>change</code> with a zero coin runs for ever, is
+      stopped, and the rest of the page is untouched.</li>
+  </ul>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js" x-ocamlformat="disable"></script>
+</body>
+</html>

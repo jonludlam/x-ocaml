@@ -43,6 +43,7 @@ exports.EXAMPLES = [
   ['/examples/displays.html', 'Displays: live output, controls, a canvas, KaTeX, Mermaid and sound'],
   ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
   ['/examples/ui.html', 'A widget toolkit: controls, linking, interact, plots, tables'],
+  ['/examples/focs-demos.html', 'FoCS: checked exercises, tail calls, growth, bans, breaking inputs'],
   ['/examples/examplar.html', 'Examples first: examples checked against hidden correct and wrong versions'],
   ['/examples/predict.html', 'Predict the next step: rev with an accumulator, tree traversals'],
   ['/examples/ui-demos.html', 'Things made with widgets: Life, Mandelbrot, curve fitting, Snake, a kaleidoscope'],
