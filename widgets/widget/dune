@@ -1,0 +1,5 @@
+; Widgets for cells, drawn through x-ocaml's displays.
+(library
+ (name widget)
+ (public_name x-ocaml-widgets)
+ (libraries x-ocaml.lib js_of_ocaml))

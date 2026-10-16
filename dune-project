@@ -50,10 +50,9 @@
 (package
  (name x-ocaml-widgets)
  (synopsis
-  "js_top_worker's Widget library in x-ocaml cells, drawn as displays")
+  "Interactive widgets in x-ocaml cells, drawn as displays")
  (depends
   x-ocaml
-  js_top_worker-widget
   (brr
    (>= 0.0.7))
   (js_of_ocaml
@@ -64,6 +63,6 @@
  (synopsis
   "A widget toolkit for x-ocaml cells, in the manner of ipywidgets")
  (depends
-  js_top_worker-widget
+  x-ocaml-widgets
   (ppx_blob
    (>= 0.9.0))))

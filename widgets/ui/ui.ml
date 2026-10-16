@@ -1,4 +1,4 @@
-(* A widget toolkit on js_top_worker's Widget library. A widget is a
+(* A widget toolkit on Widget. A widget is a
    function from a render context to a view; a root re-renders, and sends its
    view again, whenever a variable it read while rendering changes. *)
 

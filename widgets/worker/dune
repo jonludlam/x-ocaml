@@ -1,5 +1,5 @@
-; x-ocaml's worker with widgets: js_top_worker's Widget library, the glue and
-; the Ui toolkit linked in, and Widget and Ui visible to cells.
+; x-ocaml's worker with widgets: Widget and the Ui toolkit linked in, and
+; visible to cells.
 (executable
  (name x_worker)
  (libraries x_worker x-ocaml-widgets x-ocaml-ui)
@@ -18,4 +18,4 @@
    (progn
     (cat %{dep:../../worker/export.txt})
     (echo
-     "Js_top_worker_message\nJs_top_worker_message__Message\nJs_top_worker_message__Widget_view\nWidget\nUi\n")))))
+     "Widget\nUi\n")))))

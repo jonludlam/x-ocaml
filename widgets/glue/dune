@@ -1,6 +1,0 @@
-; js_top_worker's Widget library, drawn through x-ocaml's displays: linked
-; into a worker, it sends widgets to the page and their events to Widget.
-(library
- (name x_ocaml_widgets)
- (public_name x-ocaml-widgets)
- (libraries js_top_worker-widget x-ocaml.lib js_of_ocaml))
