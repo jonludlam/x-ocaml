@@ -14,16 +14,21 @@ end = struct
 
   let empty = String_map.empty
 
+  (* An ident with no value of its own, such as a module alias, which is
+     only a name for another, has nothing to keep. *)
   let capture t idents =
     List.fold_left
       (fun t ident ->
         let name = Translmod.toplevel_name ident in
+        match
 #if defined OXCAML
-        let v = Toploop.getvalue name in
+          Toploop.getvalue name
 #else
-        let v = Topeval.getvalue name in
+          Topeval.getvalue name
 #endif
-        String_map.add name v t)
+        with
+        | v -> String_map.add name v t
+        | exception Misc.Fatal_error -> t)
       t idents
 
 #if defined OXCAML
