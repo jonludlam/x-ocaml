@@ -118,8 +118,16 @@ let length xs = let rec go = function [] -> 0 | _ :: xs -> 1 + go xs in go xs|}
       {|let rec even n = if n = 0 then true else odd (n - 1)
 and odd n = if n = 0 then false else not (even (n - 1)) && true|}
   in
-  check "tailcheck: mutual recursion, odd's call is not" 
-    (match r.not_tail with [ c ] -> c.caller = "odd" && c.callee = "even" | _ -> false)
+  check "tailcheck: mutual recursion, odd's call is not"
+    (match r.not_tail with [ c ] -> c.caller = "odd" && c.callee = "even" | _ -> false);
+  let r =
+    tail "Sneaky"
+      {|[@@@warning "-51"]
+let[@warning "-51"] rec nsum n = if n = 0 then 0 else n + (nsum [@warning "-51"]) (n - 1)|}
+  in
+  (* It passes without Tailcheck's stripping of warning attributes too: 51
+     comes after typing, when their scopes are closed. *)
+  check "tailcheck: warning attributes cannot silence it" (List.length r.not_tail = 1)
 
 (* Count and Growth *)
 

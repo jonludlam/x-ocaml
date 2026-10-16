@@ -12,7 +12,9 @@ type call = {
 }
 
 val annotate : Parsetree.structure -> Parsetree.structure * call list
-(** The structure with the recursive calls marked, and the calls. *)
+(** The structure with the recursive calls marked, and the calls. The
+    code's own warning attributes are removed, so that it cannot silence
+    the check. *)
 
 type result = {
   calls : call list;  (** every recursive call *)

@@ -11,6 +11,12 @@ let rec pattern_names p =
 let tailcall loc =
   Ast_helper.Attr.mk ~loc (Location.mknoloc "tailcall") (PStr [])
 
+(* The reader's own warning attributes could silence warning 51: they go. *)
+let is_warning_attr (a : attribute) =
+  List.mem a.attr_name.txt [ "warning"; "ocaml.warning"; "warnerror"; "ocaml.warnerror" ]
+
+let no_warnings = List.filter (fun a -> not (is_warning_attr a))
+
 let annotate str =
   let calls = ref [] in
   (* The names of the group being defined, and the function each call is in. *)
@@ -32,6 +38,7 @@ let annotate str =
     vbs
   in
   let expr m e =
+    let e = { e with pexp_attributes = no_warnings e.pexp_attributes } in
     match e.pexp_desc with
     | Pexp_let (Recursive, vbs, body) ->
         let vbs = rec_bindings m vbs in
@@ -46,13 +53,22 @@ let annotate str =
         { e with pexp_desc = Pexp_apply (fn, args) }
     | _ -> default_mapper.expr m e
   in
+  let structure m str =
+    List.filter
+      (fun si -> match si.pstr_desc with Pstr_attribute a -> not (is_warning_attr a) | _ -> true)
+      str
+    |> List.map (m.structure_item m)
+  in
+  let value_binding m vb =
+    default_mapper.value_binding m { vb with pvb_attributes = no_warnings vb.pvb_attributes }
+  in
   let structure_item m si =
     match si.pstr_desc with
     | Pstr_value (Recursive, vbs) ->
         { si with pstr_desc = Pstr_value (Recursive, rec_bindings m vbs) }
     | _ -> default_mapper.structure_item m si
   in
-  let m = { default_mapper with expr; structure_item } in
+  let m = { default_mapper with expr; structure; structure_item; value_binding } in
   let str = m.structure m str in
   (str, List.rev !calls)
 
