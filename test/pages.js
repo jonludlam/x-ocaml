@@ -20,6 +20,10 @@ exports.TESTS = [
   ['/test_big_module.html', 'A module of many definitions'],
   ['/test_displays.html', 'Displays and callbacks: what cells show on the page'],
   ['/test_widgets.html', 'Widgets: events, patching in place, placement, adapters'],
+  ['/test_tailcall.html', '[@tailcall] and warning 51, on the plain worker'],
+  ['/test_tailcall.html?worker=effects', '[@tailcall] and warning 51, on the effects worker'],
+  ['/test_stack.html', 'How deep the stack goes, on the plain worker'],
+  ['/test_stack.html?worker=effects', 'How deep the stack goes, on the effects worker'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],
 ];
 

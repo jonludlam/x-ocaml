@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: how deep the stack goes</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">How deep non-tail recursion goes before the stack
+    overflows, and whether tail recursion survives a million calls, as the
+    FoCS lecture shows with <code>nsum</code> and <code>summing</code>. The
+    page runs on the plain worker, or on the effects worker with
+    <code>?worker=effects</code>. The depths it finds are in the cells'
+    output and the console.</p>
+
+  <section class="case" data-case="D1">
+    <h2>The deepest nsum that does not overflow</h2>
+    <x-ocaml id="depth">let rec nsum n = if n = 0 then 0 else n + nsum (n - 1)
+let rec summing n t = if n = 0 then t else summing (n - 1) (n + t)
+
+(* Whether [f n] returns, and if not, what it raised. *)
+let survives f n =
+  match f n with
+  | _ -> Ok ()
+  | exception Stack_overflow -> Error "Stack_overflow"
+  | exception e -> Error (Printexc.to_string e)
+
+let max_depth f =
+  let ok n = Result.is_ok (survives f n) in
+  let rec up n = if ok n then up (2 * n) else n in
+  let hi = up 1000 in
+  let rec search lo hi =
+    if hi - lo <= 1 then lo
+    else
+      let m = (lo + hi) / 2 in
+      if ok m then search m hi else search lo m
+  in
+  search (hi / 2) hi
+
+let nsum_depth = max_depth nsum
+let () = Printf.printf "nsum depth: %d\n" nsum_depth</x-ocaml>
+  </section>
+
+  <section class="case" data-case="D6">
+    <h2>nsum at sizes, a phrase each, without catching anything</h2>
+    <p>On the effects worker the overflow cannot be caught (D1 finds no
+      depth), so these probe it a phrase at a time: the toplevel reports
+      each phrase's overflow, and goes on to the next.</p>
+    <x-ocaml id="probes">let () = Printf.printf "nsum 1_000: %d\n" (nsum 1_000)
+let () = Printf.printf "nsum 2_000: %d\n" (nsum 2_000)
+let () = Printf.printf "nsum 5_000: %d\n" (nsum 5_000)
+let () = Printf.printf "nsum 6_000: %d\n" (nsum 6_000)
+let () = Printf.printf "nsum 7_000: %d\n" (nsum 7_000)
+let () = Printf.printf "nsum 8_000: %d\n" (nsum 8_000)
+let () = Printf.printf "nsum 9_000: %d\n" (nsum 9_000)
+let () = Printf.printf "nsum 10_000: %d\n" (nsum 10_000)
+let () = Printf.printf "nsum 20_000: %d\n" (nsum 20_000)
+let () = Printf.printf "nsum 50_000: %d\n" (nsum 50_000)
+let () = Printf.printf "nsum 100_000: %d\n" (nsum 100_000)
+let () = Printf.printf "nsum 1_000_000: %d\n" (nsum 1_000_000)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="D2">
+    <h2>What overflowing raises</h2>
+    <x-ocaml id="raises">let () =
+  match survives nsum (100 * nsum_depth) with
+  | Ok () -> print_endline "overflow: none"
+  | Error e -> Printf.printf "overflow: %s\n" e</x-ocaml>
+  </section>
+
+  <section class="case" data-case="D3">
+    <h2>The lecture's demonstration: nsum 100_000, then summing</h2>
+    <x-ocaml id="lecture">let () =
+  match survives nsum 100_000 with
+  | Ok () -> print_endline "nsum 100_000: fine"
+  | Error e -> Printf.printf "nsum 100_000: %s\n" e
+
+let () =
+  List.iter
+    (fun n ->
+      match survives (fun n -> summing n 0) n with
+      | Ok () -> Printf.printf "summing %d: fine\n" n
+      | Error e -> Printf.printf "summing %d: %s\n" n e)
+    [ 100_000; 1_000_000; 10_000_000 ]</x-ocaml>
+  </section>
+
+  <section class="case" data-case="D4">
+    <h2>Other tail calls: mutual recursion, and a call through a closure</h2>
+    <x-ocaml id="others">let rec even n = if n = 0 then true else odd (n - 1)
+and odd n = if n = 0 then false else even (n - 1)
+
+let rec count_down n k = if n = 0 then k () else count_down (n - 1) k
+let rec go n = if n = 0 then 0 else count_down 1 (fun () -> go (n - 1))
+
+let report name f =
+  match survives f 1_000_000 with
+  | Ok () -> Printf.printf "%s 1_000_000: fine\n" name
+  | Error e -> Printf.printf "%s 1_000_000: %s\n" name e
+
+let () = report "even" even
+let () = report "go (tail calls through a closure)" go</x-ocaml>
+  </section>
+
+  <section class="case" data-case="D5">
+    <h2>The standard library on long lists</h2>
+    <x-ocaml id="lists">let big = List.init 1_000_000 Fun.id
+
+let () =
+  List.iter
+    (fun (name, f) ->
+      match survives f big with
+      | Ok () -> Printf.printf "%s: fine\n" name
+      | Error e -> Printf.printf "%s: %s\n" name e)
+    [
+      ("List.map", fun l -> ignore (List.map succ l));
+      ("( @ )", fun l -> ignore (l @ [ 0 ]));
+      ("List.fold_right", fun l -> ignore (List.fold_right ( + ) l 0));
+      ("List.rev", fun l -> ignore (List.rev l));
+    ]</x-ocaml>
+  </section>
+</main>
+
+  <script>
+    const effects = new URLSearchParams(location.search).get('worker') === 'effects';
+    const s = document.createElement('script');
+    s.src = 'x-ocaml.js';
+    s.setAttribute('src-worker', effects ? 'x-ocaml.worker+effects.js' : 'x-ocaml.worker.js');
+    document.body.appendChild(s);
+    document.title += effects ? ' (effects worker)' : ' (plain worker)';
+  </script>
+  <script>
+    (async () => {
+      await waitFor(() => output('lists').includes('List.rev'), 110000);
+      const depth = +(/nsum depth: (\d+)/.exec(output('depth')) || [0, 0])[1];
+      console.log((effects ? 'effects' : 'plain') + ' worker:\n' +
+        ['depth', 'probes', 'raises', 'lecture', 'others', 'lists'].map((id) => output(id)).join('\n'));
+      if (!effects) {
+        check('D1: nsum goes a thousand deep, and the overflow is caught', depth >= 1000);
+        check('D2: overflowing raises Stack_overflow', output('raises').includes('overflow: Stack_overflow'));
+      } else {
+        // As it stands: recorded, not wanted.
+        check('D1: on the effects worker, an overflow just past the limit escapes its handler',
+          depth === 0 && output('depth').includes('Stack overflow during evaluation'));
+        check('D3: but nsum 100_000 is caught', output('lecture').includes('nsum 100_000: Stack_overflow'));
+      }
+      check('D6: nsum 1_000 is fine', output('probes').includes('nsum 1_000: 500500'));
+      check('D6: nsum 100_000 overflows, as in the lecture', !output('probes').includes('nsum 100_000:'));
+      check('D3: summing 1_000_000 is fine', output('lecture').includes('summing 1000000: fine'));
+      check('D4: mutual tail recursion survives a million', output('others').includes('even 1_000_000: fine'));
+      done();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: [@tailcall] and warning 51</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">A call marked <code>[@tailcall]</code> that is not a tail
+    call draws warning 51 (wrong-tailcall-expectation), as in the native
+    toplevel. The page runs on the plain worker, or on the effects worker
+    with <code>?worker=effects</code>, where the compiler's pass is the same
+    but the code it makes is not.</p>
+
+  <section class="case" data-case="K1">
+    <h2>A call under an addition is not a tail call</h2>
+    <x-ocaml id="nsum">let rec nsum n = if n = 0 then 0 else n + (nsum [@tailcall]) (n - 1)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="K2">
+    <h2>A call in tail position draws no warning</h2>
+    <x-ocaml id="summing">let rec summing n t = if n = 0 then t else (summing [@tailcall]) (n - 1) (n + t)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="K3">
+    <h2>A call under try ... with is not a tail call</h2>
+    <x-ocaml id="try">let rec f n = try if n = 0 then 0 else (f [@tailcall]) (n - 1) with Not_found -> 0</x-ocaml>
+  </section>
+
+  <section class="case" data-case="K4">
+    <h2>Mutual recursion, in the branches of a match</h2>
+    <x-ocaml id="mutual">let rec even n = match n with 0 -> true | n -> (odd [@tailcall]) (n - 1)
+and odd n = match n with 0 -> false | n -> (even [@tailcall]) (n - 1)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="K5">
+    <h2>As an error, with [@@@ocaml.warnerror "+51"]</h2>
+    <p>The warning comes from the pass after typing, and the toplevel defines
+      the function all the same, as the native toplevel does: a checker must
+      read the diagnostics, not count on the phrase failing.</p>
+    <x-ocaml id="as-error">[@@@ocaml.warnerror "+51"]
+let rec nsum2 n = if n = 0 then 0 else n + (nsum2 [@tailcall]) (n - 1)</x-ocaml>
+  </section>
+</main>
+
+  <script>
+    // The worker, from the query string: the plain one unless ?worker=effects.
+    const effects = new URLSearchParams(location.search).get('worker') === 'effects';
+    const s = document.createElement('script');
+    s.src = 'x-ocaml.js';
+    s.setAttribute('src-worker', effects ? 'x-ocaml.worker+effects.js' : 'x-ocaml.worker.js');
+    document.body.appendChild(s);
+    document.title += effects ? ' (effects worker)' : ' (plain worker)';
+  </script>
+  <script>
+    const w51 = (id) => /Warning 51|wrong-tailcall-expectation/.test(output(id));
+    (async () => {
+      await waitFor(() => output('as-error') !== '', 60000);
+      check('K1: nsum draws warning 51', w51('nsum'));
+      check('K1: and is still defined', output('nsum').includes('val nsum : int -> int'));
+      check('K2: summing draws none', !w51('summing') && output('summing').includes('val summing'));
+      check('K3: the call under try draws warning 51', w51('try'));
+      check('K4: even and odd draw none', !w51('mutual') && output('mutual').includes('val odd'));
+      check('K5: as an error, it is reported as one',
+        /Error \(warning 51/.test(output('as-error')));
+      check('K5: and nsum2 is defined anyway', output('as-error').includes('val nsum2'));
+      console.log(['nsum', 'summing', 'try', 'mutual', 'as-error'].map((id) => id + ': ' + output(id)).join('\n'));
+      done();
+    })();
+  </script>
+</body>
+</html>
