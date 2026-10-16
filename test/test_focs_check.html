@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: checking tail calls, work and uses</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">Tests that check more than answers, with
+    <code>Focs_check</code>: whether the exercise is tail recursive, how its
+    work grows with its input, and what it uses. The page runs on the plain
+    worker, or on the effects worker with <code>?worker=effects</code>.</p>
+
+  <section class="case" data-case="F1">
+    <h2>nsum is not tail recursive, and its test says where</h2>
+    <x-ocaml id="nsum" mode="exercise" data-id="nsum">let rec nsum n = if n = 0 then 0 else n + nsum (n - 1)</x-ocaml>
+    <x-ocaml id="f1" mode="test" data-for="nsum">let t = Focs_check.tailcheck "nsum"
+let () = Focs_check.print_tail t
+let () = assert (Focs_check.is_tail_recursive t)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="F2">
+    <h2>summing is</h2>
+    <x-ocaml id="summing" mode="exercise" data-id="summing">let rec summing n total = if n = 0 then total else summing (n - 1) (n + total)</x-ocaml>
+    <x-ocaml id="f2" mode="test" data-for="summing">let t = Focs_check.tailcheck "summing"
+let () = Focs_check.print_tail t
+let () = assert (Focs_check.is_tail_recursive t)</x-ocaml>
+  </section>
+
+  <section class="case" data-case="F3">
+    <h2>nrev's work grows as the square of its input</h2>
+    <x-ocaml id="nrev" mode="exercise" data-id="nrev">let rec nrev = function [] -> [] | x :: xs -> nrev xs @ [ x ]</x-ocaml>
+    <x-ocaml id="f3" mode="test" data-for="nrev">let s = Focs_check.load_counting ~as_:"Nrev" "nrev"
+let g =
+  Focs_check.growth
+    (Focs_check.measure ~as_:"Nrev" ~input:"fun n -> List.init n Fun.id"
+       ~call:"Nrev.nrev" [ 64; 128; 256; 512; 1024 ])
+let () = Focs_check.print_growth g
+let () = assert (g.model = "O(n)")</x-ocaml>
+  </section>
+
+  <section class="case" data-case="F4">
+    <h2>rev with an accumulator, linearly</h2>
+    <x-ocaml id="rev" mode="exercise" data-id="rev">let rev l =
+  let rec go acc = function [] -> acc | x :: xs -> go (x :: acc) xs in
+  go [] l</x-ocaml>
+    <x-ocaml id="f4" mode="test" data-for="rev">let s = Focs_check.load_counting ~as_:"Rev" "rev"
+let g =
+  Focs_check.growth
+    (Focs_check.measure ~as_:"Rev" ~input:"fun n -> List.init n Fun.id"
+       ~call:"Rev.rev" [ 64; 128; 256; 512; 1024 ])
+let () = Focs_check.print_growth g
+let () = assert (g.model = "O(n)")</x-ocaml>
+  </section>
+
+  <section class="case" data-case="F5">
+    <h2>List.rev is not allowed, even under another name</h2>
+    <x-ocaml id="sneaky" mode="exercise" data-id="sneaky">module L = List
+let rev l = L.rev l</x-ocaml>
+    <x-ocaml id="f5" mode="test" data-for="sneaky">let broken = Focs_check.check_uses [ Forbid_value "Stdlib.List.rev" ] "sneaky"
+let () = List.iter (fun (line, msg) -> Printf.printf "Line %d: %s\n" line msg) broken
+let () = assert (broken = [])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="F6">
+    <h2>A loop that never ends runs out of fuel</h2>
+    <x-ocaml id="loop" mode="exercise" data-id="loop">let rec spin l = spin l</x-ocaml>
+    <x-ocaml id="f6" mode="test" data-for="loop">let s = Focs_check.load_counting ~as_:"Spin" "loop"
+let r =
+  Focs_check.measure ~fuel:100_000 ~as_:"Spin" ~input:"Fun.id" ~call:"Spin.spin" [ 1 ]
+let () = print_endline (if r = [ (1, None) ] then "out of fuel" else "?")</x-ocaml>
+  </section>
+</main>
+
+  <script>
+    const effects = new URLSearchParams(location.search).get('worker') === 'effects';
+    const s = document.createElement('script');
+    s.src = 'x-ocaml.js';
+    s.setAttribute('src-worker', effects ? 'x-ocaml.worker+effects.js' : 'x-ocaml.worker.js');
+    document.body.appendChild(s);
+    document.title += effects ? ' (effects worker)' : ' (plain worker)';
+  </script>
+  <script>
+    (async () => {
+      await waitFor(() => verdict('f6'), 90000);
+      const lineOf = (id) => +(/Line (\d+)/.exec(output(id)) || [])[1];
+      check('F1: nsum\'s call is not a tail call', /Line \d+: this call of nsum is not a tail call/.test(output('f1')));
+      check('F1: at nsum\'s line', lineOf('f1') === 1);
+      check('F1: and the test fails', verdict('f1') === '✗');
+      check('F2: every call of summing is a tail call', output('f2').includes('Every recursive call is a tail call.'));
+      check('F2: and the test passes', verdict('f2') === '✓');
+      check('F3: nrev is O(n^2)', output('f3').includes('it did about 4.0 times the work: O(n^2)'));
+      check('F3: the reader sees the steps', output('f3').includes('525825'));
+      check('F3: and the test, which asks for O(n), fails', verdict('f3') === '✗');
+      check('F4: rev is O(n), and passes', output('f4').includes('2.0 times the work: O(n)') && verdict('f4') === '✓');
+      check('F5: L.rev is Stdlib.List.rev', output('f5').includes('Stdlib.List.rev is not allowed here') && verdict('f5') === '✗');
+      check('F6: fuel stops it', output('f6').includes('out of fuel'));
+      done();
+    })();
+  </script>
+</body>
+</html>
