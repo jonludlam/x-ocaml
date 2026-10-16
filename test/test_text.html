@@ -68,6 +68,15 @@ let s2 = s</x-ocaml>
     <x-ocaml id="after-assert">let survived_assert = true</x-ocaml>
   </section>
 
+  <section class="case" data-case="X9">
+    <h2>A module alias</h2>
+    <p>It has no value of its own, for the toplevel to keep with the cell's
+      definitions.</p>
+    <x-ocaml id="alias">module L = List
+let rev l = L.rev l</x-ocaml>
+    <x-ocaml id="after-alias">let survived_alias = true</x-ocaml>
+  </section>
+
 </main>
 
   <script>
@@ -89,7 +98,7 @@ let s2 = s</x-ocaml>
     };
 
     async function run() {
-      await waitFor(() => output('after-assert') !== '', 60000);
+      await waitFor(() => output('after-alias') !== '', 60000);
       await sleep(3000);
 
       check('X1: each output under its own phrase', underEach('emoji', [['let camel', 'val camel'], ['let two', 'val two']]));
@@ -109,6 +118,8 @@ let s2 = s</x-ocaml>
       check('X7: and the page carries on', output('after-exit').includes('val survived_exit'));
       check('X7: a failed assert is reported as an exception', output('assert').includes('Exception'));
       check('X7: and does not stop the page', output('after-assert').includes('val survived_assert'));
+      check('X9: a module alias is defined', output('alias').includes('module L = List'));
+      check('X9: and the next cell still runs', output('after-alias').includes('val survived_alias'));
       noPageErrors();
       window.testResults.done = true;
     }
