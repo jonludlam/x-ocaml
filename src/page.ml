@@ -106,6 +106,11 @@ let register t this =
       ?cell_id:(attr "data-id") ?extra_style:t.extra_style
       ?inline_style:t.inline_style
       ~eval_fn:(fun ~id ~line_number code ->
+        (* A named cell's code goes first, for the cells that read it. *)
+        Option.iter
+          (fun name ->
+            Client.post t.worker (X_protocol.Source (name, line_number, code)))
+          (attr "data-id");
         Client.eval ~id ~line_number t.worker code)
       ~fmt_fn:(fun ~id code -> Client.fmt ~id t.worker code)
       ~post_fn:(Client.post t.worker) this

@@ -188,7 +188,10 @@ let execute ~id ~line_number ~output code_text =
               try
                 Location.reset ();
                 let phrase = preprocess_phrase phrase in
-                let _r = Toploop.execute_phrase true caml_ppf phrase in
+                let _r =
+                  Fun.protect ~finally:X_ocaml_cells.run_after_phrase
+                    (fun () -> Toploop.execute_phrase true caml_ppf phrase)
+                in
                 respond ~at_loc
               with _exn ->
                 report_error caml_ppf _exn;

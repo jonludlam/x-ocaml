@@ -11,6 +11,10 @@ type request =
   | Callback of int * string
       (** [Callback (token, payload)]: an element on the page calls a function
           that code in the worker registered (see X_ocaml_lib). *)
+  | Source of string * int * string
+      (** [Source (name, line_number, code)]: the code of the cell whose
+          data-id is [name], sent as it is run, for other cells to read (see
+          X_ocaml_lib.source). *)
 
 type output =
   | Stdout of string

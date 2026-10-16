@@ -24,6 +24,8 @@ type token = int
 
 let callback = X_ocaml_cells.add_callback
 let string_of_token = string_of_int
+let source name = Option.map snd (X_ocaml_cells.source name)
+let source_line name = Option.map fst (X_ocaml_cells.source name)
 let required = Hashtbl.create 4
 
 let require ~tag ~src =

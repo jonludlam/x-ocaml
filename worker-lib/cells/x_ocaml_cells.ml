@@ -70,6 +70,27 @@ let forget_cell c =
       with e -> error "x-ocaml: an on_remove raised" (Printexc.to_string e))
     gone
 
+(* The code of the cells with a data-id, as each was last run. *)
+let sources : (string, int * string) Hashtbl.t = Hashtbl.create 8
+let set_source name ~line_number code =
+  Hashtbl.replace sources name (line_number, code)
+let source name = Hashtbl.find_opt sources name
+
+(* What must happen once the phrase being run has finished: the toplevel then
+   sets its environment to what the phrase alone defined, and a library that
+   runs phrases of its own while it runs adds theirs back. *)
+let after = ref []
+let after_phrase f = after := f :: !after
+
+let run_after_phrase () =
+  let fs = List.rev !after in
+  after := [];
+  List.iter
+    (fun f ->
+      try f ()
+      with e -> error "x-ocaml: an after_phrase raised" (Printexc.to_string e))
+    fs
+
 let invoke k payload =
   match Hashtbl.find_opt callbacks k with
   | None -> ()

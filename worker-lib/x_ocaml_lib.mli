@@ -56,6 +56,18 @@ val string_of_token : token -> string
 (** The token as the element gives it back: a decimal integer, which goes in a
     display's data as it is, as a JSON number or an attribute's value. *)
 
+(** {1 Other cells} *)
+
+val source : string -> string option
+(** [source name] is the code of the cell whose [data-id] is [name], as it was
+    last run, or [None] if it has not run. A test runs after the exercise it
+    is for, so it can read the exercise's code, and check it in ways that
+    running it cannot. *)
+
+val source_line : string -> int option
+(** The line the code of the cell named starts at, counting the lines of
+    the cells before it, as the page shows them. *)
+
 (** {1 Elements} *)
 
 val require : tag:string -> src:string -> unit

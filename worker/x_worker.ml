@@ -31,4 +31,6 @@ let run () =
       let output ~loc out = respond (Top_response_at (id, loc, out)) in
       let result = Eval.execute ~output ~id ~line_number code in
       respond (Top_response (id, result))
+  | Source (name, line_number, code) ->
+      X_ocaml_cells.set_source name ~line_number code
   | Setup -> Eval.setup_toplevel ()
