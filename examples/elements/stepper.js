@@ -126,7 +126,14 @@
         const kids = (n.kids || []);
         const xs = [];
         let mine = null;
-        kids.forEach((k) => { const x = go(k, d + 1); if (x != null) xs.push(x); });
+        // An empty child beside a real one keeps its place, so that a lone
+        // child is seen to be a left or a right one.
+        const some = kids.some((k) => k != null);
+        kids.forEach((k) => {
+          if (k == null && some) { xs.push(LEFT + R + slot * (2 * R + 14)); slot++; return; }
+          const x = go(k, d + 1);
+          if (x != null) xs.push(x);
+        });
         if (xs.length === 0) { mine = LEFT + R + slot * (2 * R + 14); slot++; }
         else mine = (xs[0] + xs[xs.length - 1]) / 2;
         pos[id] = { x: mine, y: top + d * LEVEL, k: 'tree' };
