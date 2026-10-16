@@ -266,4 +266,45 @@ let () =
   check "ban library: allowed modules"
     (violations [ Ban.Forbid_library [ "Stdlib.Printf" ] ] "let f = Printf.sprintf \"%d\" 1" = 0)
 
+(* Examplar, with tick 2's last (from ~/devel/focs/chaffs/tick2/1_last.ml) *)
+
+let impl name about code = { Examplar.name; about; code }
+
+let wheats =
+  [ impl "raises_on_empty" "" "let rec last = function [] -> invalid_arg \"last\" | [x] -> x | _ :: xs -> last xs";
+    impl "via_rev" "" "let last l = List.hd (List.rev l)" ]
+
+let chaffs =
+  [ impl "maximum" "returns the largest element" "let rec last = function [x] -> x | x :: xs -> max x (last xs) | [] -> raise Not_found";
+    impl "head" "returns the first element" "let last l = List.hd l";
+    impl "second_last" "stops one too early" "let rec last = function [x] -> x | [x; _] -> x | _ :: xs -> last xs | [] -> raise Not_found";
+    impl "length" "returns the length" "let last l = List.length l" ]
+
+let examplar code =
+  let r = Examplar.run ~wheats ~chaffs code in
+  List.iter
+    (fun (e : Examplar.example) ->
+      Printf.printf "  %s: %s%s\n" e.source
+        (if e.valid then "valid" else "INVALID " ^ String.concat "," e.wheats_failing)
+        (if e.catches = [] then "" else ", catches " ^ String.concat "," e.catches);
+      print_diags e.diagnostics)
+    r.examples;
+  Printf.printf "  caught %d of %d\n" (List.length r.caught) (List.length chaffs);
+  r
+
+let () =
+  let r = examplar "assert (last [1; 2; 3] = 3)" in
+  check "examplar: a sorted example catches head and second_last only"
+    (List.map (fun (c : Examplar.impl) -> c.name) r.caught = [ "head"; "second_last" ]);
+  let r = examplar "assert (last [1; 2; 3] = 3)\nlast [3; 1; 2] = 2\nlast [5; 6] = 6" in
+  check "examplar: a good set catches all four" (r.missed = []);
+  let r = examplar "let examples =\n  [ last [ 1; 2; 3 ] = 3;\n    last [ 3; 1; 2 ] = 2;\n    last [ 5; 6 ] = 6 ]" in
+  check "examplar: as a list of examples" (r.missed = [] && List.length r.examples = 3);
+  let r = examplar "last [] = 0" in
+  check "examplar: an example the wheats disagree with is invalid"
+    (match r.examples with [ e ] -> not e.valid && e.catches = [] | _ -> false);
+  let r = examplar "last [1] = \"one\"" in
+  check "examplar: a type error is reported, and invalid"
+    (match r.examples with [ e ] -> (not e.valid) && e.diagnostics <> [] | _ -> false)
+
 let () = if !failures > 0 then (Printf.printf "%d failed\n" !failures; exit 1)

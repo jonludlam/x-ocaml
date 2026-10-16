@@ -367,3 +367,41 @@ module Steps = struct
     X_ocaml_lib.require ~tag:"x-stepper" ~src;
     ignore (X_ocaml_lib.display ~tag:"x-stepper" (json ?id ?title ?mode ?ask t))
 end
+
+(* Examples first *)
+
+type examplar = { valid : int; invalid : int; caught : int; chaffs : int }
+
+let examplar ~wheats ~chaffs name =
+  let line, code = source_and_line name in
+  let wheats =
+    List.mapi (fun i code -> { Examplar.name = Printf.sprintf "wheat %d" (i + 1); about = ""; code }) wheats
+  in
+  let chaffs =
+    List.mapi (fun i (about, code) -> { Examplar.name = Printf.sprintf "chaff %d" (i + 1); about; code }) chaffs
+  in
+  let r = Examplar.run ~wheats ~chaffs ~line code in
+  let valid = List.filter (fun (e : Examplar.example) -> e.valid) r.examples in
+  print_endline "Your examples:";
+  List.iter
+    (fun (e : Examplar.example) ->
+      if e.diagnostics <> [] then begin
+        Printf.printf "  ! line %d, %s: does not compile\n" e.line e.source;
+        List.iter (fun d -> Printf.printf "      %s\n" (string_of_diagnostic (diagnostic d))) e.diagnostics
+      end
+      else if not e.valid then
+        Printf.printf "  \u{2717} line %d, %s: a correct version does not agree\n" e.line e.source
+      else
+        Printf.printf "  \u{2713} line %d, %s: catches %d\n" e.line e.source (List.length e.catches))
+    r.examples;
+  let n = List.length chaffs and caught = List.length r.caught in
+  Printf.printf "Caught %d of %d wrong versions%s\n" caught n (if caught > 0 then ":" else ".");
+  List.iter (fun (c : Examplar.impl) -> Printf.printf "  \u{2713} one that %s\n" c.about) r.caught;
+  if caught < n then
+    Printf.printf "  and %d more, still to catch: what else could someone get wrong?\n" (n - caught);
+  {
+    valid = List.length valid;
+    invalid = List.length r.examples - List.length valid;
+    caught;
+    chaffs = n;
+  }

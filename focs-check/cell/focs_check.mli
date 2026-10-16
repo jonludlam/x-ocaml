@@ -189,3 +189,26 @@ module Steps : sig
   (** Shows the steps under the cell. [src] is where the element's script
       is, relative to the worker (examples/elements/stepper.js). *)
 end
+
+(** {1 Examples first}
+
+    As in Examplar: the reader writes examples of what a function should
+    do; each must agree with hidden correct versions (wheats), and a good
+    set disagrees with each wrong version (chaff), each made from a
+    misconception (see Focs_check_core.Examplar). *)
+
+type examplar = {
+  valid : int;  (** examples the wheats agree with *)
+  invalid : int;
+  caught : int;  (** chaffs caught by a valid example *)
+  chaffs : int;
+}
+
+val examplar :
+  wheats:string list -> chaffs:(string * string) list -> string -> examplar
+(** [examplar ~wheats ~chaffs name] runs the examples in the cell [name]
+    against each wheat (its code) and each chaff ([(what it gets wrong,
+    code)]), and prints what the reader is told: each example and whether
+    it is valid, the chaffs caught, by what they get wrong, and "caught N of
+    M". The examples are a cell's phrases, each [assert e] or a boolean
+    [e], one a line; or [let examples = [ e1; e2 ]]. *)

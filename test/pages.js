@@ -30,6 +30,7 @@ exports.TESTS = [
   ['/test_focs_check.html?worker=effects', 'Checking tail calls, work and uses, on the effects worker'],
   ['/test_own_worker.html', 'An exercise in a worker of its own, stopped without the others'],
   ['/test_stepper.html', 'Steps to predict: rev with an accumulator, a traversal'],
+  ['/test_examplar.html', 'Examples first: the Examplar example, checked'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],
 ];
 
@@ -42,5 +43,6 @@ exports.EXAMPLES = [
   ['/examples/displays.html', 'Displays: live output, controls, a canvas, KaTeX, Mermaid and sound'],
   ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
   ['/examples/ui.html', 'A widget toolkit: controls, linking, interact, plots, tables'],
+  ['/examples/examplar.html', 'Examples first: examples checked against hidden correct and wrong versions'],
   ['/examples/ui-demos.html', 'Things made with widgets: Life, Mandelbrot, curve fitting, Snake, a kaleidoscope'],
 ];
