@@ -1,0 +1,8 @@
+; The checks, natively: a bytecode program with the toplevel in it, which
+; evaluates code as the worker does.
+
+(test
+ (name test_focs_check)
+ (modes byte)
+ (link_flags (-linkall))
+ (libraries focs_check_core compiler-libs.toplevel))

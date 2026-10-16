@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: reading and loading an exercise's code</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">A test cell reads the code of the exercise it is for,
+    by its data-id, and loads it apart from the cells, as a module of its
+    own, with what the compiler said about it (<code>Focs_check</code>).
+    The page runs on the plain worker, or on the effects worker with
+    <code>?worker=effects</code>.</p>
+
+  <section class="case" data-case="C1">
+    <h2>A test reads its exercise's code</h2>
+    <x-ocaml id="rev-ex" mode="exercise" data-id="rev-ex">let rec rev = function [] -> [] | x :: xs -> rev xs @ [ x ]</x-ocaml>
+    <x-ocaml id="c1" mode="test" data-for="rev-ex">let () = print_endline ("read: " ^ Focs_check.source "rev-ex")</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C2">
+    <h2>It loads it as a module, which its later phrases use</h2>
+    <x-ocaml id="c2" mode="test" data-for="rev-ex">let s = Focs_check.load ~as_:"Student" "rev-ex"
+let () = assert s.ok
+;;
+let () = assert (Student.rev [ 1; 2; 3 ] = [ 3; 2; 1 ])
+let () = print_endline "Student.rev works"</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C3">
+    <h2>The module stays for later cells</h2>
+    <x-ocaml id="c3">let later = Student.rev [ 'a'; 'b' ]</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C4">
+    <h2>A type error is a diagnostic, at the page's line</h2>
+    <x-ocaml id="bad-ex" mode="exercise" data-id="bad-ex">let ok = 1
+let wrong : int = "two"</x-ocaml>
+    <x-ocaml id="c4" mode="test" data-for="bad-ex">let s = Focs_check.load ~as_:"Bad" "bad-ex"
+let () =
+  Focs_check.print_diagnostics s;
+  Printf.printf "ok: %b\n" s.ok;
+  match s.diagnostics with
+  | [ d ] -> Printf.printf "error at line %d\n" d.line
+  | _ -> print_endline "not one diagnostic"</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C5">
+    <h2>Warnings are kept, with the flags asked for</h2>
+    <x-ocaml id="tail-ex" mode="exercise" data-id="tail-ex">let rec nsum n = if n = 0 then 0 else n + (nsum [@tailcall]) (n - 1)</x-ocaml>
+    <x-ocaml id="c5" mode="test" data-for="tail-ex">let s = Focs_check.load ~warnings:"@51" ~as_:"Tail" "tail-ex"
+let () =
+  Focs_check.print_diagnostics s;
+  List.iter
+    (fun (d : Focs_check.diagnostic) ->
+      if d.warning = Some 51 then
+        Printf.printf "warning 51 at line %d, error: %b\n" d.line d.error)
+    s.diagnostics</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C6">
+    <h2>Code that raises as it loads</h2>
+    <x-ocaml id="raise-ex" mode="exercise" data-id="raise-ex">let x = List.hd []</x-ocaml>
+    <x-ocaml id="c6" mode="test" data-for="raise-ex">let s = Focs_check.load ~as_:"Raises" "raise-ex"
+let () = Focs_check.print_diagnostics s; Printf.printf "ok: %b\n" s.ok</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C7">
+    <h2>Loading leaves the cells' own definitions alone</h2>
+    <x-ocaml id="iso-ex" mode="exercise" data-id="iso-ex">let shared = "student"</x-ocaml>
+    <x-ocaml id="c7" mode="test" data-for="iso-ex">let shared = "test"
+let s = Focs_check.load ~as_:"Iso" "iso-ex"
+;;
+let () = Printf.printf "shared: %s, Iso.shared: %s\n" shared Iso.shared</x-ocaml>
+  </section>
+
+  <section class="case" data-case="C8">
+    <h2>An edited exercise is read afresh</h2>
+    <x-ocaml id="edit-ex" mode="exercise" data-id="edit-ex">let v = 1</x-ocaml>
+    <x-ocaml id="c8" mode="test" data-for="edit-ex">let () = print_endline ("now: " ^ Focs_check.source "edit-ex")</x-ocaml>
+  </section>
+</main>
+
+  <script>
+    const effects = new URLSearchParams(location.search).get('worker') === 'effects';
+    const s = document.createElement('script');
+    s.src = 'x-ocaml.js';
+    s.setAttribute('src-worker', effects ? 'x-ocaml.worker+effects.js' : 'x-ocaml.worker.js');
+    document.body.appendChild(s);
+    document.title += effects ? ' (effects worker)' : ' (plain worker)';
+  </script>
+  <script>
+    (async () => {
+      await waitFor(() => output('c8').includes('now:'), 60000);
+      check('C1: the test reads the exercise', output('c1').includes('read: let rec rev'));
+      check('C1: and passes', verdict('c1') === '✓');
+      check('C2: the loaded module works', output('c2').includes('Student.rev works') && verdict('c2') === '✓');
+      check('C3: and is there for later cells', output('c3').includes("val later : char list = ['b'; 'a']"));
+      check('C4: a type error is a diagnostic', output('c4').includes('ok: false') && output('c4').includes('Error: This constant has type string'));
+      // The exercise's own run says where, as the page numbers its lines.
+      const lineOf = (id) => (/Line (\d+), characters/.exec(output(id)) || [])[1];
+      check('C4: at the page\'s line', lineOf('bad-ex') && output('c4').includes('error at line ' + lineOf('bad-ex')));
+      check('C5: warning 51 is kept, as an error', lineOf('tail-ex') && output('c5').includes('warning 51 at line ' + lineOf('tail-ex') + ', error: true'));
+      check('C5: and the cell\'s next phrase is not failed by it', !output('c5').includes('rror') || output('c5').includes('warning 51 at line'));
+      check('C6: an exception is a diagnostic', output('c6').includes('Exception: Failure "hd"') && output('c6').includes('ok: false'));
+      check('C7: the cells\' definitions stay theirs', output('c7').includes('shared: test, Iso.shared: student'));
+      // An edit, and the test runs again with the exercise, when it runs.
+      type('edit-ex', 'let w = 2 ');
+      await sleep(300);   // CodeMirror notices typing on its next frame
+      button('edit-ex').click();
+      const read = await waitFor(() => output('c8').includes('now: let w = 2'), 20000);
+      check('C8: the edited exercise is read', read);
+      done();
+    })();
+  </script>
+</body>
+</html>

@@ -30,6 +30,7 @@
   x-ocaml.protocol
   x-ocaml.lib
   x-ocaml.lib.cells
+  x-ocaml.focs-check
   merlin-js.worker
   (select
    ocamlfmt.ml
@@ -50,7 +51,8 @@
    (progn
     (cat %{deps})
     (echo "Ast_mapper\n")
-    (echo "X_ocaml_lib\n")))))
+    (echo "X_ocaml_lib\n")
+    (echo "Focs_check\n")))))
 
 (rule
  (target export-stdlib.txt)

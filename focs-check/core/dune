@@ -1,0 +1,8 @@
+; The checks, on compiler-libs: the same code runs in the worker, where
+; js_of_ocaml-toplevel provides the toplevel, and natively, in bytecode, for
+; the tests in ../test.
+
+(library
+ (name focs_check_core)
+ (public_name x-ocaml.focs-check.core)
+ (libraries compiler-libs.common compiler-libs.toplevel))

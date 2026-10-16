@@ -24,6 +24,8 @@ exports.TESTS = [
   ['/test_tailcall.html?worker=effects', '[@tailcall] and warning 51, on the effects worker'],
   ['/test_stack.html', 'How deep the stack goes, on the plain worker'],
   ['/test_stack.html?worker=effects', 'How deep the stack goes, on the effects worker'],
+  ['/test_check.html', 'Reading and loading an exercise\'s code, on the plain worker'],
+  ['/test_check.html?worker=effects', 'Reading and loading an exercise\'s code, on the effects worker'],
   ['/test_ui.html', 'The Ui toolkit: variables, controls, tables, clocks, charts, errors'],
 ];
 

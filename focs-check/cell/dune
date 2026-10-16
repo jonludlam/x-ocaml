@@ -1,0 +1,9 @@
+; What cells see of the checks: a module whose interface has only the
+; standard library's types, as the worker exports no compiler-libs to them.
+
+(library
+ (name focs_check)
+ (public_name x-ocaml.focs-check)
+ ; Only cells call it, so the worker must link it without calling it itself.
+ (library_flags (-linkall))
+ (libraries focs_check_core x-ocaml.lib.cells compiler-libs.common))
