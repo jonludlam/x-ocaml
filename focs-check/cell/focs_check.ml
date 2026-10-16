@@ -217,3 +217,153 @@ let uses name =
 let recursive_functions name =
   let line, code = source_and_line name in
   Ban.recursive_functions (typed ~line code)
+
+(* Steps to predict *)
+
+module Steps = struct
+  type node = Cons of string * string option | Tree of string * string option list
+
+  (* A walk that records the nodes it meets, into the state it builds, and
+     gives the first; or a plain value. *)
+  type value = Walk of ((string -> node -> unit) -> string option) | Text of string
+
+  (* Every block met so far, and its id: a node keeps its id from state to
+     state, which is how the element knows to move it. *)
+  let ids : (Obj.t * string) list ref = ref []
+  let n = ref 0
+
+  let id_of (o : Obj.t) =
+    match List.assq_opt o !ids with
+    | Some id -> id
+    | None ->
+        incr n;
+        let id = "n" ^ string_of_int !n in
+        ids := (o, id) :: !ids;
+        id
+
+  let list f l =
+    Walk
+      (fun add ->
+        let rec go = function
+          | [] -> None
+          | x :: rest as cell ->
+              let id = id_of (Obj.repr cell) in
+              add id (Cons (f x, go rest));
+              Some id
+        in
+        go l)
+
+  let tree f view t =
+    Walk
+      (fun add ->
+        let rec go t =
+          match view t with
+          | None -> None
+          | Some (x, kids) ->
+              let id = id_of (Obj.repr t) in
+              add id (Tree (f x, List.map go kids));
+              Some id
+        in
+        go t)
+
+  type root = To of string option | Text_root of string
+  type state = {
+    label : string option;
+    note : string option;
+    roots : (string * root) list;
+    nodes : (string * node) list;
+    highlight : string list;
+  }
+
+  let text s = Text s
+
+  let state ?label ?note ?(highlight = []) named =
+    let nodes = ref [] in
+    let add id node = if not (List.mem_assoc id !nodes) then nodes := (id, node) :: !nodes in
+    let ignore_nodes _ _ = () in
+    let roots =
+      List.map
+        (fun (name, v) ->
+          match v with
+          | Text s -> (name, (Text_root s : root))
+          | Walk walk -> (name, To (walk add)))
+        named
+    in
+    let highlight =
+      List.filter_map
+        (function Text _ -> None | Walk walk -> walk ignore_nodes)
+        highlight
+    in
+    { label; note; roots; nodes = List.rev !nodes; highlight }
+
+  type t = (state * (string * state) list) list ref
+
+  let create () = ref []
+  let add t ?(choices = []) s = t := (s, choices) :: !t
+
+  let str s =
+    let b = Buffer.create (String.length s + 2) in
+    Buffer.add_char b '"';
+    String.iter
+      (function
+        | '"' -> Buffer.add_string b "\\\""
+        | '\\' -> Buffer.add_string b "\\\\"
+        | '\n' -> Buffer.add_string b "\\n"
+        | c when Char.code c < 0x20 -> Printf.bprintf b "\\u%04x" (Char.code c)
+        | c -> Buffer.add_char b c)
+      s;
+    Buffer.add_char b '"';
+    Buffer.contents b
+
+  let opt = function None -> "null" | Some id -> str id
+  let obj fields = "{" ^ String.concat "," (List.map (fun (k, v) -> str k ^ ":" ^ v) fields) ^ "}"
+  let arr xs = "[" ^ String.concat "," xs ^ "]"
+
+  let rec state_json ?(choices = []) s =
+    let node = function
+      | Cons (v, next) -> obj [ ("k", str "cons"); ("v", str v); ("next", opt next) ]
+      | Tree (v, kids) -> obj [ ("k", str "tree"); ("v", str v); ("kids", arr (List.map opt kids)) ]
+    in
+    let root (name, r) =
+      match r with
+      | To id -> obj [ ("name", str name); ("to", opt id) ]
+      | Text_root t -> obj [ ("name", str name); ("text", str t) ]
+    in
+    obj
+      (List.concat
+         [
+           Option.to_list (Option.map (fun l -> ("label", str l)) s.label);
+           Option.to_list (Option.map (fun l -> ("note", str l)) s.note);
+           [
+             ("roots", arr (List.map root s.roots));
+             ("nodes", obj (List.map (fun (id, n) -> (id, node n)) s.nodes));
+             ("highlight", arr (List.map str s.highlight));
+           ];
+           (if choices = [] then []
+            else
+              [
+                ( "choices",
+                  arr
+                    (List.map
+                       (fun (why, s) -> obj [ ("state", state_json s); ("why", str why) ])
+                       choices) );
+              ]);
+         ])
+
+  let json ?id ?title ?(mode = "predict") ?(ask = 2) t =
+    obj
+      (List.concat
+         [
+           Option.to_list (Option.map (fun i -> ("id", str i)) id);
+           Option.to_list (Option.map (fun i -> ("title", str i)) title);
+           [
+             ("mode", str mode);
+             ("ask", string_of_int ask);
+             ("steps", arr (List.rev_map (fun (s, choices) -> state_json ~choices s) !t));
+           ];
+         ])
+
+  let show ?(src = "examples/elements/stepper.js") ?id ?title ?mode ?ask t =
+    X_ocaml_lib.require ~tag:"x-stepper" ~src;
+    ignore (X_ocaml_lib.display ~tag:"x-stepper" (json ?id ?title ?mode ?ask t))
+end

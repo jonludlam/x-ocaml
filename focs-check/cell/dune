@@ -6,4 +6,4 @@
  (public_name x-ocaml.focs-check)
  ; Only cells call it, so the worker must link it without calling it itself.
  (library_flags (-linkall))
- (libraries focs_check_core x-ocaml.lib.cells compiler-libs.common))
+ (libraries focs_check_core x-ocaml.lib x-ocaml.lib.cells compiler-libs.common))

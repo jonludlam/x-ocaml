@@ -144,3 +144,48 @@ val uses : string -> string list
 
 val recursive_functions : string -> string list
 (** The functions the cell's code defines that call themselves or each other. *)
+
+(** {1 Steps to predict}
+
+    A computation's states, shown one at a time by an [<x-stepper>] element
+    (examples/elements/stepper.js) as box-and-pointer diagrams: lists as
+    chains of cells, trees as trees, and the cells two values share drawn
+    once, with two arrows to them. Sharing is found by physical equality, so
+    it is the program's own. In predict mode the reader chooses the next
+    state among it and wrong ones, each wrong one with what the
+    misconception behind it gets wrong. *)
+
+module Steps : sig
+  type value
+
+  val list : ('a -> string) -> 'a list -> value
+  val tree : ('a -> string) -> ('t -> ('a * 't list) option) -> 't -> value
+  (** [tree label view t]: [view] says what a node holds and its children,
+      or [None] for an empty tree. *)
+
+  val text : string -> value
+  (** A plain value, written out. *)
+
+  type state
+
+  val state :
+    ?label:string -> ?note:string -> ?highlight:value list -> (string * value) list -> state
+  (** The named values; [highlight] marks the first node of each value. *)
+
+  type t
+
+  val create : unit -> t
+
+  val add : t -> ?choices:(string * state) list -> state -> unit
+  (** The next state, with wrong ones to choose among: [(why, state)]. *)
+
+  val json : ?id:string -> ?title:string -> ?mode:string -> ?ask:int -> t -> string
+  (** As [<x-stepper>] takes it; [mode] is ["predict"] (by default) or
+      ["lecture"], and [ask] how many steps to ask about before only the
+      last (2). *)
+
+  val show :
+    ?src:string -> ?id:string -> ?title:string -> ?mode:string -> ?ask:int -> t -> unit
+  (** Shows the steps under the cell. [src] is where the element's script
+      is, relative to the worker (examples/elements/stepper.js). *)
+end

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: steps to predict</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+</head>
+<body>
+<main>
+  <p class="lede">A cell records a computation's states with
+    <code>Focs_check.Steps</code>, and an <code>&lt;x-stepper&gt;</code>
+    shows them one at a time, as box-and-pointer diagrams. In predict mode
+    the reader picks the next state before it is shown; in lecture mode a
+    script steps it, as a slide's exec block would.</p>
+
+  <section class="case" data-case="P1">
+    <h2>rev with an accumulator, to predict</h2>
+    <x-ocaml id="rev">open Focs_check
+
+let show l = "[" ^ String.concat "; " (List.map string_of_int l) ^ "]"
+
+let rev_steps l =
+  let t = Steps.create () in
+  let st ?note label xs acc =
+    Steps.state ?note ~label ~highlight:[ Steps.list string_of_int acc ]
+      [ ("l", Steps.list string_of_int l); ("xs", Steps.list string_of_int xs);
+        ("acc", Steps.list string_of_int acc) ]
+  in
+  let go_label xs acc = Printf.sprintf "go %s %s" (show xs) (show acc) in
+  Steps.add t (st ("rev " ^ show l ^ " = " ^ go_label l []) l []);
+  let rec go acc xs =
+    match xs with
+    | [] -> acc
+    | x :: rest ->
+        let acc' = x :: acc in
+        let wrong =
+          [ ( Printf.sprintf "x :: acc puts %d in front of the accumulator, not after it: \
+               the accumulator ends up reversed." x,
+              acc @ [ x ] );
+            ("Nothing is lost: the head of the list moves onto the accumulator.", acc);
+            ("The accumulator is extended, not replaced: it keeps what it had.", [ x ]) ]
+          |> List.filter (fun (_, a) -> a <> acc')
+          |> List.sort_uniq (fun (_, a) (_, b) -> compare a b)
+          |> List.map (fun (why, a) -> (why, st (go_label rest a) rest a))
+        in
+        Steps.add t ~choices:wrong (st (go_label rest acc') rest acc');
+        go acc' rest
+  in
+  let r = go [] l in
+  Steps.add t
+    ~choices:[ ("go returns the accumulator, which holds the elements in the \
+                 reverse of the order they were met.",
+                Steps.state ~label:("= " ^ show l) [ ("result", Steps.list string_of_int l) ]) ]
+    (Steps.state ~label:("= " ^ show r) ~note:"go [] acc = acc"
+       [ ("result", Steps.list string_of_int r) ]);
+  t
+
+let () = Steps.show ~id:"rev-steps" ~title:"rev, with an accumulator" (rev_steps [ 1; 2; 3 ])</x-ocaml>
+  </section>
+
+  <section class="case" data-case="P2">
+    <h2>A preorder traversal, in lecture mode</h2>
+    <x-ocaml id="tree">open Focs_check
+
+type 'a tree = Lf | Br of 'a * 'a tree * 'a tree
+
+let view = function Lf -> None | Br (v, l, r) -> Some (v, [ l; r ])
+
+let preorder_steps t =
+  let s = Steps.create () in
+  let tree = Steps.tree string_of_int view t in
+  let out = ref [] in
+  let st label here =
+    Steps.state ~label ~highlight:[ Steps.tree string_of_int view here ]
+      [ ("t", tree); ("here", Steps.tree string_of_int view here);
+        ("visited", Steps.list string_of_int (List.rev !out)) ]
+  in
+  Steps.add s (st "preorder t" t);
+  let rec go = function
+    | Lf -> ()
+    | Br (v, l, r) as here ->
+        out := v :: !out;
+        Steps.add s (st (Printf.sprintf "visit %d" v) here);
+        go l;
+        go r
+  in
+  go t;
+  s
+
+let t = Br (4, Br (2, Br (1, Lf, Lf), Br (3, Lf, Lf)), Br (6, Br (5, Lf, Lf), Lf))
+let () = Steps.show ~id:"pre-steps" ~mode:"lecture" ~title:"preorder" (preorder_steps t)</x-ocaml>
+  </section>
+</main>
+
+  <script src="x-ocaml.js" src-worker="x-ocaml.worker.js"></script>
+  <script>
+    const stepper = (id) => document.getElementById(id);
+    const sh = (id) => stepper(id).shadowRoot;
+    const nodesShown = (id) => sh(id).querySelectorAll('svg.main g.node').length;
+    (async () => {
+      check('P1: the stepper is shown under the cell',
+        await waitFor(() => stepper('rev-steps') && stepper('rev-steps').length === 5, 60000));
+      const rev = stepper('rev-steps');
+      check('P1: it starts at the first state', rev.index === 0 && sh('rev-steps').querySelector('.label').textContent === 'rev [1; 2; 3] = go [1; 2; 3] []');
+      check('P1: l and xs are one list, drawn once', nodesShown('rev-steps') === 3);
+      rev.step();
+      check('P1: in predict mode, stepping asks first', rev.asking && rev.index === 0);
+      const options = [...sh('rev-steps').querySelectorAll('.option')];
+      check('P1: among the right state and wrong ones', options.length >= 2);
+      const wrong = options.find((b) => !b._option.right);
+      wrong.click();
+      const feedback = sh('rev-steps').querySelector('.feedback').textContent;
+      check('P1: a wrong choice is told what it got wrong', feedback.startsWith('Not quite:') && feedback.length > 20);
+      check('P1: and the real step is shown', rev.index === 1 && !rev.asking);
+      check('P1: the answer is kept', rev.answers.length === 1 && rev.answers[0].correct === false);
+      check('P1: xs points into l, and acc is new: four cells', nodesShown('rev-steps') === 4);
+      rev.step();
+      const right = [...sh('rev-steps').querySelectorAll('.option')].find((b) => b._option.right);
+      right.click();
+      check('P1: a right choice is told so', sh('rev-steps').querySelector('.feedback').textContent === 'Right.' && rev.index === 2);
+      rev.step();   // step 3 is not asked (ask = 2) ...
+      check('P1: after the first two, steps are not asked', rev.index === 3 && !rev.asking);
+      rev.step();   // ... but the last is
+      check('P1: the last step is asked again', rev.asking);
+      rev.step();   // a second step() reveals it, as a lecturer would
+      check('P1: and a second step() reveals it', rev.index === 4 && !rev.asking);
+      rev.back();
+      check('P1: back() undoes a step', rev.index === 3);
+
+      check('P2: the traversal is shown', await waitFor(() => stepper('pre-steps') && stepper('pre-steps').length === 7, 30000));
+      const pre = stepper('pre-steps');
+      check('P2: the tree is drawn, its six nodes and the visited list empty', nodesShown('pre-steps') === 6);
+      pre.step(); pre.step(); pre.step();
+      check('P2: in lecture mode step() just steps', pre.index === 3 && !pre.asking);
+      check('P2: the node being visited is highlighted',
+        sh('pre-steps').querySelectorAll('svg.main g.node.hl').length === 1
+        && sh('pre-steps').querySelector('svg.main g.node.hl text').textContent === '1');
+      check('P2: and the visited list holds 4, 2, 1',
+        [...sh('pre-steps').querySelectorAll('svg.main g.node')].filter((g) => g.querySelector('rect')).map((g) => g.textContent).join(',') === '4,2,1');
+      pre.back(); pre.back();
+      check('P2: back() twice', pre.index === 1);
+      pre.mode = 'predict';
+      check('P2: switched to predict, steps without choices are not asked', pre.step() && pre.index === 2 && !pre.asking);
+      done();
+    })();
+  </script>
+</body>
+</html>
