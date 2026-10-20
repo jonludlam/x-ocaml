@@ -24,11 +24,19 @@
     <code>mode = "lecture"</code> stops it asking, as a slide would.</p>
 
   <h2>Reversing a list with an accumulator</h2>
-  <x-ocaml>open Focs_check
+  <x-ocaml>(* This cell builds the steps shown below it.  It doesn't animate rev
+   by magic: it runs its own copy of rev and records a snapshot of the
+   variables at each call, plus some wrong snapshots for the reader to
+   choose among.  Focs_check.Steps turns the snapshots into box-and-pointer
+   diagrams; the &lt;x-stepper&gt; element draws and animates them. *)
+open Focs_check
 
+(* [1; 2; 3], for the labels above each diagram. *)
 let show l = "[" ^ String.concat "; " (List.map string_of_int l) ^ "]"
 
-(* The code the reader sees; [line xs] is the line that runs next. *)
+(* The code the reader sees beside the diagram.  Each snapshot says which
+   of its lines runs next: line 3 (the [] case) once xs is empty, line 4
+   (the :: case) before that. *)
 let rev_code = {|let rec go xs acc =
   match xs with
   | [] -&gt; acc
@@ -40,31 +48,49 @@ let line xs = if xs = [] then 3 else 4
 
 let rev_steps l =
   let t = Steps.create () in
+  (* A snapshot of one call go xs acc: the original list l, and xs and acc.
+     Steps.list records the actual list cells, so where xs is a tail of l
+     the diagram draws one chain of cells with two arrows into it: the
+     sharing is the program's own.  acc is highlighted, since it's what
+     changes. *)
   let st label xs acc =
     Steps.state ~label ~line:(line xs) ~highlight:[ Steps.list string_of_int acc ]
       [ ("l", Steps.list string_of_int l); ("xs", Steps.list string_of_int xs);
         ("acc", Steps.list string_of_int acc) ]
   in
   let go_label xs acc = Printf.sprintf "go %s %s" (show xs) (show acc) in
+  (* The first snapshot: rev l has just called go l []. *)
   Steps.add t (st ("rev " ^ show l ^ " = " ^ go_label l []) l []);
+  (* Our own go, the same as the code shown, recording each call it makes. *)
   let rec go xs acc =
     match xs with
-    | [] -> acc
-    | x :: rest ->
+    | [] -&gt; acc
+    | x :: rest -&gt;
         let acc' = x :: acc in
+        (* The wrong next states, each from a misconception, with what it
+           gets wrong.  These are the options the reader chooses among,
+           next to the right one. *)
         let wrong =
           [ ( Printf.sprintf "x :: acc puts %d in front of the accumulator, not after it." x,
-              acc @ [ x ] );
-            ("Nothing is lost: the head of the list moves onto the accumulator.", acc);
-            ("The accumulator is extended, not replaced: it keeps what it had.", [ x ]) ]
-          |> List.filter (fun (_, a) -> a &lt;> acc')
-          |> List.sort_uniq (fun (_, a) (_, b) -> compare a b)
-          |> List.map (fun (why, a) -> (why, st (go_label rest a) rest a))
+              acc @ [ x ] );                       (* adds x at the end *)
+            ("Nothing is lost: the head of the list moves onto the accumulator.",
+              acc );                               (* forgets x *)
+            ("The accumulator is extended, not replaced: it keeps what it had.",
+              [ x ] ) ]                            (* replaces acc by [x] *)
+          (* At the first call, acc = [] makes some of these the same as
+             the right answer, or as each other: keep only those that differ. *)
+          |&gt; List.filter (fun (_, a) -&gt; a &lt;&gt; acc')
+          |&gt; List.sort_uniq (fun (_, a) (_, b) -&gt; compare a b)
+          |&gt; List.map (fun (why, a) -&gt; (why, st (go_label rest a) rest a))
         in
+        (* The right next state: the call go rest acc' that is about to
+           happen, offered among the wrong ones. *)
         Steps.add t ~choices:wrong (st (go_label rest acc') rest acc');
         go rest acc'
   in
   let r = go l [] in
+  (* The last step: go [] acc returns acc.  The wrong option is the list
+     itself, for those who expect rev to give back its input. *)
   Steps.add t
     ~choices:[ ("go returns the accumulator, which holds the elements in the \
                  reverse of the order they were met.",
@@ -72,11 +98,18 @@ let rev_steps l =
     (Steps.state ~label:("= " ^ show r) [ ("result", Steps.list string_of_int r) ]);
   t
 
+(* Show the steps under this cell, with the code beside them.  In predict
+   mode (the default) the reader chooses the next state for the first two
+   steps and the last; ~mode:"lecture" would just step. *)
 let () = Steps.show ~title:"rev [1; 2; 3; 4]" ~code:rev_code (rev_steps [ 1; 2; 3; 4 ])</x-ocaml>
 
   <h2>Traversing a tree: preorder, inorder, postorder</h2>
-  <p>The node being visited is marked, and <code>here</code> points to
-    it. The wrong choices are the node the other two orders would visit.</p>
+  <p>Each step visits one node: it's marked, <code>visiting</code> points to
+    it, and it joins the <code>visited</code> list, which is the traversal's
+    output so far. When asked <q>what comes next?</q>, choose which node is
+    visited next. Each option is labelled with the node it visits and the
+    output that would give. The wrong options are the nodes the other two
+    orders would visit at that point.</p>
   <x-ocaml>open Focs_check
 
 type 'a tree = Lf | Br of 'a * 'a tree * 'a tree
@@ -105,12 +138,17 @@ let traversal_steps name t =
   let _, order, _ = List.find (fun (n, _, _) -> n = name) orders in
   let s = Steps.create () in
   let tree = Steps.tree string_of_int view t in
-  let st label here visited =
+  (* A snapshot just after visiting a node: the whole tree t, the subtree
+     being visited, and the output so far.  The label says which node was
+     visited and what the output is now, so the options can be told apart. *)
+  let show l = "[" ^ String.concat "; " (List.map string_of_int l) ^ "]" in
+  let st v here visited =
     let here_v = Steps.tree string_of_int view here in
-    Steps.state ~label ~line:3 ~highlight:[ here_v ]
-      [ ("t", tree); ("here", here_v); ("visited", Steps.list string_of_int visited) ]
+    Steps.state ~label:(Printf.sprintf "visits %d: output so far %s" v (show visited))
+      ~line:3 ~highlight:[ here_v ]
+      [ ("t", tree); ("visiting", here_v); ("visited", Steps.list string_of_int visited) ]
   in
-  Steps.add s (Steps.state ~label:(name ^ " t") [ ("t", tree); ("visited", Steps.list string_of_int []) ]);
+  Steps.add s (Steps.state ~label:(name ^ " t: nothing visited yet") [ ("t", tree); ("visited", Steps.list string_of_int []) ]);
   let seq = order t in
   List.iteri
     (fun i v ->
@@ -125,9 +163,9 @@ let traversal_steps name t =
             | _ -> None)
           orders
         |> List.sort_uniq (fun (a, _) (b, _) -> compare a b)
-        |> List.map (fun (w, why) -> (why, st (Printf.sprintf "visit %d" w) (here w) (before @ [ w ])))
+        |> List.map (fun (w, why) -> (why, st w (here w) (before @ [ w ])))
       in
-      Steps.add s ~choices:wrong (st (Printf.sprintf "visit %d" v) (here v) (before @ [ v ])))
+      Steps.add s ~choices:wrong (st v (here v) (before @ [ v ])))
     seq;
   s
 
