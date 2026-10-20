@@ -28,10 +28,20 @@
 
 let show l = "[" ^ String.concat "; " (List.map string_of_int l) ^ "]"
 
+(* The code the reader sees; [line xs] is the line that runs next. *)
+let rev_code = {|let rec go acc xs =
+  match xs with
+  | [] -&gt; acc
+  | x :: rest -&gt; go (x :: acc) rest
+
+let rev l = go [] l|}
+
+let line xs = if xs = [] then 3 else 4
+
 let rev_steps l =
   let t = Steps.create () in
   let st label xs acc =
-    Steps.state ~label ~highlight:[ Steps.list string_of_int acc ]
+    Steps.state ~label ~line:(line xs) ~highlight:[ Steps.list string_of_int acc ]
       [ ("l", Steps.list string_of_int l); ("xs", Steps.list string_of_int xs);
         ("acc", Steps.list string_of_int acc) ]
   in
@@ -62,7 +72,7 @@ let rev_steps l =
     (Steps.state ~label:("= " ^ show r) [ ("result", Steps.list string_of_int r) ]);
   t
 
-let () = Steps.show ~title:"rev [1; 2; 3; 4]" (rev_steps [ 1; 2; 3; 4 ])</x-ocaml>
+let () = Steps.show ~title:"rev [1; 2; 3; 4]" ~code:rev_code (rev_steps [ 1; 2; 3; 4 ])</x-ocaml>
 
   <h2>Traversing a tree: preorder, inorder, postorder</h2>
   <p>The node being visited is marked, and <code>here</code> points to
@@ -81,6 +91,11 @@ let rec find v = function
   | Lf -> None
   | Br (w, l, r) as t -> if v = w then Some t else (match find v l with Some t -> Some t | None -> find v r)
 
+let code_of = function
+  | "preorder" -&gt; "let rec preorder = function\n  | Lf -&gt; []\n  | Br (v, l, r) -&gt; (v :: preorder l) @ preorder r"
+  | "inorder" -&gt; "let rec inorder = function\n  | Lf -&gt; []\n  | Br (v, l, r) -&gt; inorder l @ (v :: inorder r)"
+  | _ -&gt; "let rec postorder = function\n  | Lf -&gt; []\n  | Br (v, l, r) -&gt; postorder l @ postorder r @ [ v ]"
+
 let orders =
   [ ("preorder", preorder, "That is preorder: a node comes before its subtrees.");
     ("inorder", inorder, "That is inorder: the left subtree comes before the node.");
@@ -92,7 +107,7 @@ let traversal_steps name t =
   let tree = Steps.tree string_of_int view t in
   let st label here visited =
     let here_v = Steps.tree string_of_int view here in
-    Steps.state ~label ~highlight:[ here_v ]
+    Steps.state ~label ~line:3 ~highlight:[ here_v ]
       [ ("t", tree); ("here", here_v); ("visited", Steps.list string_of_int visited) ]
   in
   Steps.add s (Steps.state ~label:(name ^ " t") [ ("t", tree); ("visited", Steps.list string_of_int []) ]);
@@ -121,7 +136,7 @@ let t = Br (4, Br (2, Br (1, Lf, Lf), Br (3, Lf, Lf)), Br (6, Br (5, Lf, Lf), Lf
 let () =
   List.iter
     (fun (name, _, _) ->
-      Steps.show ~title:name ~ask:6 (traversal_steps name t))
+      Steps.show ~title:name ~code:(code_of name) ~ask:6 (traversal_steps name t))
     orders</x-ocaml>
 
   <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"></script>

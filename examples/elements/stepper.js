@@ -7,6 +7,7 @@
 //
 //   { "id": "rev-steps",            -- optional: the element's id, for scripts
 //     "title": "rev [1; 2; 3]",
+//     "code": "let rec go acc xs = ...",  -- optional: shown beside the diagram
 //     "mode": "predict" | "lecture",  -- lecture: nothing is asked
 //     "ask": 2,                       -- predict: ask before the first 2 steps,
 //                                     --   then only before the last
@@ -16,6 +17,7 @@
 // and a state is
 //
 //   { "label": "go [2; 3] [1]",       -- the expression, or what happened
+//     "line": 4,                      -- optional: the line of code that runs next
 //     "note": "...",                  -- optional
 //     "roots": [ { "name": "xs", "to": "n2" },      -- an arrow to a node
 //                { "name": "n", "text": "3" } ],    -- a plain value
@@ -47,6 +49,14 @@
     .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
     .title { font-weight: 600; }
     .count { color: #868e96; font-variant-numeric: tabular-nums; margin-left: auto; }
+    .body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 16px; align-items: start; }
+    .body.with-code { grid-template-columns: max-content minmax(0, 1fr); }
+    @media (max-width: 640px) { .body.with-code { grid-template-columns: minmax(0, 1fr); } }
+    .code { margin: 6px 0 0; padding: 6px 0; font: 13px/1.55 ui-monospace, Menlo, monospace; background: var(--xs-soft); border-radius: 6px; overflow-x: auto; }
+    .code[hidden] { display: none; }
+    .code .ln { display: block; padding: 0 10px 0 6px; border-left: 3px solid transparent; white-space: pre; }
+    .code .ln .no { color: #adb5bd; display: inline-block; width: 1.8em; user-select: none; }
+    .code .ln.now { background: #fff3bf; border-left-color: var(--xs-accent); }
     .label { font-family: ui-monospace, Menlo, monospace; margin: 6px 0 2px; min-height: 1.4em; }
     .note { color: #495057; min-height: 1.4em; }
     svg { display: block; max-width: 100%; height: auto; overflow: visible; }
@@ -290,9 +300,14 @@
       this._root.innerHTML = `<style>${css}</style>
         <div class="frame">
           <div class="head"><span class="title"></span><span class="count" aria-live="polite"></span></div>
-          <div class="label"></div>
-          <svg class="main" role="img"></svg>
-          <div class="note"></div>
+          <div class="body">
+            <pre class="code" hidden></pre>
+            <div class="state">
+              <div class="label"></div>
+              <svg class="main" role="img"></svg>
+              <div class="note"></div>
+            </div>
+          </div>
           <div class="ask" hidden>
             <div class="prompt">What comes next?</div>
             <div class="options"></div>
@@ -306,6 +321,7 @@
         </div>`;
       const $ = (s) => this._root.querySelector(s);
       this._ui = { title: $('.title'), count: $('.count'), label: $('.label'), svg: $('svg.main'),
+        code: $('.code'), body: $('.body'),
         note: $('.note'), ask: $('.ask'), options: $('.options'), feedback: $('.feedback'),
         first: $('.first'), back: $('.back'), next: $('.next') };
       this._ui.first.onclick = () => this.reset();
@@ -324,6 +340,7 @@
       this._d = d;
       if (d.id) this.id = d.id;
       this._steps = d.steps || [];
+      this._renderCode(d.code);
       this._mode = this.getAttribute('mode') || d.mode || 'predict';
       this._i = 0;
       this._asking = null;
@@ -433,6 +450,27 @@
       this._changed();
     }
 
+    _renderCode(code) {
+      const ui = this._ui;
+      ui.code.textContent = '';
+      ui.code.hidden = !code;
+      ui.body.classList.toggle('with-code', !!code);
+      if (!code) return;
+      code.replace(/\n+$/, '').split('\n').forEach((text, i) => {
+        const ln = document.createElement('span');
+        ln.className = 'ln';
+        const no = document.createElement('span');
+        no.className = 'no';
+        no.textContent = i + 1;
+        ln.append(no, text || ' ');
+        ui.code.appendChild(ln);
+      });
+    }
+
+    _markLine(line) {
+      this._ui.code.querySelectorAll('.ln').forEach((ln, i) => ln.classList.toggle('now', i + 1 === line));
+    }
+
     _show(keep, keepAsk) {
       const ui = this._ui;
       const s = this._steps[this._i];
@@ -443,6 +481,7 @@
       ui.count.textContent = `${this._i + 1} / ${this._steps.length}`;
       ui.svg.setAttribute('aria-label', s.label || 'state ' + (this._i + 1));
       draw(ui.svg, s, keep);
+      this._markLine(s.line);
       this._updateControls();
     }
 

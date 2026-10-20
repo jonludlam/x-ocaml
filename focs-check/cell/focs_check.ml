@@ -270,6 +270,7 @@ module Steps = struct
   type state = {
     label : string option;
     note : string option;
+    line : int option;
     roots : (string * root) list;
     nodes : (string * node) list;
     highlight : string list;
@@ -277,7 +278,7 @@ module Steps = struct
 
   let text s = Text s
 
-  let state ?label ?note ?(highlight = []) named =
+  let state ?label ?note ?line ?(highlight = []) named =
     let nodes = ref [] in
     let add id node = if not (List.mem_assoc id !nodes) then nodes := (id, node) :: !nodes in
     let ignore_nodes _ _ = () in
@@ -294,7 +295,7 @@ module Steps = struct
         (function Text _ -> None | Walk walk -> walk ignore_nodes)
         highlight
     in
-    { label; note; roots; nodes = List.rev !nodes; highlight }
+    { label; note; line; roots; nodes = List.rev !nodes; highlight }
 
   type t = (state * (string * state) list) list ref
 
@@ -334,6 +335,7 @@ module Steps = struct
          [
            Option.to_list (Option.map (fun l -> ("label", str l)) s.label);
            Option.to_list (Option.map (fun l -> ("note", str l)) s.note);
+           Option.to_list (Option.map (fun l -> ("line", string_of_int l)) s.line);
            [
              ("roots", arr (List.map root s.roots));
              ("nodes", obj (List.map (fun (id, n) -> (id, node n)) s.nodes));
@@ -350,12 +352,13 @@ module Steps = struct
               ]);
          ])
 
-  let json ?id ?title ?(mode = "predict") ?(ask = 2) t =
+  let json ?id ?title ?code ?(mode = "predict") ?(ask = 2) t =
     obj
       (List.concat
          [
            Option.to_list (Option.map (fun i -> ("id", str i)) id);
            Option.to_list (Option.map (fun i -> ("title", str i)) title);
+           Option.to_list (Option.map (fun c -> ("code", str c)) code);
            [
              ("mode", str mode);
              ("ask", string_of_int ask);
@@ -363,9 +366,9 @@ module Steps = struct
            ];
          ])
 
-  let show ?(src = "examples/elements/stepper.js") ?id ?title ?mode ?ask t =
+  let show ?(src = "examples/elements/stepper.js") ?id ?title ?code ?mode ?ask t =
     X_ocaml_lib.require ~tag:"x-stepper" ~src;
-    ignore (X_ocaml_lib.display ~tag:"x-stepper" (json ?id ?title ?mode ?ask t))
+    ignore (X_ocaml_lib.display ~tag:"x-stepper" (json ?id ?title ?code ?mode ?ask t))
 end
 
 (* Examples first *)

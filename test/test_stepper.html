@@ -23,7 +23,8 @@ let show l = "[" ^ String.concat "; " (List.map string_of_int l) ^ "]"
 let rev_steps l =
   let t = Steps.create () in
   let st ?note label xs acc =
-    Steps.state ?note ~label ~highlight:[ Steps.list string_of_int acc ]
+    Steps.state ?note ~label ~line:(if xs = [] then 3 else 4)
+      ~highlight:[ Steps.list string_of_int acc ]
       [ ("l", Steps.list string_of_int l); ("xs", Steps.list string_of_int xs);
         ("acc", Steps.list string_of_int acc) ]
   in
@@ -56,7 +57,10 @@ let rev_steps l =
        [ ("result", Steps.list string_of_int r) ]);
   t
 
-let () = Steps.show ~id:"rev-steps" ~title:"rev, with an accumulator" (rev_steps [ 1; 2; 3 ])</x-ocaml>
+let code = "let rec go acc xs =\n  match xs with\n  | [] -&gt; acc\n  | x :: rest -&gt; go (x :: acc) rest"
+
+let () =
+  Steps.show ~id:"rev-steps" ~title:"rev, with an accumulator" ~code (rev_steps [ 1; 2; 3 ])</x-ocaml>
   </section>
 
   <section class="case" data-case="P2">
@@ -104,6 +108,10 @@ let () = Steps.show ~id:"pre-steps" ~mode:"lecture" ~title:"preorder" (preorder_
       const rev = stepper('rev-steps');
       check('P1: it starts at the first state', rev.index === 0 && sh('rev-steps').querySelector('.label').textContent === 'rev [1; 2; 3] = go [1; 2; 3] []');
       check('P1: l and xs are one list, drawn once', nodesShown('rev-steps') === 3);
+      const marked = () => [...sh('rev-steps').querySelectorAll('.code .ln')].map((l, i) => l.classList.contains('now') ? i + 1 : 0).filter((n) => n);
+      check('P1: the code is shown beside the diagram, its four lines',
+        !sh('rev-steps').querySelector('.code').hidden && sh('rev-steps').querySelectorAll('.code .ln').length === 4);
+      check('P1: and the line that runs next is marked', marked().join() === '4');
       rev.step();
       check('P1: in predict mode, stepping asks first', rev.asking && rev.index === 0);
       const options = [...sh('rev-steps').querySelectorAll('.option')];
@@ -127,6 +135,7 @@ let () = Steps.show ~id:"pre-steps" ~mode:"lecture" ~title:"preorder" (preorder_
       check('P1: and a second step() reveals it', rev.index === 4 && !rev.asking);
       rev.back();
       check('P1: back() undoes a step', rev.index === 3);
+      check('P1: with xs empty, the [] case is the line marked', marked().join() === '3');
 
       check('P2: the traversal is shown', await waitFor(() => stepper('pre-steps') && stepper('pre-steps').length === 7, 30000));
       const pre = stepper('pre-steps');
