@@ -29,12 +29,12 @@
 let show l = "[" ^ String.concat "; " (List.map string_of_int l) ^ "]"
 
 (* The code the reader sees; [line xs] is the line that runs next. *)
-let rev_code = {|let rec go acc xs =
+let rev_code = {|let rec go xs acc =
   match xs with
   | [] -&gt; acc
-  | x :: rest -&gt; go (x :: acc) rest
+  | x :: rest -&gt; go rest (x :: acc)
 
-let rev l = go [] l|}
+let rev l = go l []|}
 
 let line xs = if xs = [] then 3 else 4
 
@@ -47,7 +47,7 @@ let rev_steps l =
   in
   let go_label xs acc = Printf.sprintf "go %s %s" (show xs) (show acc) in
   Steps.add t (st ("rev " ^ show l ^ " = " ^ go_label l []) l []);
-  let rec go acc xs =
+  let rec go xs acc =
     match xs with
     | [] -> acc
     | x :: rest ->
@@ -62,9 +62,9 @@ let rev_steps l =
           |> List.map (fun (why, a) -> (why, st (go_label rest a) rest a))
         in
         Steps.add t ~choices:wrong (st (go_label rest acc') rest acc');
-        go acc' rest
+        go rest acc'
   in
-  let r = go [] l in
+  let r = go l [] in
   Steps.add t
     ~choices:[ ("go returns the accumulator, which holds the elements in the \
                  reverse of the order they were met.",
