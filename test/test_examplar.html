@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>x-ocaml: examples first</title>
+  <link rel="stylesheet" href="test.css">
+  <script src="lib.js"></script>
+  <style>iframe { width: 100%; height: 70vh; border: 1px solid #ccc; }</style>
+</head>
+<body>
+<main>
+  <p class="lede">The Examplar example, examples/examplar.html, in a frame:
+    a reader's examples of last, butlast and nth, checked against hidden
+    correct and wrong versions (tick 2's chaffs), with "caught N of M".</p>
+
+  <section class="case" data-case="E1">
+    <h2>The examples the page starts with catch some</h2>
+  </section>
+  <section class="case" data-case="E2">
+    <h2>An example a correct version disagrees with is said to be wrong</h2>
+  </section>
+  <section class="case" data-case="E3">
+    <h2>Better examples catch them all, and the test passes</h2>
+  </section>
+  <iframe id="page" src="/examples/examplar.html"></iframe>
+</main>
+  <script>
+    const doc = () => document.getElementById('page').contentDocument;
+    const fshadow = (id) => doc().getElementById(id).shadowRoot;
+    const fout = (id) => [...fshadow(id).querySelectorAll('.caml_stdout, .caml_stderr, .caml_meta')].map((e) => e.textContent).join('\n');
+    const fverdict = (id) => { const i = fshadow(id).querySelector('.test-indicator'); return i ? i.textContent : null; };
+    // Replace an exercise's code: delete it all, both ways from the
+    // cursor, then type.
+    function retype(id, text) {
+      const c = fshadow(id).querySelector('.cm-content');
+      const n = [...fshadow(id).querySelectorAll('.cm-line')].map((l) => l.textContent).join('\n').length;
+      c.focus();
+      for (let i = 0; i < n; i++) { doc().execCommand('delete'); doc().execCommand('forwardDelete'); }
+      doc().execCommand('insertText', false, text);
+    }
+    const run = (id) => fshadow(id).querySelector('.run_btn button').click();
+    (async () => {
+      await waitFor(() => doc() && doc().getElementById('nth-test') && fverdict('nth-test'), 90000);
+      check('E1: last\'s starting example catches 2 of 5', fout('last-test').includes('Caught 2 of 5 wrong versions'));
+      check('E1: and says which', fout('last-test').includes('one that returns the first element'));
+      check('E1: and the test fails, until all are caught', fverdict('last-test') === '✗');
+      check('E1: nth\'s and butlast\'s run too', fout('nth-test').includes('of 5 wrong versions') && fout('butlast-test').includes('of 6 wrong versions'));
+
+      retype('last-ex', 'let examples = [ last [ 1; 2; 3 ] = 3; last [] = 0 ]');
+      await sleep(300);
+      run('last-ex');
+      check('E2: last [] = 0 is said to be wrong',
+        await waitFor(() => fout('last-test').includes('last [] = 0: a correct version does not agree'), 20000));
+
+      retype('last-ex', 'let examples = [ last [ 1; 2; 3 ] = 3; last [ 3; 1; 2 ] = 2; last [ 5; 6 ] = 6 ]');
+      await sleep(300);
+      run('last-ex');
+      check('E3: three examples catch all five',
+        await waitFor(() => fout('last-test').includes('Caught 5 of 5'), 20000));
+      check('E3: and the test passes', await waitFor(() => fverdict('last-test') === '✓', 5000));
+      if (window.testResults.failed) console.log(fout('last-test'));
+      done();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Examples first</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <nav><a href="index.html">examples</a></nav>
+  <h1>Examples first</h1>
+
+  <p>Before writing a function, say what it should do, with examples. Each
+    of yours is checked against correct versions of the function, which it
+    must agree with, and against wrong ones, each made from a mistake people
+    really make: a good set of examples tells every wrong version from the
+    right ones. This is <a href="https://cs.brown.edu/~sk/Publications/Papers/Published/wk-examplar/">Examplar</a>'s
+    idea, here for three exercises from the FoCS notes.</p>
+
+  <p>Write your examples as a list of things that should be true. Run the
+    cell (or edit it) and the test under it says how many wrong versions
+    they catch. One example is there to start you off; it catches some, not
+    all.</p>
+
+  <h2>evens: every other element</h2>
+  <p>Notes, exercise 3.3. <code>evens l</code> is the even-numbered elements of <code>l</code>: the 2nd, 4th, 6th and so on, counting the head as the 1st.</p>
+
+  <!-- Hidden: a correct evens, so that the examples run, and the versions they are checked against. -->
+  <x-ocaml mode="hidden">let rec evens = function _ :: x :: xs -&gt; x :: evens xs | _ -&gt; []
+
+let evens_wheats =
+  [ {|let rec evens = function _ :: x :: xs -&gt; x :: evens xs | _ -&gt; []|};
+    {|let evens l =
+  let rec go acc = function _ :: x :: xs -&gt; go (x :: acc) xs | _ -&gt; List.rev acc in
+  go [] l|} ]
+
+let evens_chaffs =
+  [ ("counts from 0, so gives the 1st, 3rd, 5th, ...",
+     {|let rec evens = function x :: _ :: xs -&gt; x :: evens xs | [x] -&gt; [x] | [] -&gt; []|});
+    ("reads even-numbered as even values",
+     {|let evens xs = List.filter (fun x -&gt; x mod 2 = 0) xs|});
+    ("forgets the one-element list",
+     {|let rec evens = function [] -&gt; [] | _ :: x :: xs -&gt; x :: evens xs | [_] -&gt; raise (Match_failure ("", 0, 0))|});
+    ("drops only the first element, then steps by one",
+     {|let rec evens = function _ :: x :: xs -&gt; x :: evens (x :: xs) | _ -&gt; []|});
+    ("uses an accumulator and never reverses it",
+     {|let evens l =
+  let rec go acc = function _ :: x :: xs -&gt; go (x :: acc) xs | _ -&gt; acc in
+  go [] l|}) ]</x-ocaml>
+
+  <x-ocaml id="evens-ex" mode="exercise" data-id="evens-examples">let examples = [ evens [ 1; 2; 3; 4 ] = [ 2; 4 ] ]</x-ocaml>
+  <x-ocaml id="evens-test" mode="test" data-for="evens-examples">let r = Focs_check.examplar ~wheats:evens_wheats ~chaffs:evens_chaffs "evens-examples"
+let () = assert (r.invalid = 0 &amp;&amp; r.caught = r.chaffs)</x-ocaml>
+
+  <h2>tails: every tail of a list</h2>
+  <p>Notes, exercise 3.5. <code>tails l</code> is the list of all of <code>l</code>'s tails, longest first. <code>[]</code> is a tail too: <code>tails [1; 2]</code> is <code>[[1; 2]; [2]; []]</code>.</p>
+
+  <!-- Hidden: a correct tails, so that the examples run, and the versions they are checked against. -->
+  <x-ocaml mode="hidden">let rec tails = function [] -&gt; [ [] ] | _ :: xs as l -&gt; l :: tails xs
+
+let tails_wheats =
+  [ {|let rec tails = function [] -&gt; [ [] ] | _ :: xs as l -&gt; l :: tails xs|};
+    {|let tails l =
+  let rec go acc = function [] -&gt; List.rev ([] :: acc) | _ :: xs as l -&gt; go (l :: acc) xs in
+  go [] l|} ]
+
+let tails_chaffs =
+  [ ("leaves out the empty tail",
+     {|let rec tails = function [] -&gt; [] | _ :: xs as l -&gt; l :: tails xs|});
+    ("stops at a one-element list, and fails on []",
+     {|let rec tails = function [x] -&gt; [ [x] ] | _ :: xs as l -&gt; l :: tails xs | [] -&gt; raise (Match_failure ("", 0, 0))|});
+    ("leaves out the whole list",
+     {|let rec tails = function [] -&gt; [ [] ] | _ :: xs -&gt; xs :: tails xs|});
+    ("gives them shortest first",
+     {|let tails l =
+  let rec go acc = function [] -&gt; [] :: acc | _ :: xs as l -&gt; go (l :: acc) xs in
+  go [] l|});
+    ("gives the prefixes instead",
+     {|let rec tails = function [] -&gt; [ [] ] | x :: xs -&gt; [] :: List.map (fun p -&gt; x :: p) (tails xs)|}) ]</x-ocaml>
+
+  <x-ocaml id="tails-ex" mode="exercise" data-id="tails-examples">let examples = [ tails [ 1 ] = [ [ 1 ]; [] ] ]</x-ocaml>
+  <x-ocaml id="tails-test" mode="test" data-for="tails-examples">let r = Focs_check.examplar ~wheats:tails_wheats ~chaffs:tails_chaffs "tails-examples"
+let () = assert (r.invalid = 0 &amp;&amp; r.caught = r.chaffs)</x-ocaml>
+
+  <h2>split: non-negative and negative</h2>
+  <p>Notes, exercise 4.2. <code>split l</code> is a pair: the non-negative numbers of <code>l</code>, and the negative ones, each in the order they came in <code>l</code>.</p>
+
+  <!-- Hidden: a correct split, so that the examples run, and the versions they are checked against. -->
+  <x-ocaml mode="hidden">let rec split = function
+  | [] -&gt; ([], [])
+  | x :: xs -&gt; let ps, ns = split xs in if x &gt;= 0 then (x :: ps, ns) else (ps, x :: ns)
+
+let split_wheats =
+  [ {|let rec split = function
+  | [] -&gt; ([], [])
+  | x :: xs -&gt; let ps, ns = split xs in if x &gt;= 0 then (x :: ps, ns) else (ps, x :: ns)|};
+    {|let split l = (List.filter (fun x -&gt; x &gt;= 0) l, List.filter (fun x -&gt; x &lt; 0) l)|} ]
+
+let split_chaffs =
+  [ ("puts 0 with the negatives",
+     {|let split l = (List.filter (fun x -&gt; x &gt; 0) l, List.filter (fun x -&gt; x &lt;= 0) l)|});
+    ("gives the negatives first",
+     {|let split l = (List.filter (fun x -&gt; x &lt; 0) l, List.filter (fun x -&gt; x &gt;= 0) l)|});
+    ("loses the negatives",
+     {|let split l = (List.filter (fun x -&gt; x &gt;= 0) l, [])|});
+    ("decides from the head, and puts the whole list on that side",
+     {|let split = function [] -&gt; ([], []) | x :: _ as l -&gt; if x &gt;= 0 then (l, []) else ([], l)|});
+    ("uses two accumulators and never reverses them",
+     {|let split l =
+  let rec go ps ns = function
+    | [] -&gt; (ps, ns)
+    | x :: xs -&gt; if x &gt;= 0 then go (x :: ps) ns xs else go ps (x :: ns) xs
+  in
+  go [] [] l|}) ]</x-ocaml>
+
+  <x-ocaml id="split-ex" mode="exercise" data-id="split-examples">let examples = [ split [ 1; -2 ] = ([ 1 ], [ -2 ]) ]</x-ocaml>
+  <x-ocaml id="split-test" mode="test" data-for="split-examples">let r = Focs_check.examplar ~wheats:split_wheats ~chaffs:split_chaffs "split-examples"
+let () = assert (r.invalid = 0 &amp;&amp; r.caught = r.chaffs)</x-ocaml>
+
+  <script src="../x-ocaml.js" src-worker="../x-ocaml.worker.js"></script>
+</body>
+</html>
