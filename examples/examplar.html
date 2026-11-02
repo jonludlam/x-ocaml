@@ -77,7 +77,7 @@ let tails_chaffs =
     ("gives the prefixes instead",
      {|let rec tails = function [] -&gt; [ [] ] | x :: xs -&gt; [] :: List.map (fun p -&gt; x :: p) (tails xs)|}) ]</x-ocaml>
 
-  <x-ocaml id="tails-ex" mode="exercise" data-id="tails-examples">let examples = [ tails [ 1 ] = [ [ 1 ]; [] ] ]</x-ocaml>
+  <x-ocaml id="tails-ex" mode="exercise" data-id="tails-examples">let examples = [ tails [] = [ [] ] ]</x-ocaml>
   <x-ocaml id="tails-test" mode="test" data-for="tails-examples">let r = Focs_check.examplar ~wheats:tails_wheats ~chaffs:tails_chaffs "tails-examples"
 let () = assert (r.invalid = 0 &amp;&amp; r.caught = r.chaffs)</x-ocaml>
 
