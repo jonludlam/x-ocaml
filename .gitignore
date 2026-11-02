@@ -14,3 +14,7 @@
 
 _build/
 x-ocaml*.js
+
+# Generated from the private T9 tick (focs-assignments, branch t9): never commit.
+examples/t9.html
+examples/t9-solved.html

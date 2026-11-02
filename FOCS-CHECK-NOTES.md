@@ -196,9 +196,10 @@ checks, 5 Examplar, all pass. In the browser, `test/test_focs_check.html`
 ## B5. Examples first (Examplar)
 
 `examples/examplar.html`, checked by `test/test_examplar.html` in a frame
-(8 checks, pass). Three questions (last, butlast, nth) with tick 2's wheats
-and chaffs copied from `~/devel/focs/chaffs/tick2/*.ml` (the other agent's
-work, read from its working tree). A hidden cell defines a correct version
+(8 checks, pass). Three questions from the notes (evens 3.3, tails 3.5,
+split 4.2), with wheats and chaffs from focs-slipshow's
+`exercises/lecture3-4/`. (It began with tick 2's last, butlast and nth, but
+a public page can't hold a tick's answers.) A hidden cell defines a correct version
 (so that the reader's examples run in their cell and show `true`/`false`)
 and the wheats and chaffs as source strings; the reader writes
 `let examples = [ last [ 1; 2; 3 ] = 3 ]`; the test calls

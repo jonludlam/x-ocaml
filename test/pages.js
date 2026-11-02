@@ -44,8 +44,6 @@ exports.EXAMPLES = [
   ['/examples/widgets.html', 'Widgets: a counter, inputs, SVG, a list and a managed canvas'],
   ['/examples/ui.html', 'A widget toolkit: controls, linking, interact, plots, tables'],
   ['/examples/focs-demos.html', 'FoCS: checked exercises, tail calls, growth, bans, breaking inputs'],
-  ['/examples/t9.html', 'FoCS: predictive text (T9), a tick in five checked parts'],
-  ['/examples/t9-solved.html', 'FoCS: predictive text, solved: every test passes'],
   ['/examples/examplar.html', 'Examples first: examples checked against hidden correct and wrong versions'],
   ['/examples/predict.html', 'Predict the next step: rev with an accumulator, tree traversals'],
   ['/examples/ui-demos.html', 'Things made with widgets: Life, Mandelbrot, curve fitting, Snake, a kaleidoscope'],
