@@ -10,8 +10,9 @@
 <body>
 <main>
   <p class="lede">The Examplar example, examples/examplar.html, in a frame:
-    a reader's examples of last, butlast and nth, checked against hidden
-    correct and wrong versions (tick 2's chaffs), with "caught N of M".</p>
+    a reader's examples of evens, tails and split (notes exercises 3.3, 3.5
+    and 4.2), checked against hidden correct and wrong versions, with
+    "caught N of M".</p>
 
   <section class="case" data-case="E1">
     <h2>The examples the page starts with catch some</h2>
@@ -40,25 +41,25 @@
     }
     const run = (id) => fshadow(id).querySelector('.run_btn button').click();
     (async () => {
-      await waitFor(() => doc() && doc().getElementById('nth-test') && fverdict('nth-test'), 90000);
-      check('E1: last\'s starting example catches 2 of 5', fout('last-test').includes('Caught 2 of 5 wrong versions'));
-      check('E1: and says which', fout('last-test').includes('one that returns the first element'));
-      check('E1: and the test fails, until all are caught', fverdict('last-test') === '✗');
-      check('E1: nth\'s and butlast\'s run too', fout('nth-test').includes('of 5 wrong versions') && fout('butlast-test').includes('of 6 wrong versions'));
+      await waitFor(() => doc() && doc().getElementById('split-test') && fverdict('split-test'), 90000);
+      check('E1: evens\'s starting example catches 3 of 5', fout('evens-test').includes('Caught 3 of 5 wrong versions'));
+      check('E1: and says which', fout('evens-test').includes('one that counts from 0'));
+      check('E1: and the test fails, until all are caught', fverdict('evens-test') === '✗');
+      check('E1: tails\'s and split\'s run too', fout('tails-test').includes('of 5 wrong versions') && fout('split-test').includes('of 5 wrong versions'));
 
-      retype('last-ex', 'let examples = [ last [ 1; 2; 3 ] = 3; last [] = 0 ]');
+      retype('evens-ex', 'let examples = [ evens [ 1; 2; 3; 4 ] = [ 2; 4 ]; evens [ 1 ] = [ 1 ] ]');
       await sleep(300);
-      run('last-ex');
-      check('E2: last [] = 0 is said to be wrong',
-        await waitFor(() => fout('last-test').includes('last [] = 0: a correct version does not agree'), 20000));
+      run('evens-ex');
+      check('E2: evens [ 1 ] = [ 1 ] is said to be wrong',
+        await waitFor(() => fout('evens-test').includes('evens [ 1 ] = [ 1 ]: a correct version does not agree'), 20000));
 
-      retype('last-ex', 'let examples = [ last [ 1; 2; 3 ] = 3; last [ 3; 1; 2 ] = 2; last [ 5; 6 ] = 6 ]');
+      retype('evens-ex', 'let examples = [ evens [ 1; 2; 3; 4 ] = [ 2; 4 ]; evens [ 1; 2; 3 ] = [ 2 ]; evens [ 3; 5; 7; 9 ] = [ 5; 9 ] ]');
       await sleep(300);
-      run('last-ex');
+      run('evens-ex');
       check('E3: three examples catch all five',
-        await waitFor(() => fout('last-test').includes('Caught 5 of 5'), 20000));
-      check('E3: and the test passes', await waitFor(() => fverdict('last-test') === '✓', 5000));
-      if (window.testResults.failed) console.log(fout('last-test'));
+        await waitFor(() => fout('evens-test').includes('Caught 5 of 5'), 20000));
+      check('E3: and the test passes', await waitFor(() => fverdict('evens-test') === '✓', 5000));
+      if (window.testResults.failed) console.log(fout('evens-test'));
       done();
     })();
   </script>
